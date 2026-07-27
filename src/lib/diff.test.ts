@@ -107,4 +107,44 @@ describe('diffBoards', () => {
 
     expect(diffBoards(previous, current)).toEqual([]);
   });
+
+  it('does not report platform or delay changes for a service cancelled in both boards', () => {
+    const previous = board([
+      service({
+        id: 'S1',
+        cancelled: true,
+        platform: { number: '3', state: 'confirmed' },
+        expectedTime: '2025-01-01T10:00:00Z',
+      }),
+    ]);
+    const current = board([
+      service({
+        id: 'S1',
+        cancelled: true,
+        platform: { number: '9', state: 'confirmed' },
+        expectedTime: '2025-01-01T10:42:00Z',
+      }),
+    ]);
+
+    expect(diffBoards(previous, current)).toEqual([]);
+  });
+
+  it('does not report a change when a cancelled service is reinstated', () => {
+    const previous = board([
+      service({
+        id: 'S1',
+        cancelled: true,
+        platform: { number: '3', state: 'provisional' },
+      }),
+    ]);
+    const current = board([
+      service({
+        id: 'S1',
+        cancelled: false,
+        platform: { number: '5', state: 'confirmed' },
+      }),
+    ]);
+
+    expect(diffBoards(previous, current)).toEqual([]);
+  });
 });

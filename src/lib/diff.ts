@@ -23,6 +23,13 @@ export function diffBoards(previous: Board, current: Board): MeaningfulChange[] 
       continue;
     }
 
+    // A service cancelled on either side contributes no further meaningful
+    // changes: cancelled in both -> platform/time are irrelevant; reinstated
+    // (prev cancelled, curr not) -> unspecified by ADR-0002, treated as no change.
+    if (prev.cancelled || curr.cancelled) {
+      continue;
+    }
+
     if (!platformEquals(prev.platform, curr.platform)) {
       changes.push({
         type: 'platform-change',
