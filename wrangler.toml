@@ -1,0 +1,19 @@
+# Cloudflare Worker — live board proxy (ADR-0003 / ADR-0004).
+# Proxies Real-Time Trains with a 30s per-station cache + stale-while-error,
+# keeping the bearer token server-side (RTT forbids client-side tokens).
+#
+# Deploy:     npm run worker:deploy
+# Local dev:  npm run worker:dev   (put RTT_TOKEN in worker/.dev.vars)
+
+name = "trains-api"
+main = "worker/entry.ts"
+compatibility_date = "2026-07-27"
+
+# Non-secret configuration. The bearer token is a secret, set with:
+#   wrangler secret put RTT_TOKEN
+[vars]
+TIME_WINDOW = "120"   # minutes of board fetched per RTT call
+TTL_SEC = "30"        # per-station cache freshness (ADR-0003)
+RTT_API_BASE = "https://data.rtt.io"
+# Pin the NG API version once confirmed against a real token (research/rtt-api.md sec 6):
+# RTT_API_VERSION = "2026-04-09"

@@ -39,7 +39,19 @@ export interface Board {
 }
 
 /**
- * A change between two boards worth announcing to a screen-reader user (ADR-0002).
+ * Wire format between the Cloudflare Worker proxy and the client.
+ * Carries the stale-while-error signal (ADR-0003): `asAt` drives the "last
+ * updated" timestamp; `stale` is true when cached data is served because the
+ * upstream fetch failed.
+ */
+export interface BoardResponse {
+  board: Board;
+  asAt: number;
+  stale: boolean;
+}
+
+/**
+ * A change between two boards worth announcing to a screen-reader user (ADR-0002);
  * Routine churn (a service departed and left the list; expected time drifted < 5 min;
  * a new service scrolled into the next-12 window) is NOT a meaningful change.
  */
