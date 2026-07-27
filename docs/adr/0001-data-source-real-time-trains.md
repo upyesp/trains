@@ -1,6 +1,8 @@
-# Data source: Real-Time Trains (api.rtt.io)
+# Data source: Real-Time Trains (RTT)
 
-We use Real-Time Trains (RTT, `api.rtt.io`) as the upstream data source for live UK mainline departure/arrival boards. We picked RTT over the authoritative National Rail Darwin / LDBWS API for its richer, higher-fidelity real-time data, after weighing the licensing trade-off (see below) and choosing to carry it.
+> **Status — partially superseded by ADR-0004.** The *choice* of RTT over LDBWS and the commitments below remain in force. Only the *technical specifics* are superseded: RTT now exposes its next-generation API at `https://data.rtt.io` with Bearer-token auth, and the legacy `api.rtt.io` portal decommissions end-of-Sept-2026. See [ADR-0004](0004-rtt-ng-api-data-rtt-io-bearer.md) and `docs/research/rtt-api.md`.
+
+We use Real-Time Trains (RTT) as the upstream data source for live UK mainline departure/arrival boards. We picked RTT over the authoritative National Rail Darwin / LDBWS API for its richer, higher-fidelity real-time data, after weighing the licensing trade-off (see below) and choosing to carry it.
 
 ## Considered Options
 
