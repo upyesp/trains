@@ -94,6 +94,19 @@ describe('diffBoards', () => {
     expect(diffBoards(previous, current)).toEqual([]);
   });
 
+  it('reports a delay at exactly the 5-minute threshold (boundary)', () => {
+    const previous = board([
+      service({ id: 'S1', expectedTime: '2025-01-01T10:00:00Z' }),
+    ]);
+    const current = board([
+      service({ id: 'S1', expectedTime: '2025-01-01T10:05:00Z' }),
+    ]);
+
+    expect(diffBoards(previous, current)).toEqual([
+      { type: 'delay', serviceId: 'S1', minutesSwing: 5 },
+    ]);
+  });
+
   it('does not report a change when a service departs and leaves the board', () => {
     const previous = board([service({ id: 'S1' })]);
     const current = board([]);
