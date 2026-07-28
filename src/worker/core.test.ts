@@ -152,12 +152,12 @@ describe('serveBoard', () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ board: board(), asAt: 1000, stale: false });
     expect(ff.calls()).toBe(1);
-    expect(await cache.get('board:WAT:departures')).toEqual({ board: board(), asAt: 1000 });
+    expect(await cache.get('board:WAT:departures:-')).toEqual({ board: board(), asAt: 1000 });
   });
 
   it('serves a fresh cache hit without calling RTT, preserving the original timestamp', async () => {
     const cache = createMemoryCacheStore();
-    await cache.set('board:WAT:departures', { board: board(), asAt: 1000 });
+    await cache.set('board:WAT:departures:-', { board: board(), asAt: 1000 });
     const ff = okFetch(board());
     const res = await serveBoard(
       { method: 'GET', pathname: '/board/WAT', search: {}, origin: ORIGIN },
@@ -170,7 +170,7 @@ describe('serveBoard', () => {
 
   it('refetches once the cache is older than the TTL', async () => {
     const cache = createMemoryCacheStore();
-    await cache.set('board:WAT:departures', { board: board(), asAt: 1000 });
+    await cache.set('board:WAT:departures:-', { board: board(), asAt: 1000 });
     const ff = okFetch(board());
     // age = 40000ms > 30s TTL
     await serveBoard(
@@ -183,7 +183,7 @@ describe('serveBoard', () => {
   it('serves stale (flagged) with the original timestamp when upstream fails', async () => {
     const cache = createMemoryCacheStore();
     const cached = board();
-    await cache.set('board:WAT:departures', { board: cached, asAt: 1000 });
+    await cache.set('board:WAT:departures:-', { board: cached, asAt: 1000 });
     const ff = failFetch();
     const res = await serveBoard(
       { method: 'GET', pathname: '/board/WAT', search: {}, origin: ORIGIN },
@@ -218,5 +218,34 @@ describe('serveBoard', () => {
     );
     expect(res.status).toBe(200);
     expect(res.headers['access-control-allow-origin']).toBeUndefined();
+  });
+
+  it('returns 400 for a bad callsAt CRS', async () => {
+    const res = await serveBoard(
+      { method: 'GET', pathname: '/board/WAT', search: { callsAt: 'X' }, origin: ORIGIN },
+      { fetchRtt: okFetch(board()).fetch, cache: createMemoryCacheStore(), now: 0, config: cfg },
+    );
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ error: 'bad-calls-at' });
+  });
+
+  it('threads the callsAt filter to the RTT fetcher under a distinct cache key', async () => {
+    const cache = createMemoryCacheStore();
+    const b = board();
+    const seen: Array<{ crs: string; kind: string; callsAt: string | null }> = [];
+    const fetchRtt: FetchRtt = async (ctx) => {
+      seen.push({ crs: ctx.crs, kind: ctx.kind, callsAt: ctx.callsAt });
+      return { ok: true, board: b };
+    };
+    const res = await serveBoard(
+      { method: 'GET', pathname: '/board/WAT', search: { callsAt: 'CLJ' }, origin: ORIGIN },
+      { fetchRtt, cache, now: 1000, config: cfg },
+    );
+    expect(res.status).toBe(200);
+    expect(seen).toEqual([{ crs: 'WAT', kind: 'departures', callsAt: 'CLJ' }]);
+    // A filtered board is cached under its own key, never shadowing the
+    // unfiltered board for the same station under the shared per-station TTL.
+    expect(await cache.get('board:WAT:departures:CLJ')).toEqual({ board: b, asAt: 1000 });
+    expect(await cache.get('board:WAT:departures:-')).toBeNull();
   });
 });

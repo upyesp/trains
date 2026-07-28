@@ -14,7 +14,7 @@ export function parseRttResult(
   status: number,
   body: unknown,
   retryAfterSec: number | null,
-  ctx: { crs: string; kind: BoardKind },
+  ctx: { crs: string; kind: BoardKind; callsAt?: string | null },
 ): RttFetchOutcome {
   if (status === 204) {
     return { ok: true, board: { station: ctx.crs, kind: ctx.kind, services: [] } };

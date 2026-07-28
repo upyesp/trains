@@ -10,7 +10,9 @@ export interface WorkerResponse {
   body: unknown;
 }
 
-export type FetchRtt = (ctx: { crs: string; kind: BoardKind }) => Promise<RttFetchOutcome>;
+export type FetchRtt = (
+  ctx: { crs: string; kind: BoardKind; callsAt: string | null },
+) => Promise<RttFetchOutcome>;
 
 export interface CacheStore {
   get(key: string): Promise<CacheEntry | null>;
@@ -95,12 +97,19 @@ export async function serveBoard(
   const parsed = parseBoardRequest(input.method, input.pathname, input.search);
   if (!parsed.ok) {
     const status =
-      parsed.reason === 'method-not-allowed' ? 405 : parsed.reason === 'bad-kind' ? 400 : 404;
+      parsed.reason === 'method-not-allowed'
+        ? 405
+        : parsed.reason === 'bad-kind' || parsed.reason === 'bad-calls-at'
+          ? 400
+          : 404;
     return json(status, { error: parsed.reason }, cors);
   }
 
-  const { crs, kind } = parsed.request;
-  const cacheKey = `board:${crs}:${kind}`;
+  const { crs, kind, callsAt } = parsed.request;
+  // The "calling at" filter is part of the cache identity: a filtered and an
+  // unfiltered board for the same station are different boards and must not
+  // shadow each other under the shared per-station TTL cache.
+  const cacheKey = `board:${crs}:${kind}:${callsAt ?? '-'}`;
   const cached = await deps.cache.get(cacheKey);
 
   // Fresh cache hit: serve without calling RTT (the 30s cross-request dedup).
@@ -108,7 +117,7 @@ export async function serveBoard(
     return json(200, { board: cached.board, asAt: cached.asAt, stale: false }, cors);
   }
 
-  const fetched = await deps.fetchRtt({ crs, kind });
+  const fetched = await deps.fetchRtt({ crs, kind, callsAt });
   const decision = selectBoardToServe(cached, fetched, deps.now);
 
   if (decision.status === 'unavailable') {

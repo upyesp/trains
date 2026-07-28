@@ -21,6 +21,7 @@ import type {
   Platform,
   Service,
 } from '../lib/types';
+import { initCombobox } from './combobox';
 
 const REFRESH_MS = 30_000;
 const DEFAULT_API = 'https://trains-api.upyesp.workers.dev';
@@ -39,6 +40,7 @@ function esc(s: string): string {
 interface State {
   crs: string;
   kind: BoardKind;
+  callsAt: string | null;
   apiBase: string;
   mock: boolean;
   stationName: string;
@@ -54,6 +56,7 @@ interface Elements {
   clock: HTMLElement;
   tablist: HTMLElement;
   tabs: HTMLButtonElement[];
+  filterInput: HTMLInputElement | null;
 }
 
 // ---- Pure HTML builders (escaped; safe against RTT-provided strings) ----
@@ -119,6 +122,8 @@ function rowHtml(s: Service): string {
 
 const LOADING_ROW = '<li class="board-msg">Loading live board…</li>';
 const EMPTY_ROW = '<li class="board-msg">No services in the next two hours.</li>';
+const FILTERED_EMPTY_ROW =
+  '<li class="board-msg">No services calling at the selected station in the next two hours.</li>';
 const ERROR_ROW = '<li class="board-msg error">Couldn\u2019t load the live board. We\u2019ll keep trying.</li>';
 
 // ---- Announcement phrasing (mirrors diffBoards output) ----
@@ -184,6 +189,12 @@ export function initBoard(root: HTMLElement): void {
   const apiBase = root.dataset.api ?? DEFAULT_API;
   const mock = root.dataset.mock === 'true';
 
+  // "calling at" filter restored from the URL (?callsAt=CLJ) so a saved
+  // favourite re-opens already filtered.
+  const callsParam = new URLSearchParams(window.location.search).get('callsAt');
+  const initialCallsAt =
+    callsParam && /^[A-Za-z]{3}$/.test(callsParam) ? callsParam.toUpperCase() : null;
+
   const body = root.querySelector<HTMLOListElement>('#board-body');
   const asOf = document.getElementById('as-of');
   const staleNote = document.getElementById('stale-note');
@@ -194,14 +205,28 @@ export function initBoard(root: HTMLElement): void {
   if (!body || !asOf || !staleNote || !announcer || !clock || !tablist) return;
 
   const tabs = Array.from(tablist.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
-  const els: Elements = { body, asOf, staleNote, announcer, clock, tablist, tabs };
+  const filterInput = document.getElementById('calls-input') as HTMLInputElement | null;
+  const els: Elements = { body, asOf, staleNote, announcer, clock, tablist, tabs, filterInput };
   const stationName = stationNameEl?.textContent ?? crs;
 
-  const state: State = { crs, kind: initialKind, apiBase, mock, stationName, prev: null, asAtMs: null };
+  const state: State = {
+    crs,
+    kind: initialKind,
+    callsAt: initialCallsAt,
+    apiBase,
+    mock,
+    stationName,
+    prev: null,
+    asAtMs: null,
+  };
 
   function render(board: Board): void {
     els.body.innerHTML =
-      board.services.length === 0 ? EMPTY_ROW : board.services.map(rowHtml).join('');
+      board.services.length === 0
+        ? state.callsAt
+          ? FILTERED_EMPTY_ROW
+          : EMPTY_ROW
+        : board.services.map(rowHtml).join('');
   }
 
   function setAsAt(epochMs: number, stale: boolean): void {
@@ -223,7 +248,9 @@ export function initBoard(root: HTMLElement): void {
 
   async function fetchBoard(kind: BoardKind): Promise<BoardResponse | null> {
     if (state.mock) return mockBoardResponse(state.crs, kind);
-    const url = `${state.apiBase}/board/${encodeURIComponent(state.crs)}?kind=${kind}`;
+    const params = new URLSearchParams({ kind });
+    if (state.callsAt) params.set('callsAt', state.callsAt);
+    const url = `${state.apiBase}/board/${encodeURIComponent(state.crs)}?${params}`;
     try {
       const res = await fetch(url, { headers: { Accept: 'application/json' } });
       if (!res.ok) return null;
@@ -245,6 +272,7 @@ export function initBoard(root: HTMLElement): void {
         syncTabUi();
       }
       render(resp.board);
+      updateBoardLabel();
       setAsAt(resp.asAt, resp.stale);
       state.prev = resp.board;
       announce(messages);
@@ -257,15 +285,23 @@ export function initBoard(root: HTMLElement): void {
     }
   }
 
+  function updateBoardLabel(): void {
+    // The <ol>'s accessible name frames the whole board for screen readers,
+    // including the active "calling at" filter so AT users know it is applied.
+    const verb = state.kind === 'arrivals' ? 'arrivals at' : 'departures from';
+    let label = `Live ${verb} ${state.stationName}`;
+    const fname = els.filterInput?.value.trim();
+    if (state.callsAt && fname) label += ` calling at ${fname}`;
+    els.body.setAttribute('aria-label', label);
+  }
+
   function syncTabUi(): void {
     for (const t of els.tabs) {
       const on = (t.dataset.kind ?? 'departures') === state.kind;
       t.setAttribute('aria-selected', on ? 'true' : 'false');
       t.tabIndex = on ? 0 : -1;
     }
-    // The <ol>'s accessible name frames the whole board for screen readers.
-    const verb = state.kind === 'arrivals' ? 'arrivals at' : 'departures from';
-    els.body.setAttribute('aria-label', `Live ${verb} ${state.stationName}`);
+    updateBoardLabel();
   }
 
   function setupTabs(): void {
@@ -302,6 +338,38 @@ export function initBoard(root: HTMLElement): void {
     });
   }
 
+  function setupFilter(): void {
+    const filterCombo = document.getElementById('combo-filter');
+    if (!(filterCombo instanceof HTMLElement)) return;
+    initCombobox(filterCombo, {
+      selectable: true,
+      initialCrs: state.callsAt,
+      onChoose: (station) => {
+        state.callsAt = station.crs;
+        state.prev = null; // don't diff across a filter change
+        updateUrl();
+        const noun = state.kind === 'arrivals' ? 'Arrivals' : 'Departures';
+        void refresh().then(() =>
+          announce([`${noun} filtered to services calling at ${station.name}.`]),
+        );
+      },
+      onClear: () => {
+        state.callsAt = null;
+        state.prev = null;
+        updateUrl();
+        const noun = state.kind === 'arrivals' ? 'Arrivals' : 'Departures';
+        void refresh().then(() => announce([`${noun} filter cleared.`]));
+      },
+    });
+  }
+
+  function updateUrl(): void {
+    const url = new URL(window.location.href);
+    if (state.callsAt) url.searchParams.set('callsAt', state.callsAt);
+    else url.searchParams.delete('callsAt');
+    window.history.replaceState({}, '', url);
+  }
+
   function setupClock(): void {
     const tick = () => {
       const d = new Date();
@@ -334,6 +402,7 @@ export function initBoard(root: HTMLElement): void {
 
   // boot
   setupTabs();
+  setupFilter();
   syncTabUi();
   setupClock();
   els.body.innerHTML = LOADING_ROW;

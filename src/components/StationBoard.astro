@@ -46,6 +46,29 @@ const mock = import.meta.env.PUBLIC_MOCK === 'true';
   >
 </div>
 
+<div class="board-filters">
+  <div class="combo combo-filter" id="combo-filter">
+    <label for="calls-input">Calling at</label>
+    <span class="combo-field">
+      <input
+        id="calls-input"
+        type="text"
+        role="combobox"
+        aria-expanded="false"
+        aria-controls="calls-list"
+        aria-autocomplete="list"
+        aria-activedescendant=""
+        placeholder="Any station (filter)"
+        autocomplete="off"
+        autocapitalize="off"
+        spellcheck="false"
+      />
+      <button type="button" class="combo-clear" aria-label="Clear calling-at filter" hidden> ✕ </button>
+      <ul id="calls-list" class="combo-list" role="listbox" aria-label="Calling at station" hidden></ul>
+    </span>
+  </div>
+</div>
+
 <section
   id="board"
   class="board-panel"
