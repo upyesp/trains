@@ -5,22 +5,45 @@ describe('parseBoardRequest', () => {
   it('parses GET /board/WAT with the default departures kind', () => {
     expect(parseBoardRequest('GET', '/board/WAT', {})).toEqual({
       ok: true,
-      request: { crs: 'WAT', kind: 'departures' },
+      request: { crs: 'WAT', kind: 'departures', callsAt: null },
     });
   });
 
   it('uppercases the CRS', () => {
     expect(parseBoardRequest('GET', '/board/wat', {})).toEqual({
       ok: true,
-      request: { crs: 'WAT', kind: 'departures' },
+      request: { crs: 'WAT', kind: 'departures', callsAt: null },
     });
   });
 
   it('honours ?kind=arrivals', () => {
     expect(parseBoardRequest('GET', '/board/CLJ', { kind: 'arrivals' })).toEqual({
       ok: true,
-      request: { crs: 'CLJ', kind: 'arrivals' },
+      request: { crs: 'CLJ', kind: 'arrivals', callsAt: null },
     });
+  });
+
+  it('parses a ?callsAt filter CRS, uppercased', () => {
+    expect(parseBoardRequest('GET', '/board/WAT', { callsAt: 'clj' })).toEqual({
+      ok: true,
+      request: { crs: 'WAT', kind: 'departures', callsAt: 'CLJ' },
+    });
+  });
+
+  it('treats an empty callsAt as no filter', () => {
+    expect(parseBoardRequest('GET', '/board/WAT', { callsAt: '' })).toEqual({
+      ok: true,
+      request: { crs: 'WAT', kind: 'departures', callsAt: null },
+    });
+  });
+
+  it('rejects a callsAt that is not exactly 3 letters', () => {
+    expect(parseBoardRequest('GET', '/board/WAT', { callsAt: 'X' })).toEqual({
+      ok: false, reason: 'bad-calls-at' });
+    expect(parseBoardRequest('GET', '/board/WAT', { callsAt: 'WATX' })).toEqual({
+      ok: false, reason: 'bad-calls-at' });
+    expect(parseBoardRequest('GET', '/board/WAT', { callsAt: '123' })).toEqual({
+      ok: false, reason: 'bad-calls-at' });
   });
 
   it('rejects an unknown kind', () => {

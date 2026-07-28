@@ -95,11 +95,21 @@ function makeRttFetcher(env: Env, authStore: AccessTokenStore) {
   // Fetch the board with a given access token; null on network failure.
   const fetchBoardRaw = async (
     accessToken: string,
-    ctx: { crs: string; kind: BoardKind },
+    ctx: { crs: string; kind: BoardKind; callsAt: string | null },
   ): Promise<{ status: number; body: unknown; retryAfterSec: number | null } | null> => {
     const headers: Record<string, string> = { Authorization: `Bearer ${accessToken}` };
     if (version) headers.Version = version;
-    const url = `${apiBase}/gb-nr/location?code=${encodeURIComponent(ctx.crs)}&timeWindow=${timeWindow}`;
+    // The optional "calling at" filter is applied upstream by RTT: departures
+    // keep trains that SUBSEQUENTLY call there (filterTo); arrivals keep trains
+    // that PREVIOUSLY called there (filterFrom). One call either way — RTT knows
+    // the full calling pattern, so this costs no extra requests.
+    const params = new URLSearchParams();
+    params.set('code', ctx.crs);
+    params.set('timeWindow', String(timeWindow));
+    if (ctx.callsAt) {
+      params.set(ctx.kind === 'departures' ? 'filterTo' : 'filterFrom', ctx.callsAt);
+    }
+    const url = `${apiBase}/gb-nr/location?${params.toString()}`;
     try {
       const res = await fetch(url, { headers });
       const retryAfterSec = parseRetryAfter(res.headers.get('retry-after'));
@@ -111,7 +121,7 @@ function makeRttFetcher(env: Env, authStore: AccessTokenStore) {
     }
   };
 
-  return async (ctx: { crs: string; kind: BoardKind }): Promise<RttFetchOutcome> => {
+  return async (ctx: { crs: string; kind: BoardKind; callsAt: string | null }): Promise<RttFetchOutcome> => {
     const at = await getAccessToken({ fetchAuth, store: authStore, now: Date.now() });
     if (!at) return { ok: false };
 
