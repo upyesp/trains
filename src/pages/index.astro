@@ -1,0 +1,33 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import StationSearch from '../components/StationSearch.astro';
+import { STATIONS } from '../data/stations';
+
+const popularCrs = ['KGX', 'EUS', 'PAD', 'WAT', 'LST', 'MAN', 'EDB', 'BHM'];
+const popular = STATIONS.filter((s) => popularCrs.includes(s.crs));
+---
+
+<BaseLayout
+  title="Trains — UK mainline live departure boards"
+  description="Live departure and arrival boards for UK mainline railway stations, updated every 30 seconds."
+>
+  <section class="home">
+    <h1 class="home-title">Find a station</h1>
+    <p class="home-lede">
+      Live UK mainline departure and arrival boards, updated every 30 seconds.
+    </p>
+
+    <StationSearch label="Search stations" />
+
+    <h2 class="home-h2">Popular stations</h2>
+    <ul class="station-grid">
+      {
+        popular.map((s) => (
+          <li>
+            <a href={`/stations/${s.crs.toLowerCase()}`}>{s.name}</a>
+          </li>
+        ))
+      }
+    </ul>
+  </section>
+</BaseLayout>

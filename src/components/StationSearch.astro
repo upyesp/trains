@@ -1,0 +1,35 @@
+---
+// Accessible station-search combobox. Used once per page (home + each station
+// page as the "change station" control). Selecting a station deep-links to its
+// pre-rendered shell.
+interface Props {
+  label?: string;
+}
+const { label = 'Change station' } = Astro.props;
+---
+
+<div class="search">
+  <label for="station-input">{label}</label>
+  <div class="combo" id="combo">
+    <input
+      id="station-input"
+      type="text"
+      role="combobox"
+      aria-expanded="false"
+      aria-controls="station-list"
+      aria-autocomplete="list"
+      aria-activedescendant=""
+      placeholder="Search by station or code, e.g. Leeds or LDS"
+      autocomplete="off"
+      autocapitalize="off"
+      spellcheck="false"
+    />
+    <ul id="station-list" class="combo-list" role="listbox" aria-label="Stations" hidden></ul>
+  </div>
+</div>
+
+<script>
+  import { initCombobox } from '../scripts/combobox';
+  const combo = document.getElementById('combo');
+  if (combo instanceof HTMLElement) initCombobox(combo);
+</script>
