@@ -10,7 +10,8 @@ interface Props {
 }
 const { crs, stationName } = Astro.props;
 
-const apiBase = import.meta.env.PUBLIC_API ?? 'https://trains-api.upyesp.workers.dev';
+// `||` (not ??) so an empty/unset var falls back to the live Worker.
+const apiBase = import.meta.env.PUBLIC_API || 'https://trains-api.upyesp.workers.dev';
 const mock = import.meta.env.PUBLIC_MOCK === 'true';
 ---
 
