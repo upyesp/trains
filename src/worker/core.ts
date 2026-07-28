@@ -20,35 +20,83 @@ export interface CacheStore {
 export interface ServeConfig {
   /** Freshness window for the per-station cache, in seconds (ADR-0003: 30). */
   ttlSec: number;
+  /** Origins allowed to call the API cross-origin (reflected on a match). */
+  allowedOrigins: readonly string[];
 }
 
-const CORS_HEADERS: Record<string, string> = {
-  'access-control-allow-origin': '*',
+/** Fixed CORS baseline sent whenever a response is CORS-enabled. */
+const CORS_BASE: Record<string, string> = {
   'access-control-allow-methods': 'GET, OPTIONS',
   'access-control-allow-headers': 'Content-Type',
   'access-control-max-age': '86400',
+  // Always vary on Origin so a cached allowed-origin response is never served
+  // to a different origin (matters under any shared/edge caching).
+  vary: 'Origin',
 };
+
+/**
+ * Resolve CORS headers for a request given its Origin header and the configured
+ * allowlist. Returns null when the Origin is not allowed, so the browser blocks
+ * the response (CORS is enforced client-side; we just omit the header).
+ *
+ * A `*` entry opens the API to any origin. Otherwise the matched origin is
+ * reflected verbatim — never combine a finite allowlist with credentials and
+ * `*`. Pure of I/O, so fully unit-testable.
+ */
+export function corsHeaders(
+  origin: string | null,
+  allowed: readonly string[],
+): Record<string, string> | null {
+  if (allowed.includes('*')) {
+    return { ...CORS_BASE, 'access-control-allow-origin': '*' };
+  }
+  if (origin && allowed.includes(origin)) {
+    return { ...CORS_BASE, 'access-control-allow-origin': origin };
+  }
+  return null;
+}
+
+/**
+ * Parse a comma-separated `CORS_ORIGIN` env var into an allowlist. Whitespace
+ * is trimmed and blanks dropped. Returns [] when unset/empty (callers apply a
+ * production default).
+ */
+export function parseAllowedOrigins(raw: string | undefined): string[] {
+  if (!raw) return [];
+  return raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
 
 /**
  * Orchestrate one board request end-to-end: parse -> per-station cache (TTL) ->
  * fetch RTT -> map -> stale-while-error. Pure of platform: the RTT fetcher,
- * the cache, and the clock are all injected, so this is fully unit-testable
- * without Cloudflare. Returns a plain response descriptor; the adapter builds
- * the real `Response`.
+ * the cache, the clock, and the CORS allowlist are all injected, so this is
+ * fully unit-testable without Cloudflare. Returns a plain response descriptor;
+ * the adapter builds the real `Response`.
  */
 export async function serveBoard(
-  input: { method: string; pathname: string; search: Record<string, string | undefined> },
+  input: {
+    method: string;
+    pathname: string;
+    search: Record<string, string | undefined>;
+    origin: string | null;
+  },
   deps: { fetchRtt: FetchRtt; cache: CacheStore; now: number; config: ServeConfig },
 ): Promise<WorkerResponse> {
+  const cors = corsHeaders(input.origin, deps.config.allowedOrigins);
+
+  // CORS preflight: always 204; browsers proceed only if we echoed the origin.
   if (input.method === 'OPTIONS') {
-    return { status: 204, headers: { ...CORS_HEADERS }, body: null };
+    return { status: 204, headers: cors ?? {}, body: null };
   }
 
   const parsed = parseBoardRequest(input.method, input.pathname, input.search);
   if (!parsed.ok) {
     const status =
       parsed.reason === 'method-not-allowed' ? 405 : parsed.reason === 'bad-kind' ? 400 : 404;
-    return json(status, { error: parsed.reason });
+    return json(status, { error: parsed.reason }, cors);
   }
 
   const { crs, kind } = parsed.request;
@@ -57,25 +105,29 @@ export async function serveBoard(
 
   // Fresh cache hit: serve without calling RTT (the 30s cross-request dedup).
   if (cached && deps.now - cached.asAt < deps.config.ttlSec * 1000) {
-    return json(200, { board: cached.board, asAt: cached.asAt, stale: false });
+    return json(200, { board: cached.board, asAt: cached.asAt, stale: false }, cors);
   }
 
   const fetched = await deps.fetchRtt({ crs, kind });
   const decision = selectBoardToServe(cached, fetched, deps.now);
 
   if (decision.status === 'unavailable') {
-    return json(503, { error: 'unavailable' });
+    return json(503, { error: 'unavailable' }, cors);
   }
 
   if (decision.status === 'fresh') {
     await deps.cache.set(cacheKey, { board: decision.board, asAt: decision.asAt });
   }
 
-  return json(200, {
-    board: decision.board,
-    asAt: decision.asAt,
-    stale: decision.status === 'stale',
-  } satisfies BoardResponse);
+  return json(
+    200,
+    {
+      board: decision.board,
+      asAt: decision.asAt,
+      stale: decision.status === 'stale',
+    } satisfies BoardResponse,
+    cors,
+  );
 }
 
 /**
@@ -95,10 +147,14 @@ export function createMemoryCacheStore(): CacheStore {
   };
 }
 
-function json(status: number, body: unknown): WorkerResponse {
+function json(
+  status: number,
+  body: unknown,
+  cors: Record<string, string> | null,
+): WorkerResponse {
   return {
     status,
-    headers: { 'content-type': 'application/json; charset=utf-8', ...CORS_HEADERS },
+    headers: { 'content-type': 'application/json; charset=utf-8', ...(cors ?? {}) },
     body,
   };
 }
