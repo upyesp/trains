@@ -43,6 +43,7 @@ function mapService(service: RTTService, kind: BoardKind): Service | null {
     platform: platformFrom(service.locationMetadata?.platform),
     destination: otherEnd(service, kind),
     operator: service.scheduleMetadata.operator.name,
+    coaches: coachesFrom(service.locationMetadata?.numberOfVehicles),
     cancelled: service.temporalData.displayAs === 'CANCELLED',
   };
 }
@@ -53,6 +54,11 @@ function platformFrom(platform: RTTPlannedActual | undefined): Platform | null {
   if (platform.actual) return { number: platform.actual, state: 'confirmed' };
   if (platform.planned) return { number: platform.planned, state: 'provisional' };
   return null;
+}
+
+/** Passenger-vehicle (coach) count. Absent or <=0 means unknown -> null. */
+function coachesFrom(n: number | undefined): number | null {
+  return n && n > 0 ? n : null;
 }
 
 /** Departures show the final destination; arrivals show the origin (the "other end"). */

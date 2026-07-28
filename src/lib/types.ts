@@ -24,6 +24,8 @@ export interface Service {
   destination: string;
   /** The Train Operating Company running this service. */
   operator: string;
+  /** Number of passenger vehicles (coaches) on the train, or null when unknown (RTT numberOfVehicles). */
+  coaches: number | null;
   /** True when this service will not run, or will not call at this station. */
   cancelled: boolean;
 }

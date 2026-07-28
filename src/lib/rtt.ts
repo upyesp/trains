@@ -43,6 +43,8 @@ export type RTTLocationDisplayAs =
 /** Per-location metadata (RTT `LocationMetadata`, narrowed). */
 export interface RTTLocationMetadata {
   platform?: RTTPlannedActual;
+  /** Number of passenger vehicles (coaches) on the train. Absent/0 when unknown. */
+  numberOfVehicles?: number;
 }
 
 /** The location/time data for a service at this station (RTT `LocationTemporalData`). */
