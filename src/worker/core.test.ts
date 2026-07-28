@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { createMemoryCacheStore, serveBoard } from './core';
+import {
+  corsHeaders,
+  createMemoryCacheStore,
+  parseAllowedOrigins,
+  serveBoard,
+} from './core';
 import type { FetchRtt } from './core';
 import type { Board } from '../lib/types';
+
+const ORIGIN = 'https://trains.upyesp.org';
 
 function board(): Board {
   return {
@@ -43,24 +50,84 @@ function failFetch(): { fetch: FetchRtt; calls: () => number } {
   };
 }
 
-const cfg = { ttlSec: 30 };
+const cfg = { ttlSec: 30, allowedOrigins: [ORIGIN] };
+
+describe('corsHeaders', () => {
+  it('reflects an allowlisted origin verbatim', () => {
+    const h = corsHeaders(ORIGIN, [ORIGIN]);
+    expect(h?.['access-control-allow-origin']).toBe(ORIGIN);
+  });
+
+  it("returns a wildcard when '*' is allowlisted", () => {
+    const h = corsHeaders('https://evil.example', [ORIGIN, '*']);
+    expect(h?.['access-control-allow-origin']).toBe('*');
+  });
+
+  it('omits CORS headers (null) for a non-allowlisted origin', () => {
+    expect(corsHeaders('https://evil.example', [ORIGIN])).toBeNull();
+  });
+
+  it('omits CORS headers when no Origin header is present (allowlist mode)', () => {
+    expect(corsHeaders(null, [ORIGIN])).toBeNull();
+  });
+
+  it('always sends Vary: Origin', () => {
+    expect(corsHeaders(ORIGIN, [ORIGIN])?.['vary']).toBe('Origin');
+    expect(corsHeaders('https://evil.example', ['*'])?.['vary']).toBe('Origin');
+  });
+
+  it('always sends the method/header/max-age baseline', () => {
+    const h = corsHeaders(ORIGIN, [ORIGIN]);
+    expect(h?.['access-control-allow-methods']).toBe('GET, OPTIONS');
+    expect(h?.['access-control-allow-headers']).toBe('Content-Type');
+    expect(h?.['access-control-max-age']).toBe('86400');
+  });
+});
+
+describe('parseAllowedOrigins', () => {
+  it('returns [] for undefined', () => {
+    expect(parseAllowedOrigins(undefined)).toEqual([]);
+  });
+  it('parses a single origin', () => {
+    expect(parseAllowedOrigins(ORIGIN)).toEqual([ORIGIN]);
+  });
+  it('parses a comma-separated allowlist, trimming whitespace', () => {
+    expect(parseAllowedOrigins(' https://a.com , https://b.com ')).toEqual([
+      'https://a.com',
+      'https://b.com',
+    ]);
+  });
+  it('drops blanks and trailing commas', () => {
+    expect(parseAllowedOrigins('https://a.com,,')).toEqual(['https://a.com']);
+  });
+});
 
 describe('serveBoard', () => {
-  it('answers a CORS preflight with 204 and CORS headers, without calling RTT', async () => {
+  it('answers a CORS preflight with 204 + reflected origin, without calling RTT', async () => {
     const cache = createMemoryCacheStore();
     const ff = okFetch(board());
     const res = await serveBoard(
-      { method: 'OPTIONS', pathname: '/board/WAT', search: {} },
+      { method: 'OPTIONS', pathname: '/board/WAT', search: {}, origin: ORIGIN },
       { fetchRtt: ff.fetch, cache, now: 0, config: cfg },
     );
     expect(res.status).toBe(204);
-    expect(res.headers['access-control-allow-origin']).toBe('*');
+    expect(res.headers['access-control-allow-origin']).toBe(ORIGIN);
+    expect(res.headers['vary']).toBe('Origin');
     expect(ff.calls()).toBe(0);
+  });
+
+  it('answers a preflight 204 but sends no Allow-Origin for a disallowed origin', async () => {
+    const res = await serveBoard(
+      { method: 'OPTIONS', pathname: '/board/WAT', search: {}, origin: 'https://evil.example' },
+      { fetchRtt: okFetch(board()).fetch, cache: createMemoryCacheStore(), now: 0, config: cfg },
+    );
+    expect(res.status).toBe(204);
+    expect(res.headers['access-control-allow-origin']).toBeUndefined();
   });
 
   it('returns 404 for an unknown path', async () => {
     const res = await serveBoard(
-      { method: 'GET', pathname: '/nope', search: {} },
+      { method: 'GET', pathname: '/nope', search: {}, origin: ORIGIN },
       { fetchRtt: okFetch(board()).fetch, cache: createMemoryCacheStore(), now: 0, config: cfg },
     );
     expect(res.status).toBe(404);
@@ -68,7 +135,7 @@ describe('serveBoard', () => {
 
   it('returns 400 for a bad kind', async () => {
     const res = await serveBoard(
-      { method: 'GET', pathname: '/board/WAT', search: { kind: 'x' } },
+      { method: 'GET', pathname: '/board/WAT', search: { kind: 'x' }, origin: ORIGIN },
       { fetchRtt: okFetch(board()).fetch, cache: createMemoryCacheStore(), now: 0, config: cfg },
     );
     expect(res.status).toBe(400);
@@ -78,7 +145,7 @@ describe('serveBoard', () => {
     const cache = createMemoryCacheStore();
     const ff = okFetch(board());
     const res = await serveBoard(
-      { method: 'GET', pathname: '/board/WAT', search: {} },
+      { method: 'GET', pathname: '/board/WAT', search: {}, origin: ORIGIN },
       { fetchRtt: ff.fetch, cache, now: 1000, config: cfg },
     );
     expect(res.status).toBe(200);
@@ -92,7 +159,7 @@ describe('serveBoard', () => {
     await cache.set('board:WAT:departures', { board: board(), asAt: 1000 });
     const ff = okFetch(board());
     const res = await serveBoard(
-      { method: 'GET', pathname: '/board/WAT', search: {} },
+      { method: 'GET', pathname: '/board/WAT', search: {}, origin: ORIGIN },
       { fetchRtt: ff.fetch, cache, now: 5000, config: cfg },
     );
     expect(res.status).toBe(200);
@@ -106,7 +173,7 @@ describe('serveBoard', () => {
     const ff = okFetch(board());
     // age = 40000ms > 30s TTL
     await serveBoard(
-      { method: 'GET', pathname: '/board/WAT', search: {} },
+      { method: 'GET', pathname: '/board/WAT', search: {}, origin: ORIGIN },
       { fetchRtt: ff.fetch, cache, now: 41000, config: cfg },
     );
     expect(ff.calls()).toBe(1);
@@ -118,7 +185,7 @@ describe('serveBoard', () => {
     await cache.set('board:WAT:departures', { board: cached, asAt: 1000 });
     const ff = failFetch();
     const res = await serveBoard(
-      { method: 'GET', pathname: '/board/WAT', search: {} },
+      { method: 'GET', pathname: '/board/WAT', search: {}, origin: ORIGIN },
       { fetchRtt: ff.fetch, cache, now: 41000, config: cfg },
     );
     expect(res.status).toBe(200);
@@ -128,7 +195,7 @@ describe('serveBoard', () => {
   it('returns 503 when upstream fails and nothing is cached', async () => {
     const ff = failFetch();
     const res = await serveBoard(
-      { method: 'GET', pathname: '/board/WAT', search: {} },
+      { method: 'GET', pathname: '/board/WAT', search: {}, origin: ORIGIN },
       { fetchRtt: ff.fetch, cache: createMemoryCacheStore(), now: 0, config: cfg },
     );
     expect(res.status).toBe(503);
@@ -136,10 +203,19 @@ describe('serveBoard', () => {
 
   it('attaches CORS + JSON headers to a normal response', async () => {
     const res = await serveBoard(
-      { method: 'GET', pathname: '/board/WAT', search: {} },
+      { method: 'GET', pathname: '/board/WAT', search: {}, origin: ORIGIN },
       { fetchRtt: okFetch(board()).fetch, cache: createMemoryCacheStore(), now: 0, config: cfg },
     );
-    expect(res.headers['access-control-allow-origin']).toBe('*');
+    expect(res.headers['access-control-allow-origin']).toBe(ORIGIN);
     expect(res.headers['content-type']).toContain('application/json');
+  });
+
+  it('omits Allow-Origin when the request Origin is not allowlisted', async () => {
+    const res = await serveBoard(
+      { method: 'GET', pathname: '/board/WAT', search: {}, origin: 'https://evil.example' },
+      { fetchRtt: okFetch(board()).fetch, cache: createMemoryCacheStore(), now: 0, config: cfg },
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers['access-control-allow-origin']).toBeUndefined();
   });
 });

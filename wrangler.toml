@@ -18,3 +18,6 @@ TTL_SEC = "30"        # per-station cache freshness (ADR-0003)
 RTT_API_BASE = "https://data.rtt.io"
 # NG API version, confirmed via /api/info on the free tier (research/rtt-api.md sec 6).
 RTT_API_VERSION = "2026-07-25"
+# Comma-separated CORS allowlist (ADR-0003). Reflected from the request Origin;
+# defaults to the production site if unset.
+CORS_ORIGIN = "https://trains.upyesp.org"

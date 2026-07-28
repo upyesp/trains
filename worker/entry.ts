@@ -12,7 +12,11 @@
 //   wrangler secret put RTT_TOKEN        # paste the REFRESH token
 // For local dev, put it in worker/.dev.vars (gitignored).
 
-import { createMemoryCacheStore, serveBoard } from '../src/worker/core';
+import {
+  createMemoryCacheStore,
+  parseAllowedOrigins,
+  serveBoard,
+} from '../src/worker/core';
 import { parseRetryAfter, parseRttResult } from '../src/worker/rtt';
 import type { RttFetchOutcome } from '../src/worker/rtt';
 import { createMemoryAccessTokenStore, getAccessToken } from '../src/worker/auth';
@@ -25,11 +29,19 @@ interface Env {
   RTT_API_BASE?: string;
   TIME_WINDOW?: string;
   TTL_SEC?: string;
+  CORS_ORIGIN?: string; // comma-separated allowlist; defaults to production site
 }
 
 // One cache per Worker isolate (see core.createMemoryCacheStore).
 const cache = createMemoryCacheStore();
 const authStore = createMemoryAccessTokenStore();
+
+/** Origins allowed by CORS. Defaults to the production site; override via CORS_ORIGIN. */
+const PRODUCTION_ORIGIN = 'https://trains.upyesp.org';
+function resolveAllowedOrigins(raw: string | undefined): string[] {
+  const parsed = parseAllowedOrigins(raw);
+  return parsed.length > 0 ? parsed : [PRODUCTION_ORIGIN];
+}
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -40,12 +52,20 @@ export default {
     });
 
     const result = await serveBoard(
-      { method: request.method, pathname: url.pathname, search },
+      {
+        method: request.method,
+        pathname: url.pathname,
+        search,
+        origin: request.headers.get('Origin'),
+      },
       {
         fetchRtt: makeRttFetcher(env, authStore),
         cache,
         now: Date.now(),
-        config: { ttlSec: Number(env.TTL_SEC ?? 30) },
+        config: {
+          ttlSec: Number(env.TTL_SEC ?? 30),
+          allowedOrigins: resolveAllowedOrigins(env.CORS_ORIGIN),
+        },
       },
     );
 
