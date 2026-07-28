@@ -25,10 +25,10 @@ claim is traced to RTT's own OpenAPI spec.
 | Base URL | `https://data.rtt.io` | `servers:` in spec |
 | Auth | `Authorization: Bearer <token>` (HTTP Bearer) | `securitySchemes.BearerToken` |
 | Versioning | `Version` header or `?version=` query, ISO date e.g. `2026-04-09` | `VersionHeader`/`VersionQuery` |
-| Rate limiting | `X-RateLimit-Limit-<dim>` / `X-RateLimit-Remaining-<dim>` where dim ∈ `Minute,Hour,Day,Week`; `429` + `Retry-After` on excess | spec `info.description` |
-| Token model | Either a long-life **access token**, or a **refresh token** exchanged for a short-life access token via `GET /api/get_access_token` → `{ token, entitlements, validUntil }` | spec `info.description`, `/api/get_access_token` |
+| Rate limiting | `X-RateLimit-Limit-<dim>` / `X-RateLimit-Remaining-<dim>` where dim ∈ `Minute,Hour,Day,Week`; `429` + `Retry-After` on excess. Free-tier ceilings in §6 | spec `info.description` |
+| Token model | Either a long-life **access token**, or a **refresh token** exchanged for a short-life access token via `GET /api/get_access_token` → `{ token, entitlements, validUntil }`. Confirmed: refresh-token model (§6) | spec `info.description`, `/api/get_access_token` |
 
-**Entitlements of note** (from `info.description`): `allowDetailed` (detailed mode), `showEstimateTimeIfNoReport` (RTT computes an estimated time when a service hasn't reported — feeds our expected-time fallback). The free tier is "personal, non-commercial use"; paid plans exist.
+**Entitlements of note** (from `info.description`): `allowDetailed` (detailed mode), `showEstimateTimeIfNoReport` (RTT computes an estimated time when a service hasn't reported — feeds our expected-time fallback). The free tier is "personal, non-commercial use"; paid plans exist. **On the free tier `entitlements` is empty (§6)** — neither is granted, so unreported services fall back to their scheduled time (shown as "on time").
 
 ---
 
@@ -120,9 +120,16 @@ Neither `/rtt/location` nor `/gb-nr/location` takes a direction. The lineup retu
 
 ---
 
-## 6. Open questions (need a real token to confirm)
+## 6. Confirmed against a live free-tier token (2026-07-28)
 
-- **Entitlements on the free tier** — does it include `/gb-nr/location` and `showEstimateTimeIfNoReport`? (Likely yes for core, but unverified.)
-- **Do we receive a long-life access token or a refresh token?** Determines whether the Worker needs the `/api/get_access_token` refresh loop.
-- **Actual rate-limit values** (Minute/Hour/Day/Week ceilings) for the free tier — returned in headers on first call.
-- **`code=CLJ` (short CRS) behaviour on `/gb-nr/location`** — spec says "any short or long code" and examples use longCodes; CRS should work but is unverified against the live API.
+All four former open questions are now resolved by exercising the live API. The
+Worker's refresh-token exchange loop (ADR-0004; `src/worker/auth.ts`) is
+implemented and serving real boards (`GET /board/<CRS>` returns mapped services).
+
+- **Token model = refresh token.** The portal issues a long-lived **refresh token**; it must be exchanged via `GET /api/get_access_token` (refresh token as Bearer) for a short-lived access token → `{ token, entitlements, validUntil }`. The refresh token is **not** a valid Bearer for board calls — mis-using it yields `401 {"error":"Authorization token appears to be a token ID; use the issued access token instead"}`. The Worker caches the access token until just before `validUntil`, re-exchanges automatically, and retries once on a `401`.
+- **Entitlements on the free tier = none** (`/api/info` → `credentials.entitlements: []`). So **no** `showEstimateTimeIfNoReport` and **no** `allowDetailed`. Practical effect: services that haven't yet reported fall back to scheduled time (shown as "on time") — our `expectedTime` chain (`realtimeForecast ?? realtimeEstimate ?? scheduledTime`) already degrades to this. `detailed=true` mode is unavailable, but we don't use it.
+- **Namespace = `gb-nr` only** (`namespacesAvailable: ["gb-nr"]`). Matches our v1 scope (UK mainline National Rail); Tube/metro/tram are genuinely unavailable on this tier.
+- **History = 14 days** (`historyRestrictToDays: 14`) — irrelevant for live boards; noted for any future historical drill-down.
+- **Rate limits (free tier)** — from `X-RateLimit-*` response headers: **Minute 30 · Hour 750 · Day 9000 · Week 30000.** The 30s per-station cache keeps volume low (a station polled continuously ≈ 2 calls/min); a cache-miss storm across many distinct stations could approach the 30/min ceiling, in which case our existing `429` + `Retry-After` → stale-while-error path protects us. Worth monitoring once public.
+- **API version = `2026-07-25`** (`/api/info` `api_version`). Pinned via the Worker's `RTT_API_VERSION` var to insulate against breaking changes.
+- **`code=<CRS>` works on `/gb-nr/location`** — verified live with `WAT` and `CLJ` (short CRS, namespace implied), returning the full `NetworkRailLocationLineUpObject` lineup as specified.
