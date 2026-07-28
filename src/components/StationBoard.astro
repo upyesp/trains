@@ -61,22 +61,15 @@ const mock = import.meta.env.PUBLIC_MOCK === 'true';
     <span id="as-of">As of --:--</span>
     <span class="stale" id="stale-note" role="status"></span>
   </p>
-  <table class="board">
-    <caption class="visually-hidden">
-      Live train departures from <span id="caption-station">{stationName} departures</span>
-    </caption>
-    <thead>
-      <tr>
-        <th scope="col">Time</th>
-        <th scope="col">Destination</th>
-        <th scope="col">Platform</th>
-        <th scope="col">Status</th>
-      </tr>
-    </thead>
-    <tbody id="board-body">
-      <tr><td colspan="4" class="board-msg">Loading live board…</td></tr>
-    </tbody>
-  </table>
+  <div class="board-cols" aria-hidden="true">
+    <span class="col-time">Time</span>
+    <span class="col-dest">Destination</span>
+    <span class="col-plat">Platform</span>
+    <span class="col-status">Status</span>
+  </div>
+  <ol class="board" id="board-body" aria-label={`Live departures from ${stationName}`}>
+    <li class="board-msg">Loading live board…</li>
+  </ol>
 </section>
 
 <!-- Visually hidden live region: meaningful changes only (ADR-0002) -->

@@ -47,10 +47,9 @@ interface State {
 }
 
 interface Elements {
-  body: HTMLTableSectionElement;
+  body: HTMLOListElement;
   asOf: HTMLElement;
   staleNote: HTMLElement;
-  caption: HTMLElement;
   announcer: HTMLElement;
   clock: HTMLElement;
   tablist: HTMLElement;
@@ -66,42 +65,58 @@ function delayMinutes(s: Service): number {
   return Math.round((exp - sched) / 60_000);
 }
 
+// Each field renders as a labelled <div> inside an <li> (see StationBoard.astro).
+// The board is a real <ol> of service cards - not a <table> - so the layout is
+// fully responsive (cards on phones) without CSS display:block tricks that can
+// drop table semantics in some screen readers (ADR-0002). Field order in the
+// DOM is time, destination, platform, status: logical for screen readers, and
+// the desktop grid reads them into columns in that same order.
+
 function platformCell(p: Platform | null): string {
-  if (!p) return '<td><span class="plat none">—<span class="state">none</span></span></td>';
+  if (!p) {
+    return `<div class="svc-plat"><span class="visually-hidden">Platform not allocated</span><span class="plat none" aria-hidden="true">—</span></div>`;
+  }
   const n = esc(p.number);
   if (p.state === 'provisional') {
-    return `<td><span class="plat provisional">${n}<span class="state">provisional</span></span></td>`;
+    return `<div class="svc-plat"><span class="visually-hidden">Platform: </span><span class="plat provisional">${n}<span class="state">provisional</span></span></div>`;
   }
   // Confirmed platforms carry a visually-hidden label so the state is in text
   // for screen readers without adding visual noise (ADR-0002).
-  return `<td><span class="plat">${n}<span class="visually-hidden">, confirmed</span></span></td>`;
+  return `<div class="svc-plat"><span class="visually-hidden">Platform: </span><span class="plat">${n}<span class="visually-hidden">, confirmed</span></span></div>`;
 }
 
 function timeCell(s: Service): string {
   const sched = fmtTime(s.scheduledTime);
-  if (s.cancelled) return `<td><span class="time">${esc(sched)}</span></td>`;
+  if (s.cancelled) return `<div class="svc-time"><span class="time">${esc(sched)}</span></div>`;
   const exp = fmtTime(s.expectedTime);
   if (sched !== exp) {
-    return `<td><span class="time"><span class="sched">${esc(sched)}</span><span class="arrow" aria-hidden="true">↘</span><span class="exp">${esc(exp)}</span></span></td>`;
+    // Visually-hidden words disambiguate the two times for screen readers:
+    // "Scheduled 08:05 expected 08:11" rather than two bare numbers.
+    return `<div class="svc-time"><span class="time"><span class="visually-hidden">Scheduled </span><span class="sched">${esc(sched)}</span><span class="arrow" aria-hidden="true">↘</span><span class="visually-hidden"> expected </span><span class="exp">${esc(exp)}</span></span></div>`;
   }
-  return `<td><span class="time">${esc(exp)}</span></td>`;
+  return `<div class="svc-time"><span class="time">${esc(exp)}</span></div>`;
+}
+
+function destCell(s: Service): string {
+  return `<div class="svc-dest"><span class="dest">${esc(s.destination)}<span class="toc">${esc(s.operator)}</span></span></div>`;
 }
 
 function statusCell(s: Service): string {
-  if (s.cancelled) return '<td class="status"><span class="chip cancel">Cancelled</span></td>';
+  if (s.cancelled) return '<div class="svc-status"><span class="chip cancel">Cancelled</span></div>';
   const mins = delayMinutes(s);
-  if (mins > 0) return `<td class="status"><span class="chip delay">+${mins} min</span></td>`;
-  return '<td class="status"></td>';
+  if (mins > 0) return `<div class="svc-status"><span class="chip delay">+${mins} min</span></div>`;
+  // On time: no chip (conventional for boards); the absence reads as "on time".
+  return '<div class="svc-status"></div>';
 }
 
 function rowHtml(s: Service): string {
-  const cls = s.cancelled ? ' class="is-cancelled"' : '';
-  return `<tr${cls}>${timeCell(s)}<td><span class="dest">${esc(s.destination)}<span class="toc">${esc(s.operator)}</span></span></td>${platformCell(s.platform)}${statusCell(s)}</tr>`;
+  const cls = s.cancelled ? 'svc is-cancelled' : 'svc';
+  return `<li class="${cls}">${timeCell(s)}${destCell(s)}${platformCell(s.platform)}${statusCell(s)}</li>`;
 }
 
-const LOADING_ROW = '<tr><td colspan="4" class="board-msg">Loading live board…</td></tr>';
-const EMPTY_ROW = '<tr class="empty-row"><td colspan="4">No services in the next two hours.</td></tr>';
-const ERROR_ROW = '<tr><td colspan="4" class="board-msg error">Couldn\u2019t load the live board. We\u2019ll keep trying.</td></tr>';
+const LOADING_ROW = '<li class="board-msg">Loading live board…</li>';
+const EMPTY_ROW = '<li class="board-msg">No services in the next two hours.</li>';
+const ERROR_ROW = '<li class="board-msg error">Couldn\u2019t load the live board. We\u2019ll keep trying.</li>';
 
 // ---- Announcement phrasing (mirrors diffBoards output) ----
 
@@ -166,18 +181,17 @@ export function initBoard(root: HTMLElement): void {
   const apiBase = root.dataset.api ?? DEFAULT_API;
   const mock = root.dataset.mock === 'true';
 
-  const body = root.querySelector<HTMLTableSectionElement>('#board-body');
+  const body = root.querySelector<HTMLOListElement>('#board-body');
   const asOf = document.getElementById('as-of');
   const staleNote = document.getElementById('stale-note');
-  const caption = document.getElementById('caption-station');
   const announcer = document.getElementById('announcer');
   const clock = document.getElementById('clock');
   const tablist = document.getElementById('tablist');
   const stationNameEl = document.getElementById('station-name');
-  if (!body || !asOf || !staleNote || !caption || !announcer || !clock || !tablist) return;
+  if (!body || !asOf || !staleNote || !announcer || !clock || !tablist) return;
 
   const tabs = Array.from(tablist.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
-  const els: Elements = { body, asOf, staleNote, caption, announcer, clock, tablist, tabs };
+  const els: Elements = { body, asOf, staleNote, announcer, clock, tablist, tabs };
   const stationName = stationNameEl?.textContent ?? crs;
 
   const state: State = { crs, kind: initialKind, apiBase, mock, stationName, prev: null, asAtMs: null };
@@ -246,7 +260,9 @@ export function initBoard(root: HTMLElement): void {
       t.setAttribute('aria-selected', on ? 'true' : 'false');
       t.tabIndex = on ? 0 : -1;
     }
-    els.caption.textContent = `${state.stationName} ${state.kind}`;
+    // The <ol>'s accessible name frames the whole board for screen readers.
+    const verb = state.kind === 'arrivals' ? 'arrivals at' : 'departures from';
+    els.body.setAttribute('aria-label', `Live ${verb} ${state.stationName}`);
   }
 
   function setupTabs(): void {
