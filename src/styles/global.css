@@ -195,29 +195,48 @@ h1.station {
   color: var(--amber); font-weight: 500;
 }
 
-table.board { width: 100%; border-collapse: collapse; }
-table.board caption { text-align: left; padding: 6px 20px 0; }
-table.board th {
-  text-align: left; padding: 16px 20px 10px;
+/* Board = a responsive <ol> of service cards. Semantics are a real list (each
+   service is one item), which keeps screen readers happy on every platform -
+   unlike CSS display:block reflow of a <table>, which can drop table semantics
+   in some screen readers (ADR-0002). Wide screens: aligned grid rows that read
+   like a board (fixed tracks so the header + every row share one geometry).
+   Phones: each row reflows to a compact card - time + status, destination +
+   platform - so nothing overflows (ADR-0002). */
+.board { list-style: none; margin: 0; padding: 0; }
+
+.board-cols,
+.svc {
+  display: grid;
+  grid-template-columns: 9.5rem 1fr 4.5rem 6rem;
+  align-items: center;
+  column-gap: 16px;
+}
+.board-cols {
+  padding: 14px 20px 8px;
+  color: var(--ash);
   font-family: var(--sans); font-weight: 500;
   font-size: .68rem; letter-spacing: .1em; text-transform: uppercase;
-  color: var(--ash); border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
 }
-table.board td {
-  padding: 14px 20px; vertical-align: middle;
-  border-bottom: 1px solid var(--line); color: var(--chalk);
+.svc {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--line);
 }
-table.board tbody tr:last-child td { border-bottom: 0; }
+.board > :last-child { border-bottom: 0; }
 
-/* Loading / empty / error rows inside the board */
-.board-msg, .empty-row td {
-  text-align: center; color: var(--ash) !important;
-  padding: 30px 20px !important;
+/* Column alignment shared by the header and every row */
+.board-cols .col-plat,   .svc-plat   { justify-self: center; text-align: center; }
+.board-cols .col-status, .svc-status { justify-self: end;    text-align: right; }
+
+/* Loading / empty / error messages inside the board */
+.board-msg {
+  display: block; text-align: center;
+  color: var(--ash) !important; padding: 30px 20px !important;
 }
 .board-msg.error { color: var(--red) !important; }
 
 /* Time = the hero */
-.time { font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: 600; font-size: 1.5rem; white-space: nowrap; }
+.time { font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: 600; font-size: 1.4rem; white-space: nowrap; }
 .time .sched { color: var(--ash); text-decoration: line-through; text-decoration-thickness: 2px; font-size: 1.05rem; font-weight: 500; }
 .time .arrow { color: var(--ash); margin: 0 2px 0 6px; font-size: 1rem; }
 .time .exp { color: var(--amber); }
@@ -236,7 +255,6 @@ table.board tbody tr:last-child td { border-bottom: 0; }
 .plat .state { font-family: var(--sans); font-weight: 500; font-size: .6rem; letter-spacing: .04em; color: var(--ash); text-transform: uppercase; margin-top: 2px; }
 .plat.none { border-style: dashed; color: var(--ash); }
 
-.status { text-align: right; white-space: nowrap; }
 .chip {
   display: inline-block; padding: 3px 9px; border-radius: 999px;
   font-family: var(--sans); font-weight: 600; font-size: .78rem;
@@ -244,10 +262,11 @@ table.board tbody tr:last-child td { border-bottom: 0; }
 .chip.delay { color: var(--amber); background: rgba(240,180,41,.12); border: 1px solid rgba(240,180,41,.4); }
 .chip.cancel { color: var(--red); background: rgba(229,72,77,.12); border: 1px solid rgba(229,72,77,.4); }
 
-/* Cancelled service: whole row demuted */
-tr.is-cancelled td { color: var(--ash); }
-tr.is-cancelled .dest { color: var(--ash); }
-tr.is-cancelled .time { text-decoration: line-through; color: var(--ash); }
+/* Cancelled service: whole card demuted */
+.svc.is-cancelled { color: var(--ash); }
+.svc.is-cancelled .dest,
+.svc.is-cancelled .toc { color: var(--ash); }
+.svc.is-cancelled .time { text-decoration: line-through; color: var(--ash); }
 
 /* ---------- Home ---------- */
 .home { margin-bottom: 24px; }
@@ -278,7 +297,25 @@ footer.site { margin-top: 40px; color: var(--slate-mute); font-size: .8rem; }
 
 /* ---------- Responsive ---------- */
 @media (max-width: 560px) {
-  table.board th, table.board td { padding: 12px 14px; }
+  /* Reflow each service into a compact card so nothing overflows a phone:
+     time + status on the top line, destination + platform below. DOM order
+     (time, dest, plat, status) is unchanged, so screen-reader reading order
+     stays logical - only the visual layout reflows (ADR-0002). */
+  .board-cols { display: none; }
+  .svc {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "time   status"
+      "dest   plat";
+    align-items: center;
+    column-gap: 14px;
+    row-gap: 6px;
+    padding: 14px 16px;
+  }
+  .svc-time   { grid-area: time; }
+  .svc-status { grid-area: status; justify-self: end; text-align: right; }
+  .svc-dest   { grid-area: dest; }
+  .svc-plat   { grid-area: plat;   justify-self: end; text-align: right; }
   .time { font-size: 1.28rem; }
   .dest { font-size: .96rem; }
   .as-of { padding: 12px 14px 4px; }
