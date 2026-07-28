@@ -16,6 +16,11 @@ const { title, description } = Astro.props;
     <title>{title}</title>
     {description && <meta name="description" content={description} />}
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="apple-mobile-web-app-title" content="Trains" />
     <meta name="theme-color" id="theme-color" content="#0f141b" />
     <!-- Apply the saved theme BEFORE first paint: defaults to dark, no FOUC,
          and works as dark even with JS disabled (the :root defaults are dark). -->
@@ -92,6 +97,15 @@ const { title, description } = Astro.props;
     <script>
       import { initMenu } from '../scripts/menu';
       initMenu(document.body);
+    </script>
+    <!-- Register the service worker for installability + offline shell. It never
+         caches the live board API (see public/sw.js), so departures stay live. -->
+    <script is:inline>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('/sw.js').catch(function () {});
+        });
+      }
     </script>
   </body>
 </html>
