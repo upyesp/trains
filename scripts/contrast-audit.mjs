@@ -53,14 +53,31 @@ report('DARK BOARD  (text on --ink #0d1117)', [
   ['error message .board-msg.error (red-bright)', redBright, ink, false],
 ]);
 
-report('LIGHT CONCOURSE  (text on --paper #f6f7f9)', [
-  ['station name / brand (slate)', slate, paper, true],
-  ['live label / input text (slate)', slate, paper, false],
-  ['CRS code (slate)', slate, paper, false],
-  ['CRS label + clock (slate-mute)', mute, paper, false],
-  ['selected tab (slate on #fff)', slate, white, false],
-  ['unselected tab (slate-mute on paper-2)', mute, paper2, false],
-  ['search label (slate-mute)', mute, paper, false],
-  ['search placeholder (#6b727c on #fff)', ph, white, false],
-  ['station link card (slate on #fff)', slate, white, false],
+// Dark-theme chrome tokens
+const dbg = '#0f141b', dsurf = '#1a2129', dsurf2 = '#222b35';
+
+report('DARK CONCOURSE  (dark theme chrome - text on --bg #0f141b / surfaces)', [
+  ['station name / brand (chalk on bg)', chalk, dbg, true],
+  ['live label / body text (chalk on bg)', chalk, dbg, false],
+  ['CRS code (chalk on bg)', chalk, dbg, false],
+  ['CRS label + clock (ash on bg)', ash, dbg, false],
+  ['footer / lede / search label (ash on bg)', ash, dbg, false],
+  ['input text (chalk on --surface)', chalk, dsurf, false],
+  ['placeholder + unselected tab (ash on --surface)', ash, dsurf, false],
+  ['selected tab (chalk on --surface)', chalk, dsurf, false],
+  ['tab track text (ash on --surface-2)', ash, dsurf2, false],
+  ['listbox option (chalk on --surface)', chalk, dsurf, false],
+  ['station card (chalk on --surface)', chalk, dsurf, false],
+]);
+
+report('LIGHT CONCOURSE  (light theme chrome - text on --paper #f6f7f9)', [
+  ['station name / brand (slate on bg)', slate, paper, true],
+  ['live label / input text (slate on bg)', slate, paper, false],
+  ['CRS code (slate on bg)', slate, paper, false],
+  ['CRS label + clock (slate-mute on bg)', mute, paper, false],
+  ['selected tab (slate on --surface #fff)', slate, white, false],
+  ['unselected tab (slate-mute on --surface-2)', mute, paper2, false],
+  ['search label (slate-mute on bg)', mute, paper, false],
+  ['placeholder + unselected tab (slate-mute on #fff)', mute, white, false],
+  ['station card (slate on #fff)', slate, white, false],
 ]);
