@@ -1,10 +1,13 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import StationSearch from '../components/StationSearch.astro';
-import { STATIONS } from '../data/stations';
+import { POPULAR_CRS, findStation } from '../data/stations';
+import type { Station } from '../lib/station-search';
 
-const popularCrs = ['KGX', 'EUS', 'PAD', 'WAT', 'LST', 'MAN', 'EDB', 'BHM'];
-const popular = STATIONS.filter((s) => popularCrs.includes(s.crs));
+// Curated order; drop any code that isn't present in the dataset.
+const popular = POPULAR_CRS
+  .map((crs) => findStation(crs))
+  .filter((x): x is Station => Boolean(x));
 ---
 
 <BaseLayout
@@ -22,9 +25,9 @@ const popular = STATIONS.filter((s) => popularCrs.includes(s.crs));
     <h2 class="home-h2">Popular stations</h2>
     <ul class="station-grid">
       {
-        popular.map((s) => (
+        popular.map((station) => (
           <li>
-            <a href={`/stations/${s.crs.toLowerCase()}`}>{s.name}</a>
+            <a href={`/stations/${station.crs.toLowerCase()}`}>{station.name}</a>
           </li>
         ))
       }

@@ -2,18 +2,19 @@
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import StationBoard from '../../components/StationBoard.astro';
 import { STATIONS } from '../../data/stations';
+import type { Station } from '../../lib/station-search';
 
-// Per-station SSG shells. The live data is fetched client-side; this shell gives
-// each station a real, deep-linkable, SEO-friendly URL with its name in the HTML.
+// Per-station SSG shells — every station in the dataset gets a real,
+// deep-linkable URL with its name baked in. Live data is fetched client-side.
 export function getStaticPaths() {
-  return STATIONS.map((s) => ({
-    params: { crs: s.crs.toLowerCase() },
-    props: { station: s },
+  return STATIONS.map((station) => ({
+    params: { crs: station.crs.toLowerCase() },
+    props: { station },
   }));
 }
 
 interface Props {
-  station: { crs: string; name: string };
+  station: Station;
 }
 const { station } = Astro.props;
 ---
