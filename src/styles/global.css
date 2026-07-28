@@ -377,6 +377,7 @@ h1.station {
 
 .dest { font-family: var(--sans); font-weight: 600; font-size: 1.02rem; overflow-wrap: break-word; }
 .dest .toc { display: block; color: var(--board-mute); font-weight: 400; font-size: .78rem; margin-top: 2px; }
+.dest .coaches { display: block; color: var(--board-mute); font-weight: 400; font-size: .78rem; margin-top: 1px; }
 
 /* Platform chip - state in TEXT, reinforced by styling */
 .plat {
@@ -404,7 +405,8 @@ h1.station {
 /* Cancelled service: whole card demuted */
 .svc.is-cancelled { color: var(--board-mute); }
 .svc.is-cancelled .dest,
-.svc.is-cancelled .toc { color: var(--board-mute); }
+.svc.is-cancelled .toc,
+.svc.is-cancelled .coaches { color: var(--board-mute); }
 .svc.is-cancelled .time { text-decoration: line-through; color: var(--board-mute); }
 
 /* ---------- Home ---------- */

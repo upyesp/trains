@@ -10,6 +10,7 @@ function service(overrides: Partial<Service> = {}): Service {
     platform: { number: '3', state: 'provisional' },
     destination: 'Leeds',
     operator: 'LNER',
+    coaches: null,
     cancelled: false,
     ...overrides,
   };

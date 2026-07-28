@@ -57,10 +57,37 @@ describe('mapLocationLineUp', () => {
             platform: { number: '3', state: 'confirmed' },
             destination: 'Weymouth',
             operator: 'South Western Railway',
+            coaches: null,
             cancelled: false,
           },
         ],
       });
+    });
+  });
+
+  describe('coaches (numberOfVehicles)', () => {
+    it('maps the passenger-vehicle count when present and positive', () => {
+      const board = mapLocationLineUp(
+        { services: [service({ id: 'x', locationMetadata: { numberOfVehicles: 8 } })] },
+        'WAT',
+        'departures',
+      );
+      expect(board.services).toEqual([expect.objectContaining({ coaches: 8 })]);
+    });
+
+    it('is null when numberOfVehicles is absent, zero, or negative', () => {
+      const board = mapLocationLineUp(
+        {
+          services: [
+            service({ id: 'absent' }),
+            service({ id: 'zero', locationMetadata: { numberOfVehicles: 0 } }),
+            service({ id: 'neg', locationMetadata: { numberOfVehicles: -1 } }),
+          ],
+        },
+        'WAT',
+        'departures',
+      );
+      expect(board.services.map((s) => s.coaches)).toEqual([null, null, null]);
     });
   });
 
