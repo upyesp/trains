@@ -1,29 +1,34 @@
 /* Design tokens + components for the trains site.
    Ported from the approved prototype (prototype/board.html) with the demo-only
-   controls removed. The dark "live screen" board is the signature element;
-   state (provisional/confirmed, delay, cancellation) is ALWAYS in text, never
-   conveyed by colour alone (ADR-0002).
+   controls removed. State (provisional/confirmed, delay, cancellation) is
+   ALWAYS in text, never conveyed by colour alone (ADR-0002).
 
-   THEMING: the board panel is always the dark "screen". Only the page chrome
-   (the "concourse" around the board) swaps between light and dark via the
-   semantic tokens (--bg/--surface/--fg/...). The default theme is dark; an
-   inline <head> script sets [data-theme] before paint (no FOUC), and a no-JS
-   visitor still gets dark via the :root defaults. */
+   THEMING: both the page chrome ("concourse") and the board itself swap between
+   light and dark. The dark theme keeps the signature dark "live screen" board;
+   the light theme uses a clean white board. Both are driven by semantic tokens:
+     - chrome:  --bg / --surface / --surface-2 / --fg / --fg-mute / --border / --shadow
+     - board:   --board-bg / --board-fg / --board-mute / --board-line /
+                --board-chip-bg / --board-chip-border / --board-delay /
+                --board-delay-border / --board-cancel / --board-cancel-border
+   The accent colours matter: bright amber/red pass AAA on the dark board but
+   are unusable on white, so the light board uses dark amber (#92400e) and deep
+   red (#9b1c1c) instead - both still AAA. The default theme is dark; an inline
+   <head> script sets [data-theme] before paint (no FOUC). */
 
 :root {
-  /* ---- Fixed board palette ("the live screen") - always dark ---- */
+  /* ---- Raw palette values ---- */
+  /* Board palette (dark) */
   --ink: #0d1117;
   --panel: #151b23;
   --line: #2a323d;
   --line-strong: #3a4452;
-  /* Text on ink (all >= 7:1 -> AAA) */
-  --chalk: #e6edf3;
-  --ash: #94a3b8;
-  /* Fixed accents */
-  --amber: #f0b429;   /* delay (>= 5 min) - ~10:1 on ink (AAA) */
-  --red:   #e5484d;   /* cancellation identity (chip borders) */
-  --red-bright: #ff7d80;  /* cancellation TEXT - ~7.5:1 on ink (AAA) */
-  --green: #3fb950;   /* live indicator - ~8:1 on ink */
+  --chalk: #e6edf3;   /* primary text on the dark board (>=7:1 AAA) */
+  --ash: #94a3b8;     /* secondary text on the dark board (>=7:1 AAA) */
+  /* Fixed accents (page chrome + brand; the amber accent bar uses these too) */
+  --amber: #f0b429;
+  --red:   #e5484d;
+  --red-bright: #ff7d80;
+  --green: #3fb950;
   /* Raw light-chrome values (used by the light theme + as palette reference) */
   --paper: #f6f7f9;
   --paper-2: #eceef2;
@@ -37,9 +42,9 @@
 
   /* ---- Default theme = DARK (also the no-JS fallback). The inline head
      script sets [data-theme] before paint; [data-theme="light"] overrides
-     these below. The board is always the darkest element, so it reads as a
-     recessed "screen" in both themes. ---- */
+     these below. ---- */
   color-scheme: dark;
+  /* chrome */
   --bg: #0f141b;
   --surface: #1a2129;       /* inputs, cards, listbox, tab face */
   --surface-2: #222b35;     /* tab track, selected-option tint */
@@ -47,12 +52,24 @@
   --fg-mute: var(--ash);
   --border: #2c343f;
   --shadow: 0 12px 32px rgba(0,0,0,.5);
+  /* board (the dark "live screen") */
+  --board-bg: var(--ink);
+  --board-fg: var(--chalk);
+  --board-mute: var(--ash);
+  --board-line: var(--line);
+  --board-chip-bg: var(--panel);
+  --board-chip-border: var(--line-strong);
+  --board-delay: var(--amber);        /* ~10:1 on ink (AAA) */
+  --board-delay-border: rgba(240,180,41,.5);
+  --board-cancel: var(--red-bright);  /* ~7.5:1 on ink (AAA) */
+  --board-cancel-border: rgba(229,72,77,.55);
 }
 
 [data-theme="dark"] { color-scheme: dark; }   /* explicit; same as :root default */
 
 [data-theme="light"] {
   color-scheme: light;
+  /* chrome (light concourse) */
   --bg: var(--paper);
   --surface: #ffffff;
   --surface-2: var(--paper-2);
@@ -60,6 +77,18 @@
   --fg-mute: var(--slate-mute);
   --border: #d8dde5;
   --shadow: 0 12px 30px rgba(20,30,45,.16);
+  /* board (clean white board). Dark amber + deep red keep delay/cancel AAA on
+     white - bright amber/red are unusable on a light ground. */
+  --board-bg: #ffffff;
+  --board-fg: var(--slate);
+  --board-mute: #4b5563;            /* ~7.6:1 on white (AAA) */
+  --board-line: #e2e6ec;
+  --board-chip-bg: #f1f3f6;
+  --board-chip-border: #d4d9e0;
+  --board-delay: #92400e;           /* ~7.1:1 on white (AAA) */
+  --board-delay-border: rgba(146,64,14,.42);
+  --board-cancel: #9b1c1c;          /* ~8.1:1 on white (AAA) */
+  --board-cancel-border: rgba(155,28,28,.42);
 }
 
 * { box-sizing: border-box; }
@@ -176,7 +205,6 @@ header.site {
   min-height: 40px;
 }
 .menu-link:hover { background: var(--surface-2); }
-.menu-link .ext { color: var(--fg-mute); }
 
 /* ---------- Station header ---------- */
 .station-head { margin-bottom: 18px; }
@@ -270,27 +298,32 @@ h1.station {
 }
 .tabs [role="tab"][aria-selected="true"] { background: var(--surface); color: var(--fg); box-shadow: 0 1px 3px rgba(0,0,0,.18); }
 
-/* ---------- The board (the dark "screen") ---------- */
+/* ---------- The board ---------- */
+/* Board surface + text colours are theme-aware (--board-*). In the dark theme
+   it's the signature dark "live screen"; in the light theme it's a clean white
+   board. State is always in text; the accent colours darken on the light board
+   to stay AAA on white (ADR-0002). */
 .board-panel {
-  background: var(--ink);
-  border: 1px solid var(--line);   /* frames the screen on dark chrome */
+  background: var(--board-bg);
+  border: 1px solid var(--board-line);
   border-radius: var(--radius);
   box-shadow: 0 24px 60px -24px rgba(15,25,40,.45), 0 2px 0 rgba(255,255,255,.02) inset;
   overflow: hidden;
   position: relative;
+  transition: background-color .18s ease, border-color .18s ease;
 }
-.board-panel::before { /* signal accent bar */
+.board-panel::before { /* signal accent bar - bright amber in both themes */
   content: ""; display: block; height: 3px;
   background: linear-gradient(90deg, var(--amber), #d98324 60%, transparent);
 }
 .as-of {
   display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline;
-  padding: 14px 20px 4px; color: var(--ash); font-size: .8rem;
+  padding: 14px 20px 4px; color: var(--board-mute); font-size: .8rem;
 }
 .as-of #as-of { font-family: var(--mono); }
 .as-of .stale {
   display: inline-flex; align-items: center; gap: 6px;
-  color: var(--amber); font-weight: 500;
+  color: var(--board-delay); font-weight: 500;
 }
 
 /* Board = a responsive <ol> of service cards. Semantics are a real list (each
@@ -311,18 +344,17 @@ h1.station {
 }
 .board-cols {
   padding: 14px 20px 8px;
-  color: var(--ash);
+  color: var(--board-mute);
   font-family: var(--sans); font-weight: 500;
   font-size: .68rem; letter-spacing: .1em; text-transform: uppercase;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--board-line);
 }
 .svc {
   padding: 14px 20px;
-  border-bottom: 1px solid var(--line);
-  /* Bright text on the dark board (chalk on ink is ~15:1, AAA). The destination
-     and on-time departure time have no colour of their own, so they inherit
-     this - without it they'd inherit body --slate (dark) and be invisible. */
-  color: var(--chalk);
+  border-bottom: 1px solid var(--board-line);
+  /* Primary board text. The destination and on-time departure time have no
+     colour of their own, so they inherit this. */
+  color: var(--board-fg);
 }
 .board > :last-child { border-bottom: 0; }
 
@@ -333,47 +365,47 @@ h1.station {
 /* Loading / empty / error messages inside the board */
 .board-msg {
   display: block; text-align: center;
-  color: var(--ash) !important; padding: 30px 20px !important;
+  color: var(--board-mute) !important; padding: 30px 20px !important;
 }
-.board-msg.error { color: var(--red-bright) !important; }
+.board-msg.error { color: var(--board-cancel) !important; }
 
 /* Time = the hero */
 .time { font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: 600; font-size: 1.4rem; white-space: nowrap; }
-.time .sched { color: var(--ash); text-decoration: line-through; text-decoration-thickness: 2px; font-size: 1.05rem; font-weight: 500; }
-.time .arrow { color: var(--ash); margin: 0 2px 0 6px; font-size: 1rem; }
-.time .exp { color: var(--amber); }
+.time .sched { color: var(--board-mute); text-decoration: line-through; text-decoration-thickness: 2px; font-size: 1.05rem; font-weight: 500; }
+.time .arrow { color: var(--board-mute); margin: 0 2px 0 6px; font-size: 1rem; }
+.time .exp { color: var(--board-delay); }
 
 .dest { font-family: var(--sans); font-weight: 600; font-size: 1.02rem; overflow-wrap: break-word; }
-.dest .toc { display: block; color: var(--ash); font-weight: 400; font-size: .78rem; margin-top: 2px; }
+.dest .toc { display: block; color: var(--board-mute); font-weight: 400; font-size: .78rem; margin-top: 2px; }
 
 /* Platform chip - state in TEXT, reinforced by styling */
 .plat {
   display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
   min-width: 40px; padding: 7px 10px; border-radius: 8px;
-  font-family: var(--mono); font-weight: 600; font-size: 1.1rem; color: var(--chalk);
-  border: 1px solid var(--line-strong); background: var(--panel);
+  font-family: var(--mono); font-weight: 600; font-size: 1.1rem; color: var(--board-fg);
+  border: 1px solid var(--board-chip-border); background: var(--board-chip-bg);
 }
 .plat.provisional { border-style: dashed; }
-.plat .state { font-family: var(--sans); font-weight: 500; font-size: .6rem; letter-spacing: .04em; color: var(--ash); text-transform: uppercase; margin-top: 2px; }
-.plat.none { border-style: dashed; color: var(--ash); }
+.plat .state { font-family: var(--sans); font-weight: 500; font-size: .6rem; letter-spacing: .04em; color: var(--board-mute); text-transform: uppercase; margin-top: 2px; }
+.plat.none { border-style: dashed; color: var(--board-mute); }
 
 .chip {
   display: inline-block; padding: 3px 9px; border-radius: 999px;
   font-family: var(--sans); font-weight: 600; font-size: .78rem;
-  /* Transparent background (not a coloured tint): a tint behind coloured text
-     caps contrast around AA, but on the dark board the text directly on --ink
-     reaches AAA for both delay (~10:1) and cancel (~7.5:1) - better for low
-     vision. The border carries the colour identity (ADR-0002). */
+  /* Transparent background: text sits directly on the board ground, reaching
+     AAA for delay and cancel in BOTH themes (bright amber/red on the dark
+     board; dark amber/deep red on the white board). The border carries the
+     colour identity (ADR-0002). */
   background: transparent;
 }
-.chip.delay { color: var(--amber); border: 1px solid rgba(240,180,41,.5); }
-.chip.cancel { color: var(--red-bright); border: 1px solid rgba(229,72,77,.55); }
+.chip.delay { color: var(--board-delay); border: 1px solid var(--board-delay-border); }
+.chip.cancel { color: var(--board-cancel); border: 1px solid var(--board-cancel-border); }
 
 /* Cancelled service: whole card demuted */
-.svc.is-cancelled { color: var(--ash); }
+.svc.is-cancelled { color: var(--board-mute); }
 .svc.is-cancelled .dest,
-.svc.is-cancelled .toc { color: var(--ash); }
-.svc.is-cancelled .time { text-decoration: line-through; color: var(--ash); }
+.svc.is-cancelled .toc { color: var(--board-mute); }
+.svc.is-cancelled .time { text-decoration: line-through; color: var(--board-mute); }
 
 /* ---------- Home ---------- */
 .home { margin-bottom: 24px; }
