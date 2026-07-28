@@ -53,6 +53,26 @@ report('DARK BOARD  (text on --ink #0d1117)', [
   ['error message .board-msg.error (red-bright)', redBright, ink, false],
 ]);
 
+// Light-board tokens (light theme). White board; dark amber + deep red keep
+// delay/cancel AAA on white - bright amber/red are unusable there.
+const lb = '#ffffff', lbChip = '#f1f3f6', muteL = '#4b5563';
+const delayL = '#92400e', cancelL = '#9b1c1c';
+
+report('LIGHT BOARD  (light theme - text on --board-bg #ffffff / chip #f1f3f6)', [
+  ['destination + on-time time (slate on white)', slate, lb, false],
+  ['delay expected time (dark amber #92400e)', delayL, lb, true],
+  ['delay scheduled time (mute)', muteL, lb, false],
+  ['operator .toc (mute)', muteL, lb, false],
+  ['platform number (slate on chip #f1f3f6)', slate, lbChip, false],
+  ['platform PROVISIONAL label (mute on chip)', muteL, lbChip, false],
+  ['no-platform dash (mute)', muteL, lb, false],
+  ['column header .board-cols (mute)', muteL, lb, false],
+  ['as-of / loading message (mute)', muteL, lb, false],
+  ['delay chip text (#92400e on white)', delayL, lb, false],
+  ['cancel chip text (#9b1c1c on white)', cancelL, lb, false],
+  ['error message .board-msg.error (#9b1c1c)', cancelL, lb, false],
+]);
+
 // Dark-theme chrome tokens
 const dbg = '#0f141b', dsurf = '#1a2129', dsurf2 = '#222b35';
 
