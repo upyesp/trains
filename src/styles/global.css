@@ -18,8 +18,9 @@
   --slate: #1b232e;
   --slate-mute: #5a6573;
   /* Semantic signals */
-  --amber: #f0b429;   /* delay (>= 5 min) - ~9:1 on ink */
-  --red:   #e5484d;   /* cancellation - ~5.6:1 on ink */
+  --amber: #f0b429;   /* delay (>= 5 min) - ~10:1 on ink (AAA) */
+  --red:   #e5484d;   /* cancellation identity (chip borders) */
+  --red-bright: #ff7d80;  /* cancellation TEXT - ~7.5:1 on ink (AAA) */
   --green: #3fb950;   /* live indicator - ~8:1 on ink */
   --radius: 14px;
   --mono: 'IBM Plex Mono', ui-monospace, monospace;
@@ -140,7 +141,7 @@ h1.station {
   background: #fff;
   color: var(--slate);
 }
-.combo input::placeholder { color: #97a1ad; }
+.combo input::placeholder { color: #6b727c; }   /* AA on white (~4.9:1) */
 .combo[aria-expanded="true"] input,
 .combo input:focus-visible { border-color: var(--slate); }
 .combo-list {
@@ -221,6 +222,10 @@ h1.station {
 .svc {
   padding: 14px 20px;
   border-bottom: 1px solid var(--line);
+  /* Bright text on the dark board (chalk on ink is ~15:1, AAA). The destination
+     and on-time departure time have no colour of their own, so they inherit
+     this - without it they'd inherit body --slate (dark) and be invisible. */
+  color: var(--chalk);
 }
 .board > :last-child { border-bottom: 0; }
 
@@ -233,7 +238,7 @@ h1.station {
   display: block; text-align: center;
   color: var(--ash) !important; padding: 30px 20px !important;
 }
-.board-msg.error { color: var(--red) !important; }
+.board-msg.error { color: var(--red-bright) !important; }
 
 /* Time = the hero */
 .time { font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: 600; font-size: 1.4rem; white-space: nowrap; }
@@ -241,7 +246,7 @@ h1.station {
 .time .arrow { color: var(--ash); margin: 0 2px 0 6px; font-size: 1rem; }
 .time .exp { color: var(--amber); }
 
-.dest { font-family: var(--sans); font-weight: 600; font-size: 1.02rem; }
+.dest { font-family: var(--sans); font-weight: 600; font-size: 1.02rem; overflow-wrap: break-word; }
 .dest .toc { display: block; color: var(--ash); font-weight: 400; font-size: .78rem; margin-top: 2px; }
 
 /* Platform chip - state in TEXT, reinforced by styling */
@@ -258,9 +263,14 @@ h1.station {
 .chip {
   display: inline-block; padding: 3px 9px; border-radius: 999px;
   font-family: var(--sans); font-weight: 600; font-size: .78rem;
+  /* Transparent background (not a coloured tint): a tint behind coloured text
+     caps contrast around AA, but on the dark board the text directly on --ink
+     reaches AAA for both delay (~10:1) and cancel (~7.5:1) - better for low
+     vision. The border carries the colour identity (ADR-0002). */
+  background: transparent;
 }
-.chip.delay { color: var(--amber); background: rgba(240,180,41,.12); border: 1px solid rgba(240,180,41,.4); }
-.chip.cancel { color: var(--red); background: rgba(229,72,77,.12); border: 1px solid rgba(229,72,77,.4); }
+.chip.delay { color: var(--amber); border: 1px solid rgba(240,180,41,.5); }
+.chip.cancel { color: var(--red-bright); border: 1px solid rgba(229,72,77,.55); }
 
 /* Cancelled service: whole card demuted */
 .svc.is-cancelled { color: var(--ash); }
@@ -303,7 +313,9 @@ footer.site { margin-top: 40px; color: var(--slate-mute); font-size: .8rem; }
      stays logical - only the visual layout reflows (ADR-0002). */
   .board-cols { display: none; }
   .svc {
-    grid-template-columns: 1fr auto;
+    /* minmax(0,1fr) + min-width:0 on the items lets a very long single-word
+       destination wrap instead of forcing the platform off-screen. */
+    grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
       "time   status"
       "dest   plat";
@@ -312,10 +324,17 @@ footer.site { margin-top: 40px; color: var(--slate-mute); font-size: .8rem; }
     row-gap: 6px;
     padding: 14px 16px;
   }
-  .svc-time   { grid-area: time; }
+  .svc-time   { grid-area: time; min-width: 0; }
   .svc-status { grid-area: status; justify-self: end; text-align: right; }
-  .svc-dest   { grid-area: dest; }
+  .svc-dest   { grid-area: dest; min-width: 0; }
   .svc-plat   { grid-area: plat;   justify-self: end; text-align: right; }
+  /* Stack a delayed time (scheduled over expected) so its column can't force
+     the platform off-screen - a horizontal nowrap '08:05 -> 08:11' (~135px)
+     made the first track too wide on narrow phones; stacked it's ~61px. The
+     arrow is visual-only and hidden on phones. Single on-time/cancelled times
+     render unchanged. */
+  .svc-time .time { display: inline-flex; flex-direction: column; align-items: flex-start; line-height: 1.05; }
+  .svc-time .time .arrow { display: none; }
   .time { font-size: 1.28rem; }
   .dest { font-size: .96rem; }
   .as-of { padding: 12px 14px 4px; }
