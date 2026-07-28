@@ -15,6 +15,23 @@ const { title, description } = Astro.props;
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
     {description && <meta name="description" content={description} />}
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="theme-color" id="theme-color" content="#0f141b" />
+    <!-- Apply the saved theme BEFORE first paint: defaults to dark, no FOUC,
+         and works as dark even with JS disabled (the :root defaults are dark). -->
+    <script is:inline>
+      (function () {
+        try {
+          var t = localStorage.getItem('theme');
+          t = (t === 'light' || t === 'dark') ? t : 'dark';
+        } catch (e) { t = 'dark'; }
+        var h = document.documentElement;
+        h.setAttribute('data-theme', t);
+        h.style.colorScheme = t;
+        var m = document.querySelector('meta[name="theme-color"]');
+        if (m) m.setAttribute('content', t === 'dark' ? '#0f141b' : '#f6f7f9');
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -26,8 +43,49 @@ const { title, description } = Astro.props;
     <a class="skip-link" href="#main">Skip to content</a>
     <div class="shell">
       <header class="site">
-        <a class="brand" href="/"><span class="mark">▰</span> Trains</a>
-        <span class="brand-tag">UK mainline, live</span>
+        <div class="brand-wrap">
+          <a class="brand" href="/"><span class="mark" aria-hidden="true">▰</span> Trains</a>
+          <span class="brand-tag">UK mainline, live</span>
+        </div>
+        <div class="menu-wrap">
+          <button
+            class="menu-btn"
+            id="menu-btn"
+            type="button"
+            aria-haspopup="true"
+            aria-expanded="false"
+            aria-controls="menu-panel"
+            aria-label="Open menu"
+          >
+            <span class="bar" aria-hidden="true"></span>
+            <span class="bar" aria-hidden="true"></span>
+            <span class="bar" aria-hidden="true"></span>
+          </button>
+          <div id="menu-panel" class="menu-panel" role="region" aria-label="Site menu" hidden>
+            <div class="menu-section">
+              <p class="menu-label" id="theme-label">Colour theme</p>
+              <div class="seg" role="group" aria-labelledby="theme-label">
+                <button class="seg-btn" type="button" data-theme-set="light" aria-pressed="false">
+                  <span class="seg-ico" aria-hidden="true">&#9728;</span> Light
+                </button>
+                <button class="seg-btn" type="button" data-theme-set="dark" aria-pressed="false">
+                  <span class="seg-ico" aria-hidden="true">&#9790;</span> Dark
+                </button>
+              </div>
+            </div>
+            <nav class="menu-section" aria-label="Site">
+              <a class="menu-link" href="/">Home</a>
+              <a
+                class="menu-link"
+                href="https://www.realtimetrains.co.uk/"
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                Data: Real-Time Trains <span class="ext" aria-hidden="true">&#8599;</span>
+              </a>
+            </nav>
+          </div>
+        </div>
       </header>
       <main id="main">
         <slot />
@@ -39,5 +97,9 @@ const { title, description } = Astro.props;
         </p>
       </footer>
     </div>
+    <script>
+      import { initMenu } from '../scripts/menu';
+      initMenu(document.body);
+    </script>
   </body>
 </html>
