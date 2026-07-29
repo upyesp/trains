@@ -46,6 +46,14 @@ function siteBase(): string {
   return (import.meta.env.BASE_URL || '/').replace(/\/$/, '');
 }
 
+/** Touch devices: the on-screen keyboard otherwise covers the dropdown. */
+const isTouch = window.matchMedia?.('(pointer: coarse)').matches ?? false;
+
+/** Height of the *visible* area (shrinks when the soft keyboard is up). */
+function visibleViewportHeight(): number {
+  return window.visualViewport?.height ?? window.innerHeight;
+}
+
 export function initCombobox(combo: HTMLElement, opts: ComboboxOptions = {}): void {
   const inputEl = combo.querySelector<HTMLInputElement>('input[role="combobox"]');
   const listEl = combo.querySelector<HTMLUListElement>('.combo-list');
@@ -60,6 +68,24 @@ export function initCombobox(combo: HTMLElement, opts: ComboboxOptions = {}): vo
   let matches: Station[] = [];
   let active = -1;
   let selected: Station | null = null;
+
+  /** Mobile: scroll so the input sits near the top of the visible area, leaving
+   *  the soft keyboard room only below the dropdown that opens beneath it. */
+  function pinInputToTop(): void {
+    if (!isTouch) return;
+    const delta = Math.round(input.getBoundingClientRect().top - 12);
+    if (Math.abs(delta) > 1) window.scrollBy(0, delta);
+  }
+
+  /** Mobile: keep the dropdown inside the visible (above-keyboard) area. */
+  function clampListHeight(): void {
+    if (!isTouch) return;
+    const topMargin = 12; // matches pinInputToTop's target
+    const bottomMargin = 12;
+    const gap = 6; // .combo-list { top: calc(100% + 6px) }
+    const room = visibleViewportHeight() - (topMargin + input.offsetHeight + gap) - bottomMargin;
+    list.style.maxHeight = `${Math.max(120, Math.min(320, room))}px`;
+  }
 
   function navigate(st: Station): void {
     window.location.href = `${siteBase()}/stations/${st.crs.toLowerCase()}`;
@@ -104,10 +130,12 @@ export function initCombobox(combo: HTMLElement, opts: ComboboxOptions = {}): vo
   function open(): void {
     combo.setAttribute('aria-expanded', 'true');
     list.hidden = false;
+    clampListHeight();
   }
   function close(): void {
     combo.setAttribute('aria-expanded', 'false');
     list.hidden = true;
+    list.style.maxHeight = ''; // restore the CSS default
     input.setAttribute('aria-activedescendant', '');
     active = -1;
   }
@@ -177,6 +205,8 @@ export function initCombobox(combo: HTMLElement, opts: ComboboxOptions = {}): vo
 
   input.addEventListener('input', openAndPaint);
   input.addEventListener('focus', () => {
+    pinInputToTop();
+    if (isTouch) requestAnimationFrame(pinInputToTop); // win the race with iOS's own scroll-into-view
     if (list.hidden) openAndPaint();
     // In filter mode, select-all so typing a new query replaces the current pick.
     if (selectable && selected) input.select();
@@ -240,6 +270,17 @@ export function initCombobox(combo: HTMLElement, opts: ComboboxOptions = {}): vo
       if (selectable) applySelected(); // restore the committed selection on blur
     }
   });
+
+  // The soft keyboard animates in over a few frames, resizing the visual
+  // viewport; re-clamp the dropdown so it always ends at the keyboard's edge.
+  const vv = window.visualViewport;
+  if (vv) {
+    const onVv = (): void => {
+      if (!list.hidden) clampListHeight();
+    };
+    vv.addEventListener('resize', onVv);
+    vv.addEventListener('scroll', onVv);
+  }
 
   // Preload + resolve an initial selection (filter mode restored from the URL).
   if (selectable && opts.initialCrs) {
