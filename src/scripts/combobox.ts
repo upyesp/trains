@@ -68,13 +68,26 @@ export function initCombobox(combo: HTMLElement, opts: ComboboxOptions = {}): vo
   let matches: Station[] = [];
   let active = -1;
   let selected: Station | null = null;
+  let savedBodyMinHeight = '';
+  let bodyRoomAdded = false;
 
   /** Mobile: scroll so the input sits near the top of the visible area, leaving
-   *  the soft keyboard room only below the dropdown that opens beneath it. */
+   *  the soft keyboard room only below the dropdown that opens beneath it.
+   *  On a page too short to scroll (e.g. the home search), grant the body
+   *  temporary scroll room so the scroll actually takes; removed on close. */
   function pinInputToTop(): void {
     if (!isTouch) return;
     const delta = Math.round(input.getBoundingClientRect().top - 12);
-    if (Math.abs(delta) > 1) window.scrollBy(0, delta);
+    if (delta <= 1) return;
+    const need = window.scrollY + window.innerHeight + delta + 16;
+    if (document.documentElement.scrollHeight < need) {
+      if (!bodyRoomAdded) {
+        savedBodyMinHeight = document.body.style.minHeight;
+        bodyRoomAdded = true;
+      }
+      document.body.style.minHeight = `${need}px`;
+    }
+    window.scrollBy(0, delta);
   }
 
   /** Mobile: keep the dropdown inside the visible (above-keyboard) area. */
@@ -138,6 +151,11 @@ export function initCombobox(combo: HTMLElement, opts: ComboboxOptions = {}): vo
     list.style.maxHeight = ''; // restore the CSS default
     input.setAttribute('aria-activedescendant', '');
     active = -1;
+    if (bodyRoomAdded) {
+      document.body.style.minHeight = savedBodyMinHeight;
+      bodyRoomAdded = false;
+      savedBodyMinHeight = '';
+    }
   }
 
   function paint(): void {
