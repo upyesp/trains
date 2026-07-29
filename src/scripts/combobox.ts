@@ -278,7 +278,11 @@ export function initCombobox(combo: HTMLElement, opts: ComboboxOptions = {}): vo
       selected = null;
       applySelected();
       opts.onClear?.();
-      input.focus();
+      close();
+      // Clearing is a committed action: collapse the listbox and drop focus so
+      // the field "flattens" and the mobile keyboard dismisses, rather than
+      // leaving the dropdown open awaiting a new query.
+      (document.activeElement as HTMLElement | null)?.blur();
     });
   }
 
