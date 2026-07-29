@@ -12,14 +12,3 @@ import data from './stations.json';
 export type { Station } from '../lib/station-search';
 
 export const STATIONS: readonly Station[] = data as Station[];
-
-/** Curated shortlist for the home page (CRS codes, in display order). */
-export const POPULAR_CRS = [
-  'KGX', 'EUS', 'PAD', 'WAT', 'LST', 'VIC',
-  'BHM', 'MAN', 'LDS', 'EDB', 'GLC', 'BRI',
-];
-
-export function findStation(crs: string): Station | undefined {
-  const u = crs.toUpperCase();
-  return STATIONS.find((it) => it.crs === u);
-}
