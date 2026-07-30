@@ -37,7 +37,7 @@ const cache = createMemoryCacheStore();
 const authStore = createMemoryAccessTokenStore();
 
 /** Origins allowed by CORS. Defaults to the production site; override via CORS_ORIGIN. */
-const PRODUCTION_ORIGIN = 'https://trains.upyesp.org';
+const PRODUCTION_ORIGIN = 'https://www.viptrains.org';
 function resolveAllowedOrigins(raw: string | undefined): string[] {
   const parsed = parseAllowedOrigins(raw);
   return parsed.length > 0 ? parsed : [PRODUCTION_ORIGIN];
