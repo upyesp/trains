@@ -1,6 +1,6 @@
 # Architecture: GitHub Pages (static frontend) + Cloudflare Worker (data proxy)
 
-The frontend is a statically-generated site hosted on **GitHub Pages** at the custom domain `trains.upyesp.org`. A single **Cloudflare Worker** acts as the data proxy: it holds the Real-Time Trains credentials, applies the 30s station-keyed cache, and serves the browser over CORS. **The browser never calls RTT directly.**
+The frontend is a statically-generated site hosted on **GitHub Pages** at the custom domain `www.viptrains.org`. A single **Cloudflare Worker** acts as the data proxy: it holds the Real-Time Trains credentials, applies the 30s station-keyed cache, and serves the browser over CORS. **The browser never calls RTT directly.**
 
 ## Considered Options
 
@@ -10,7 +10,7 @@ The frontend is a statically-generated site hosted on **GitHub Pages** at the cu
 ## Consequences
 
 - **Two platforms to operate:** GitHub Pages (frontend) + Cloudflare Workers (proxy). Both free-tier-friendly for a small public site.
-- The proxy serves a **separate origin** (e.g. `api.trains.upyesp.org` or a `*.workers.dev` URL) and must set **CORS** to allow the Pages origin only.
+- The proxy serves a **separate origin** (e.g. `api.viptrains.org` or a `*.workers.dev` URL) and must set **CORS** to allow the Pages origin only.
 - The **30s cache** lives in the Worker via Cloudflare's Cache API / KV — edge-cached, purpose-built for "cache this station's board JSON for 30s."
 - **RTT credentials live only in the Worker** (Cloudflare secrets) — never in the client bundle, never in the repo.
 - **SSG pages are scaffolding only.** Board data is fetched client-side through the proxy at runtime; builds never call RTT (avoids ~2500 calls per build). Trade-off: board content is not in crawlable HTML, only the page structure is.

@@ -8,7 +8,7 @@ import {
 import type { FetchRtt } from './core';
 import type { Board } from '../lib/types';
 
-const ORIGIN = 'https://trains.upyesp.org';
+const ORIGIN = 'https://www.viptrains.org';
 
 function board(): Board {
   return {

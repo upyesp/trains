@@ -1,6 +1,6 @@
 # trains
 
-Live UK mainline departure and arrival boards at **[trains.upyesp.org](https://trains.upyesp.org)**.
+Live UK mainline departure and arrival boards at **[www.viptrains.org](https://www.viptrains.org)**.
 Updated every 30 seconds from [Real-Time Trains](https://realtimetrains.co.uk/) via a caching proxy.
 
 Accessibility is a first-class concern (WCAG 2.2 AA, with screen-reader users as a primary
@@ -34,7 +34,7 @@ The site auto-deploys to GitHub Pages on push to `main` via
 [`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml).
 
 **One-time setup** (repo → Settings → Pages): set **Source = GitHub Actions**. The custom
-domain `trains.upyesp.org` is declared in [`public/CNAME`](./public/CNAME) and copied into
+domain `www.viptrains.org` is declared in [`public/CNAME`](./public/CNAME) and copied into
 the build output; `public/.nojekyll` disables Jekyll so the `/_astro/` assets ship intact.
 
 No secret is needed for the Pages build — the frontend only knows the Worker's public URL.
