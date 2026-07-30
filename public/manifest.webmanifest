@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "Trains — UK live departure boards",
-  "short_name": "Trains",
+  "name": "VIP Trains — UK live departure boards",
+  "short_name": "VIP Trains",
   "description": "Live UK National Rail departure and arrival boards.",
   "start_url": "/",
   "scope": "/",
