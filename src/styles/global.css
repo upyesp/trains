@@ -412,6 +412,9 @@ h1.station {
 .plat.provisional { border-style: dashed; }
 .plat .state { font-family: var(--sans); font-weight: 500; font-size: .6rem; letter-spacing: .04em; color: var(--board-mute); text-transform: uppercase; margin-top: 2px; }
 .plat.none { border-style: dashed; color: var(--board-mute); }
+/* Mobile-only caption above the chip (desktop shows the "Platform" column
+   header instead). Hidden by default; the responsive block reveals it. */
+.plat-label { display: none; }
 
 .chip {
   display: inline-block; padding: 3px 9px; border-radius: 999px;
@@ -465,7 +468,26 @@ footer.site { margin-top: 40px; color: var(--fg-mute); font-size: .8rem; }
   .svc-time   { grid-area: time; min-width: 0; }
   .svc-status { grid-area: status; justify-self: end; text-align: right; }
   .svc-dest   { grid-area: dest; min-width: 0; }
-  .svc-plat   { grid-area: plat;   justify-self: end; text-align: right; }
+  .svc-plat   {
+    grid-area: plat; justify-self: end; text-align: right;
+    /* Stack the visible "Platform" caption above the chip (phones only). The
+       desktop board has no per-row caption - it uses the column header. */
+    display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+  }
+  /* Phones have no column headers, so each chip gets a visible "Platform"
+     caption. */
+  .plat-label {
+    display: block;
+    font-family: var(--sans); font-weight: 500;
+    font-size: .62rem; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--board-mute);
+  }
+  /* Reserve a consistent chip width on phones: without this the box only widens
+     when "PROVISIONAL" shows, so the right column jitters between rows. 6.25rem
+     is the "PROVISIONAL" chip's width (number + uppercase state text + padding);
+     every chip now holds that width whether or not the state shows. Desktop keeps
+     its fluid min-width. */
+  .plat { min-width: 6.25rem; }
   /* Stack a delayed time (scheduled over expected) so its column can't force
      the platform off-screen - a horizontal nowrap '08:05 -> 08:11' (~135px)
      made the first track too wide on narrow phones; stacked it's ~61px. The

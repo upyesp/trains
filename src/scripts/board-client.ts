@@ -75,17 +75,27 @@ function delayMinutes(s: Service): number {
 // DOM is time, destination, platform, status: logical for screen readers, and
 // the desktop grid reads them into columns in that same order.
 
-function platformCell(p: Platform | null): string {
-  if (!p) {
-    return `<div class="svc-plat"><span class="visually-hidden">Platform not allocated</span><span class="plat none" aria-hidden="true">—</span></div>`;
-  }
+// The chip itself. The enclosing cell (platformCell) carries the labels.
+function platformChip(p: Platform | null): string {
+  if (!p) return `<span class="plat none" aria-hidden="true">—</span>`;
   const n = esc(p.number);
   if (p.state === 'provisional') {
-    return `<div class="svc-plat"><span class="visually-hidden">Platform: </span><span class="plat provisional">${n}<span class="state">provisional</span></span></div>`;
+    return `<span class="plat provisional">${n}<span class="state">provisional</span></span>`;
   }
   // Confirmed platforms carry a visually-hidden label so the state is in text
   // for screen readers without adding visual noise (ADR-0002).
-  return `<div class="svc-plat"><span class="visually-hidden">Platform: </span><span class="plat">${n}<span class="visually-hidden">, confirmed</span></span></div>`;
+  return `<span class="plat">${n}<span class="visually-hidden">, confirmed</span></span>`;
+}
+
+function platformCell(p: Platform | null): string {
+  // A visible "Platform" caption is shown only on phones (mobile CSS); the
+  // desktop board uses its column header instead. It is aria-hidden so screen
+  // readers don't double-read it next to the visually-hidden label below, which
+  // is the one AT announces.
+  const srLabel = p
+    ? '<span class="visually-hidden">Platform: </span>'
+    : '<span class="visually-hidden">Platform not allocated</span>';
+  return `<div class="svc-plat"><span class="plat-label" aria-hidden="true">Platform</span>${srLabel}${platformChip(p)}</div>`;
 }
 
 function timeCell(s: Service): string {
