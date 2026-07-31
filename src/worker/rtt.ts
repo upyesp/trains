@@ -36,6 +36,21 @@ export function parseRttResult(
 }
 
 /**
+ * Pure: normalise a service uniqueIdentity for RTT's `/gb-nr/service` query.
+ *
+ * RTT returns `scheduleMetadata.uniqueIdentity` *with* a namespace prefix
+ * (`gb-nr:L82949:2026-07-31`), but the `/gb-nr/service?uniqueIdentity=` query
+ * param rejects that prefix and wants just `<identity>:<date>`
+ * (`L82949:2026-07-31`) — the prefixed form makes RTT return 400, which surfaces
+ * as a 503 here. Strip the leading namespace segment when present (three or more
+ * colon-separated parts); a bare `<identity>:<date>` is passed through unchanged.
+ */
+export function serviceQueryIdentity(serviceId: string): string {
+  const parts = serviceId.split(':');
+  return parts.length >= 3 ? parts.slice(1).join(':') : serviceId;
+}
+
+/**
  * Pure: turn a raw RTT service HTTP result into our normalised outcome.
  * 200 -> map to ServiceDetail; 404 -> not-found (definitive, never stale);
  * 429 -> error + Retry-After; anything else -> plain error.
