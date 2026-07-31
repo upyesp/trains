@@ -30,6 +30,51 @@ export interface Service {
   cancelled: boolean;
 }
 
+/** One advertised stop on a service's full run (origin -> destination). */
+export interface CallingPoint {
+  /** Station name (RTT `location.description`). */
+  station: string;
+  /** Timetable time at this stop (arrival where advertised; else the departure,
+   * e.g. at the origin). ISO 8601. */
+  scheduledTime: string;
+  /** Expected (live) time at this stop, from the SAME element as scheduledTime
+   * so the pair is direction-consistent. Equal to scheduledTime when "on time". */
+  expectedTime: string;
+  /** Platform at this stop, or null when not announced. */
+  platform: Platform | null;
+  /** True when THIS stop is cancelled (RTT `displayAs === 'CANCELLED'`). */
+  cancelled: boolean;
+}
+
+/** A single train run with its full public calling pattern. */
+export interface ServiceDetail {
+  /** RTT `uniqueIdentity` (the id the page was opened with). */
+  id: string;
+  /** Scheduled origin name. */
+  origin: string;
+  /** Scheduled final destination name. */
+  destination: string;
+  /** Train Operating Company running this service. */
+  operator: string;
+  /** Number of passenger vehicles (coaches), or null when unknown. */
+  coaches: number | null;
+  /** True when any advertised stop is cancelled. */
+  cancelled: boolean;
+  /** Ordered calling points (origin first). Public stops only. */
+  points: CallingPoint[];
+}
+
+/**
+ * Wire format for a service-detail response (mirrors `BoardResponse`). Carries
+ * the stale-while-error signal: `asAt` drives the "last updated" timestamp;
+ * `stale` is true when cached data is served because the upstream fetch failed.
+ */
+export interface ServiceDetailResponse {
+  detail: ServiceDetail;
+  asAt: number;
+  stale: boolean;
+}
+
 export type BoardKind = 'departures' | 'arrivals';
 
 /** A live, time-ordered board of services at one station. */

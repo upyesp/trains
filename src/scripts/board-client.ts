@@ -125,9 +125,19 @@ function statusCell(s: Service): string {
   return '<div class="svc-status"></div>';
 }
 
-function rowHtml(s: Service): string {
+function rowHref(s: Service, crs: string): string {
+  // Shareable per-service URL. `id` is the RTT uniqueIdentity; `from` lets the
+  // detail page offer a "back to this station" link (ignored when absent).
+  const q = new URLSearchParams({ id: s.id, from: crs });
+  return `/service/?${q.toString()}`;
+}
+
+function rowHtml(s: Service, crs: string): string {
   const cls = s.cancelled ? 'svc is-cancelled' : 'svc';
-  return `<li class="${cls}">${timeCell(s)}${destCell(s)}${platformCell(s.platform)}${statusCell(s)}</li>`;
+  // The whole row is one link to the service detail page - a native <a> gives
+  // keyboard + screen-reader support for free. The trailing visually-hidden
+  // text states the link's purpose; the visible cells supply the specifics.
+  return `<li class="svc-item"><a class="${cls}" href="${rowHref(s, crs)}">${timeCell(s)}${destCell(s)}${platformCell(s.platform)}${statusCell(s)}<span class="visually-hidden">. View all calling points with live times for this service.</span></a></li>`;
 }
 
 const LOADING_ROW = '<li class="board-msg">Loading live board…</li>';
@@ -236,7 +246,7 @@ export function initBoard(root: HTMLElement): void {
         ? state.callsAt
           ? FILTERED_EMPTY_ROW
           : EMPTY_ROW
-        : board.services.map(rowHtml).join('');
+        : board.services.map((s) => rowHtml(s, state.crs)).join('');
   }
 
   function setAsAt(epochMs: number, stale: boolean): void {

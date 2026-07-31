@@ -1,5 +1,14 @@
-import type { Board, BoardKind, Platform, Service } from './types';
-import type { RTTLocationResponse, RTTPlannedActual, RTTService } from './rtt';
+import type { Board, BoardKind, CallingPoint, Platform, Service, ServiceDetail } from './types';
+import type {
+  RTTLocationDisplayAs,
+  RTTLocationPair,
+  RTTLocationResponse,
+  RTTPlannedActual,
+  RTTService,
+  RTTServiceDetailResponse,
+  RTTServiceLocationItem,
+  RTTTemporalData,
+} from './rtt';
 
 /**
  * Map an RTT `/gb-nr/location` response to our `Board`. Pure; no IO.
@@ -66,4 +75,82 @@ function otherEnd(service: RTTService, kind: BoardKind): string {
   const pairs = kind === 'departures' ? service.destination : service.origin;
   const end = pairs[pairs.length - 1];
   return end?.location.description ?? '';
+}
+
+/** displayAs values that are advertised public stops (shown on the detail page). */
+const PUBLIC_STOPS: ReadonlySet<RTTLocationDisplayAs> = new Set([
+  'CALL',
+  'STARTS',
+  'TERMINATES',
+  'CANCELLED',
+]);
+
+/** A stop counts if it has an advertised public `displayAs`. PASS (through, no
+ * call), DIVERTED, and a missing value are not advertised stops. */
+function isPublicStop(item: RTTServiceLocationItem): boolean {
+  const d = item.temporalData?.displayAs;
+  return d != null && PUBLIC_STOPS.has(d);
+}
+
+/** Pick the temporal element to show for a stop: arrival (most stops), else
+ * departure (the origin only departs), else pass (defensive). Both scheduled and
+ * expected times are read from the SAME element so the pair is direction-consistent
+ * (an arrival delay against an arrival time, not a mismatched departure time). */
+function temporalFor(item: RTTServiceLocationItem): RTTTemporalData | undefined {
+  return item.temporalData?.arrival ?? item.temporalData?.departure ?? item.temporalData?.pass;
+}
+
+function callingPointFrom(item: RTTServiceLocationItem): CallingPoint {
+  const t = temporalFor(item);
+  const scheduledTime = t?.scheduleAdvertised ?? '';
+  const expectedTime = t
+    ? (t.realtimeForecast ?? t.realtimeEstimate ?? scheduledTime)
+    : scheduledTime;
+  return {
+    station: item.location?.description ?? '',
+    scheduledTime,
+    expectedTime,
+    platform: platformFrom(item.locationMetadata?.platform),
+    cancelled: item.temporalData?.displayAs === 'CANCELLED',
+  };
+}
+
+/** The "other end" name from an origin/destination pair array (RTT may list
+ * several; the last is the advertised end). */
+function endpointName(pairs: RTTLocationPair[] | undefined): string {
+  return pairs?.[pairs.length - 1]?.location.description ?? '';
+}
+
+/**
+ * Map an RTT `/gb-nr/service` response to our `ServiceDetail`. Pure; no IO.
+ *
+ * Only advertised public stops are kept (CALL/STARTS/TERMINATES/CANCELLED);
+ * through-services (PASS) and diversions drop out. Each stop's time prefers the
+ * advertised arrival, falling back to the departure (the origin) so the run's
+ * first stop still has a time. The `serviceId` is the id the request was opened
+ * with (the Worker knows it); it is echoed back as `detail.id`.
+ */
+export function mapServiceDetail(
+  response: RTTServiceDetailResponse,
+  serviceId: string,
+): ServiceDetail {
+  const svc = response.service;
+  const items = (svc?.locations ?? []).filter(isPublicStop);
+  const points = items.map(callingPointFrom);
+
+  // numberOfVehicles is a service-wide property repeated on each location; take
+  // it from the first location that actually carries a positive count.
+  const coachesItem = items.find(
+    (i) => coachesFrom(i.locationMetadata?.numberOfVehicles) !== null,
+  );
+
+  return {
+    id: serviceId,
+    origin: endpointName(svc?.origin) || points[0]?.station || '',
+    destination: endpointName(svc?.destination) || points[points.length - 1]?.station || '',
+    operator: svc?.scheduleMetadata.operator.name ?? '',
+    coaches: coachesFrom(coachesItem?.locationMetadata?.numberOfVehicles),
+    cancelled: points.some((p) => p.cancelled),
+    points,
+  };
 }
