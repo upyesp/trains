@@ -1,8 +1,8 @@
-import { selectBoardToServe } from '../lib/cache';
+import { selectToServe } from '../lib/cache';
 import type { CacheEntry } from '../lib/cache';
-import type { BoardKind, BoardResponse } from '../lib/types';
-import { parseBoardRequest } from './router';
-import type { RttFetchOutcome } from './rtt';
+import type { Board, BoardKind, BoardResponse, ServiceDetail } from '../lib/types';
+import { parseBoardRequest, parseServiceRequest } from './router';
+import type { RttFetchOutcome, ServiceFetchOutcome } from './rtt';
 
 export interface WorkerResponse {
   status: number;
@@ -14,6 +14,13 @@ export type FetchRtt = (
   ctx: { crs: string; kind: BoardKind; callsAt: string | null },
 ) => Promise<RttFetchOutcome>;
 
+export type FetchService = (id: string) => Promise<ServiceFetchOutcome>;
+
+/**
+ * Per-isolate key/value cache. The board and service paths share one store per
+ * isolate (keys are namespaced `board:` / `service:`); each value is a
+ * `CacheEntry<unknown>` that the serve path narrows to its own payload type.
+ */
 export interface CacheStore {
   get(key: string): Promise<CacheEntry | null>;
   set(key: string, entry: CacheEntry): Promise<void>;
@@ -110,33 +117,86 @@ export async function serveBoard(
   // unfiltered board for the same station are different boards and must not
   // shadow each other under the shared per-station TTL cache.
   const cacheKey = `board:${crs}:${kind}:${callsAt ?? '-'}`;
-  const cached = await deps.cache.get(cacheKey);
+  // The shared store holds CacheEntry<unknown>; the namespaced key guarantees
+  // this entry is a Board, so the cast is sound.
+  const cached = (await deps.cache.get(cacheKey)) as CacheEntry<Board> | null;
 
   // Fresh cache hit: serve without calling RTT (the 30s cross-request dedup).
   if (cached && deps.now - cached.asAt < deps.config.ttlSec * 1000) {
-    return json(200, { board: cached.board, asAt: cached.asAt, stale: false }, cors);
+    return json(200, { board: cached.data, asAt: cached.asAt, stale: false }, cors);
   }
 
   const fetched = await deps.fetchRtt({ crs, kind, callsAt });
-  const decision = selectBoardToServe(cached, fetched, deps.now);
+  const decision = selectToServe<Board>(cached, fetched, deps.now);
 
   if (decision.status === 'unavailable') {
     return json(503, { error: 'unavailable' }, cors);
   }
 
   if (decision.status === 'fresh') {
-    await deps.cache.set(cacheKey, { board: decision.board, asAt: decision.asAt });
+    await deps.cache.set(cacheKey, { data: decision.data, asAt: decision.asAt });
   }
 
   return json(
     200,
     {
-      board: decision.board,
+      board: decision.data,
       asAt: decision.asAt,
       stale: decision.status === 'stale',
     } satisfies BoardResponse,
     cors,
   );
+}
+
+/**
+ * Orchestrate one service-detail request: parse -> per-service cache (TTL) ->
+ * fetch RTT -> map -> stale-while-error. A 404 from RTT is definitive, so it is
+ * returned immediately and never served from a stale cache; other upstream
+ * failures fall back to stale-while-error like the board. Pure of platform.
+ */
+export async function serveServiceDetail(
+  input: {
+    method: string;
+    pathname: string;
+    search: Record<string, string | undefined>;
+    origin: string | null;
+  },
+  deps: { fetchService: FetchService; cache: CacheStore; now: number; config: ServeConfig },
+): Promise<WorkerResponse> {
+  const cors = corsHeaders(input.origin, deps.config.allowedOrigins);
+
+  if (input.method === 'OPTIONS') {
+    return { status: 204, headers: cors ?? {}, body: null };
+  }
+
+  const parsed = parseServiceRequest(input.method, input.pathname, input.search);
+  if (!parsed.ok) {
+    const status =
+      parsed.reason === 'method-not-allowed' ? 405 : parsed.reason === 'bad-id' ? 400 : 404;
+    return json(status, { error: parsed.reason }, cors);
+  }
+
+  const { id } = parsed.request;
+  const cacheKey = `service:${id}`;
+  const cached = (await deps.cache.get(cacheKey)) as CacheEntry<ServiceDetail> | null;
+
+  if (cached && deps.now - cached.asAt < deps.config.ttlSec * 1000) {
+    return json(200, { detail: cached.data, asAt: cached.asAt, stale: false }, cors);
+  }
+
+  const fetched = await deps.fetchService(id);
+
+  if (!fetched.ok) {
+    // A 404 means the service identity is unknown/expired — definitive. Never
+    // mask it with a stale cached detail.
+    if (fetched.notFound) return json(404, { error: 'not-found' }, cors);
+    const decision = selectToServe<ServiceDetail>(cached, { ok: false }, deps.now);
+    if (decision.status === 'unavailable') return json(503, { error: 'unavailable' }, cors);
+    return json(200, { detail: decision.data, asAt: decision.asAt, stale: true }, cors);
+  }
+
+  await deps.cache.set(cacheKey, { data: fetched.data, asAt: deps.now });
+  return json(200, { detail: fetched.data, asAt: deps.now, stale: false }, cors);
 }
 
 /**

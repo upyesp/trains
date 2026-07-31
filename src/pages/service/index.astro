@@ -1,0 +1,43 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+// Per-service detail page. Static SSG shell; the client (service-client.ts)
+// reads ?id=<uniqueIdentity> from the URL (so the page is shareable) and
+// fetches the live calling pattern from the Worker.
+//
+// `||` (not ??) so an empty/unset var falls back to the live Worker.
+const apiBase = import.meta.env.PUBLIC_API || 'https://trains-api.upyesp.workers.dev';
+const mock = import.meta.env.PUBLIC_MOCK === 'true';
+---
+
+<BaseLayout
+  title="Service details — VIP Trains"
+  description="Live calling points, times and platform for a UK mainline train service."
+>
+  <p id="svc-back" class="back-wrap"></p>
+
+  <section class="service-head" id="svc-head">
+    <h1 class="service-title">Service details</h1>
+  </section>
+
+  <section
+    id="service-detail"
+    class="board-panel"
+    data-api={apiBase}
+    data-mock={mock ? 'true' : 'false'}
+  >
+    <p class="as-of">
+      <span id="as-of">As of --:--</span>
+      <span class="stale" id="stale-note" role="status"></span>
+    </p>
+    <div id="svc-body">
+      <p class="board-msg">Loading service…</p>
+    </div>
+  </section>
+</BaseLayout>
+
+<script>
+  import { initServiceDetail } from '../../scripts/service-client';
+  const root = document.getElementById('service-detail');
+  if (root instanceof HTMLElement) initServiceDetail(root);
+</script>

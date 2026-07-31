@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { parseRetryAfter, parseRttResult } from './rtt';
-import type { RTTLocationResponse } from '../lib/rtt';
+import { parseRetryAfter, parseRttResult, parseServiceResult } from './rtt';
+import type { RTTLocationResponse, RTTServiceDetailResponse } from '../lib/rtt';
 
 const ctx = { crs: 'WAT', kind: 'departures' as const };
 
@@ -22,7 +22,7 @@ describe('parseRttResult', () => {
 
     expect(parseRttResult(200, body, null, ctx)).toEqual({
       ok: true,
-      board: {
+      data: {
         station: 'WAT',
         kind: 'departures',
         services: [
@@ -35,7 +35,7 @@ describe('parseRttResult', () => {
   it('treats 204 as an empty board (not an error)', () => {
     expect(parseRttResult(204, null, null, ctx)).toEqual({
       ok: true,
-      board: { station: 'WAT', kind: 'departures', services: [] },
+      data: { station: 'WAT', kind: 'departures', services: [] },
     });
   });
 
@@ -70,5 +70,50 @@ describe('parseRetryAfter', () => {
     expect(secs).not.toBeNull();
     expect(secs!).toBeGreaterThanOrEqual(80);
     expect(secs!).toBeLessThanOrEqual(100);
+  });
+});
+
+describe('parseServiceResult', () => {
+  it('maps a 200 body to a ServiceDetail via mapServiceDetail, echoing the id', () => {
+    const body: RTTServiceDetailResponse = {
+      service: {
+        scheduleMetadata: { uniqueIdentity: 'gb-nr:L1:2026-07-27', operator: { name: 'SWR' } },
+        origin: [{ location: { description: 'London Waterloo' } }],
+        destination: [{ location: { description: 'Weymouth' } }],
+        locations: [
+          { location: { description: 'London Waterloo' }, temporalData: { displayAs: 'STARTS', departure: { scheduleAdvertised: '2026-07-27T08:05:00+01:00' } } },
+          { location: { description: 'Weymouth' }, temporalData: { displayAs: 'TERMINATES', arrival: { scheduleAdvertised: '2026-07-27T10:02:00+01:00' } } },
+        ],
+      },
+    };
+
+    expect(parseServiceResult(200, body, null, 'gb-nr:L1:2026-07-27')).toEqual({
+      ok: true,
+      data: expect.objectContaining({
+        id: 'gb-nr:L1:2026-07-27',
+        origin: 'London Waterloo',
+        destination: 'Weymouth',
+        points: expect.arrayContaining([expect.objectContaining({ station: 'Weymouth' })]),
+      }),
+    });
+  });
+
+  it('treats 404 as a definitive not-found', () => {
+    expect(parseServiceResult(404, null, null, 'gb-nr:gone:2026-07-27')).toEqual({
+      ok: false,
+      notFound: true,
+    });
+  });
+
+  it('treats 429 as an error and carries retry-after seconds', () => {
+    expect(parseServiceResult(429, null, 60, 'gb-nr:L1:2026-07-27')).toEqual({
+      ok: false,
+      retryAfterSec: 60,
+    });
+  });
+
+  it('treats other 4xx/5xx as a plain error', () => {
+    expect(parseServiceResult(500, null, null, 'gb-nr:L1:2026-07-27')).toEqual({ ok: false });
+    expect(parseServiceResult(400, null, null, 'gb-nr:L1:2026-07-27')).toEqual({ ok: false });
   });
 });

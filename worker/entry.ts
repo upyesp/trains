@@ -3,10 +3,15 @@
 // just wires Cloudflare bindings: the refresh token (secret), fetch, and the clock.
 //
 // RTT uses a refresh-token model (ADR-0004 / research §2c): the long-lived
-// REFRESH token is held as a secret here and is NEVER sent to board endpoints.
-// It is exchanged for a short-lived access token via /api/get_access_token (cached
-// until just before `validUntil`), and the access token authorises board calls.
-// On a 401 we drop the cached access token and retry once.
+// REFRESH token is held as a secret here and is NEVER sent to board/service
+// endpoints. It is exchanged for a short-lived access token via
+// /api/get_access_token (cached until just before `validUntil`), and the access
+// token authorises every /gb-nr/* call. On a 401 we drop the cached access token
+// and retry once.
+//
+// Two routes share one authed-GET helper:
+//   GET /board/<CRS>   -> serveBoard   (/gb-nr/location)
+//   GET /service?id=…  -> serveServiceDetail (/gb-nr/service)
 //
 // Token MUST live here as a secret, never in the client (RTT terms):
 //   wrangler secret put RTT_TOKEN        # paste the REFRESH token
@@ -16,9 +21,10 @@ import {
   createMemoryCacheStore,
   parseAllowedOrigins,
   serveBoard,
+  serveServiceDetail,
 } from '../src/worker/core';
-import { parseRetryAfter, parseRttResult } from '../src/worker/rtt';
-import type { RttFetchOutcome } from '../src/worker/rtt';
+import { parseRetryAfter, parseRttResult, parseServiceResult } from '../src/worker/rtt';
+import type { RttFetchOutcome, ServiceFetchOutcome } from '../src/worker/rtt';
 import { createMemoryAccessTokenStore, getAccessToken } from '../src/worker/auth';
 import type { AccessTokenStore, FetchAccessToken } from '../src/worker/auth';
 import type { BoardKind } from '../src/lib/types';
@@ -32,8 +38,10 @@ interface Env {
   CORS_ORIGIN?: string; // comma-separated allowlist; defaults to production site
 }
 
-// One cache per Worker isolate (see core.createMemoryCacheStore).
-const cache = createMemoryCacheStore();
+// One cache per route per Worker isolate (see core.createMemoryCacheStore).
+// Keys are namespaced (`board:` / `service:`) so they never collide.
+const boardCache = createMemoryCacheStore();
+const serviceCache = createMemoryCacheStore();
 const authStore = createMemoryAccessTokenStore();
 
 /** Origins allowed by CORS. Defaults to the production site; override via CORS_ORIGIN. */
@@ -51,36 +59,52 @@ export default {
       search[key] = value;
     });
 
-    const result = await serveBoard(
-      {
-        method: request.method,
-        pathname: url.pathname,
-        search,
-        origin: request.headers.get('Origin'),
-      },
-      {
-        fetchRtt: makeRttFetcher(env, authStore),
-        cache,
-        now: Date.now(),
-        config: {
-          ttlSec: Number(env.TTL_SEC ?? 30),
-          allowedOrigins: resolveAllowedOrigins(env.CORS_ORIGIN),
-        },
-      },
-    );
+    const input = {
+      method: request.method,
+      pathname: url.pathname,
+      search,
+      origin: request.headers.get('Origin'),
+    };
+    const config = {
+      ttlSec: Number(env.TTL_SEC ?? 30),
+      allowedOrigins: resolveAllowedOrigins(env.CORS_ORIGIN),
+    };
+    const now = Date.now();
+    const authedGet = makeAuthedGet(env, authStore);
+
+    // /service (exact) is the service-detail route; everything else falls
+    // through to the board route, which 404s unknown paths.
+    const result =
+      url.pathname === '/service'
+        ? await serveServiceDetail(input, {
+            fetchService: makeServiceFetcher(authedGet),
+            cache: serviceCache,
+            now,
+            config,
+          })
+        : await serveBoard(input, {
+            fetchRtt: makeBoardFetcher(env, authedGet),
+            cache: boardCache,
+            now,
+            config,
+          });
 
     const body = result.body === null ? null : JSON.stringify(result.body);
     return new Response(body, { status: result.status, headers: result.headers });
   },
 };
 
-function makeRttFetcher(env: Env, authStore: AccessTokenStore) {
+/**
+ * Build a single authenticated-GET helper shared by the board and service
+ * routes. Handles the access-token exchange + the one-shot 401 refresh-retry, so
+ * both routes get identical auth behaviour without duplicating the loop.
+ * Returns null on network failure (callers treat that as a plain fetch error).
+ */
+function makeAuthedGet(env: Env, authStore: AccessTokenStore) {
   const apiBase = env.RTT_API_BASE ?? 'https://data.rtt.io';
   const version = env.RTT_API_VERSION;
   const refreshToken = env.RTT_TOKEN;
-  const timeWindow = Number(env.TIME_WINDOW ?? 120);
 
-  // Exchange the refresh token for a short-lived access token (cached in authStore).
   const fetchAuth: FetchAccessToken = async () => {
     try {
       const res = await fetch(`${apiBase}/api/get_access_token`, {
@@ -92,13 +116,46 @@ function makeRttFetcher(env: Env, authStore: AccessTokenStore) {
     }
   };
 
-  // Fetch the board with a given access token; null on network failure.
-  const fetchBoardRaw = async (
-    accessToken: string,
-    ctx: { crs: string; kind: BoardKind; callsAt: string | null },
-  ): Promise<{ status: number; body: unknown; retryAfterSec: number | null } | null> => {
-    const headers: Record<string, string> = { Authorization: `Bearer ${accessToken}` };
+  async function doGet(
+    path: string,
+  ): Promise<{ status: number; body: unknown; retryAfterSec: number | null } | null> {
+    const at = await getAccessToken({ fetchAuth, store: authStore, now: Date.now() });
+    if (!at) return null;
+    const headers: Record<string, string> = { Authorization: `Bearer ${at.token}` };
     if (version) headers.Version = version;
+    try {
+      const res = await fetch(`${apiBase}${path}`, { headers });
+      const retryAfterSec = parseRetryAfter(res.headers.get('retry-after'));
+      if (res.status === 204) return { status: 204, body: null, retryAfterSec };
+      if (res.status === 200) return { status: 200, body: await res.json(), retryAfterSec };
+      return { status: res.status, body: null, retryAfterSec };
+    } catch {
+      return null;
+    }
+  }
+
+  return async (path: string) => {
+    let raw = await doGet(path);
+    if (!raw) return null;
+
+    // Access token expired early (clock skew / revocation): force a refresh and
+    // retry once before giving up -> falls back to stale-while-error / 503.
+    if (raw.status === 401) {
+      await authStore.clear();
+      raw = await doGet(path);
+    }
+    return raw;
+  };
+}
+
+/** Board route fetcher: /gb-nr/location with the "calling at" filter mapping. */
+function makeBoardFetcher(
+  env: Env,
+  authedGet: (path: string) => Promise<{ status: number; body: unknown; retryAfterSec: number | null } | null>,
+) {
+  const timeWindow = Number(env.TIME_WINDOW ?? 120);
+
+  return async (ctx: { crs: string; kind: BoardKind; callsAt: string | null }): Promise<RttFetchOutcome> => {
     // The optional "calling at" filter is applied upstream by RTT: departures
     // keep trains that SUBSEQUENTLY call there (filterTo); arrivals keep trains
     // that PREVIOUSLY called there (filterFrom). One call either way — RTT knows
@@ -109,35 +166,19 @@ function makeRttFetcher(env: Env, authStore: AccessTokenStore) {
     if (ctx.callsAt) {
       params.set(ctx.kind === 'departures' ? 'filterTo' : 'filterFrom', ctx.callsAt);
     }
-    const url = `${apiBase}/gb-nr/location?${params.toString()}`;
-    try {
-      const res = await fetch(url, { headers });
-      const retryAfterSec = parseRetryAfter(res.headers.get('retry-after'));
-      if (res.status === 204) return { status: 204, body: null, retryAfterSec };
-      if (res.status === 200) return { status: 200, body: await res.json(), retryAfterSec };
-      return { status: res.status, body: null, retryAfterSec };
-    } catch {
-      return null;
-    }
+    const raw = await authedGet(`/gb-nr/location?${params.toString()}`);
+    return raw ? parseRttResult(raw.status, raw.body, raw.retryAfterSec, ctx) : { ok: false };
   };
+}
 
-  return async (ctx: { crs: string; kind: BoardKind; callsAt: string | null }): Promise<RttFetchOutcome> => {
-    const at = await getAccessToken({ fetchAuth, store: authStore, now: Date.now() });
-    if (!at) return { ok: false };
-
-    let raw = await fetchBoardRaw(at.token, ctx);
-    if (!raw) return { ok: false };
-
-    // Access token expired early (clock skew / revocation): force a refresh and
-    // retry once before giving up -> falls back to stale-while-error / 503.
-    if (raw.status === 401) {
-      await authStore.clear();
-      const at2 = await getAccessToken({ fetchAuth, store: authStore, now: Date.now() });
-      if (!at2) return { ok: false };
-      raw = await fetchBoardRaw(at2.token, ctx);
-      if (!raw) return { ok: false };
-    }
-
-    return parseRttResult(raw.status, raw.body, raw.retryAfterSec, ctx);
+/** Service-detail route fetcher: /gb-nr/service?uniqueIdentity=<id>. */
+function makeServiceFetcher(
+  authedGet: (path: string) => Promise<{ status: number; body: unknown; retryAfterSec: number | null } | null>,
+) {
+  return async (id: string): Promise<ServiceFetchOutcome> => {
+    const params = new URLSearchParams();
+    params.set('uniqueIdentity', id);
+    const raw = await authedGet(`/gb-nr/service?${params.toString()}`);
+    return raw ? parseServiceResult(raw.status, raw.body, raw.retryAfterSec, id) : { ok: false };
   };
 }

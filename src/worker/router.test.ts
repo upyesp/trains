@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseBoardRequest } from './router';
+import { parseBoardRequest, parseServiceRequest } from './router';
 
 describe('parseBoardRequest', () => {
   it('parses GET /board/WAT with the default departures kind', () => {
@@ -67,6 +67,46 @@ describe('parseBoardRequest', () => {
 
   it('returns method-not-allowed for non-GET', () => {
     expect(parseBoardRequest('POST', '/board/WAT', {})).toEqual({
+      ok: false,
+      reason: 'method-not-allowed',
+    });
+  });
+});
+
+describe('parseServiceRequest', () => {
+  it('parses GET /service?id=<namespaced uniqueIdentity>', () => {
+    expect(parseServiceRequest('GET', '/service', { id: 'gb-nr:L01525:2026-07-27' })).toEqual({
+      ok: true,
+      request: { id: 'gb-nr:L01525:2026-07-27' },
+    });
+  });
+
+  it('parses the shorter identity:date form', () => {
+    expect(parseServiceRequest('GET', '/service', { id: 'L01525:2026-07-27' })).toEqual({
+      ok: true,
+      request: { id: 'L01525:2026-07-27' },
+    });
+  });
+
+  it('returns bad-id when id is absent or empty', () => {
+    expect(parseServiceRequest('GET', '/service', {})).toEqual({ ok: false, reason: 'bad-id' });
+    expect(parseServiceRequest('GET', '/service', { id: '' })).toEqual({ ok: false, reason: 'bad-id' });
+  });
+
+  it('rejects an id with path/query/space metacharacters', () => {
+    expect(parseServiceRequest('GET', '/service', { id: 'gb-nr/L1' })).toEqual({ ok: false, reason: 'bad-id' });
+    expect(parseServiceRequest('GET', '/service', { id: 'a b' })).toEqual({ ok: false, reason: 'bad-id' });
+    expect(parseServiceRequest('GET', '/service', { id: 'a?b' })).toEqual({ ok: false, reason: 'bad-id' });
+    expect(parseServiceRequest('GET', '/service', { id: 'a&b' })).toEqual({ ok: false, reason: 'bad-id' });
+  });
+
+  it('returns not-found for any path other than exactly /service', () => {
+    expect(parseServiceRequest('GET', '/service/x', {})).toEqual({ ok: false, reason: 'not-found' });
+    expect(parseServiceRequest('GET', '/board/WAT', {})).toEqual({ ok: false, reason: 'not-found' });
+  });
+
+  it('returns method-not-allowed for non-GET', () => {
+    expect(parseServiceRequest('POST', '/service', { id: 'x' })).toEqual({
       ok: false,
       reason: 'method-not-allowed',
     });

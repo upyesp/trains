@@ -90,3 +90,23 @@ export interface RTTService {
 export interface RTTLocationResponse {
   services?: RTTService[];
 }
+
+/** One location in a service's full run (an item of RTT `NetworkRailServiceLocations`). */
+export interface RTTServiceLocationItem {
+  temporalData: RTTLocationTemporalData;
+  locationMetadata?: RTTLocationMetadata;
+  location: RTTGeographicLocation;
+}
+
+/** The `service` object returned by GET /gb-nr/service (narrowed). */
+export interface RTTServiceDetail {
+  scheduleMetadata: RTTScheduleMetadata;
+  locations?: RTTServiceLocationItem[];
+  origin?: RTTLocationPair[];
+  destination?: RTTLocationPair[];
+}
+
+/** Response of GET /gb-nr/service (narrowed). An upstream `404` means not found. */
+export interface RTTServiceDetailResponse {
+  service?: RTTServiceDetail;
+}
