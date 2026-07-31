@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseRetryAfter, parseRttResult, parseServiceResult } from './rtt';
+import { parseRetryAfter, parseRttResult, parseServiceResult, serviceQueryIdentity } from './rtt';
 import type { RTTLocationResponse, RTTServiceDetailResponse } from '../lib/rtt';
 
 const ctx = { crs: 'WAT', kind: 'departures' as const };
@@ -115,5 +115,26 @@ describe('parseServiceResult', () => {
   it('treats other 4xx/5xx as a plain error', () => {
     expect(parseServiceResult(500, null, null, 'gb-nr:L1:2026-07-27')).toEqual({ ok: false });
     expect(parseServiceResult(400, null, null, 'gb-nr:L1:2026-07-27')).toEqual({ ok: false });
+  });
+});
+
+describe('serviceQueryIdentity', () => {
+  it('strips the namespace prefix from a uniqueIdentity', () => {
+    // RTT hands back "gb-nr:L82949:2026-07-31" on the board, but the service
+    // query wants the prefixless "L82949:2026-07-31".
+    expect(serviceQueryIdentity('gb-nr:L82949:2026-07-31')).toBe('L82949:2026-07-31');
+  });
+
+  it('leaves a bare <identity>:<date> unchanged', () => {
+    expect(serviceQueryIdentity('L82949:2026-07-31')).toBe('L82949:2026-07-31');
+  });
+
+  it('strips any namespace segment, not just gb-nr', () => {
+    // A different namespace prefix is still the leading colon-group.
+    expect(serviceQueryIdentity('ie-ie:P0001:2026-07-31')).toBe('P0001:2026-07-31');
+  });
+
+  it('passes a malformed id through unchanged', () => {
+    expect(serviceQueryIdentity('no-colons-here')).toBe('no-colons-here');
   });
 });

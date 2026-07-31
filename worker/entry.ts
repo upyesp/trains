@@ -23,7 +23,7 @@ import {
   serveBoard,
   serveServiceDetail,
 } from '../src/worker/core';
-import { parseRetryAfter, parseRttResult, parseServiceResult } from '../src/worker/rtt';
+import { parseRetryAfter, parseRttResult, parseServiceResult, serviceQueryIdentity } from '../src/worker/rtt';
 import type { RttFetchOutcome, ServiceFetchOutcome } from '../src/worker/rtt';
 import { createMemoryAccessTokenStore, getAccessToken } from '../src/worker/auth';
 import type { AccessTokenStore, FetchAccessToken } from '../src/worker/auth';
@@ -177,7 +177,9 @@ function makeServiceFetcher(
 ) {
   return async (id: string): Promise<ServiceFetchOutcome> => {
     const params = new URLSearchParams();
-    params.set('uniqueIdentity', id);
+    // RTT's uniqueIdentity carries a namespace prefix (e.g. "gb-nr:…") that the
+    // service query rejects; serviceQueryIdentity strips it to <id>:<date>.
+    params.set('uniqueIdentity', serviceQueryIdentity(id));
     const raw = await authedGet(`/gb-nr/service?${params.toString()}`);
     return raw ? parseServiceResult(raw.status, raw.body, raw.retryAfterSec, id) : { ok: false };
   };
