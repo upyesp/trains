@@ -465,22 +465,45 @@ h1.service-title {
 .service-sub, .service-date { margin: 0 0 4px; color: var(--fg-mute); font-size: .9rem; }
 .service-status { margin: 10px 0 0; }
 
+/* "Calling Points" heading + share button, between the route title and the
+   operator line. flex-wrap lets the (transient) share-status message drop to a
+   second line on a narrow phone instead of overflowing. */
+.stops-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 6px 0 10px; }
+h2.stops-title {
+  font-family: var(--sans); font-weight: 600; font-size: 1rem;
+  margin: 0; line-height: 1; color: var(--board-fg);
+}
+.share-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; padding: 0;
+  border: 1px solid var(--board-line); border-radius: 7px;
+  background: transparent; color: var(--board-fg); cursor: pointer;
+}
+.share-btn:hover { background: var(--board-chip-bg); }
+.share-btn svg { display: block; }
+.share-status { font-size: .82rem; color: var(--board-mute); line-height: 1.2; }
+
 /* Calling points are an <ol> of stop cards that share the station board's
    visual language (.time / .dest / .plat) so the two lists read as one design.
    Desktop: a four-column row (time | station | expected | platform); phones
    reflow to a 2x2 card mirroring the .svc board row so nothing overflows and no
    horizontal scroll is needed. There are no <th> here, so each data field carries
-   a visually-hidden label for screen readers and the list's aria-label frames
-   the fields. */
+   a visually-hidden label for screen readers; the visible "Calling Points"
+   heading is the list's accessible name (aria-labelledby). Each card is a link
+   to that station's departures. */
 .stops { list-style: none; margin: 0; padding: 0; }
+.stop-item { border-bottom: 1px solid var(--board-line); }
 .stop {
   display: grid;
   grid-template-columns: 7.5rem minmax(0, 1fr) 7rem 6.5rem;
   align-items: center;
   column-gap: 16px;
   padding: 14px 20px;
-  border-bottom: 1px solid var(--board-line);
+  /* The whole card is a link to that station's departures. */
+  color: var(--board-fg);
+  text-decoration: none;
 }
+.stop:hover { background: var(--board-chip-bg); }
 .stops > :last-child { border-bottom: 0; }
 .stop-time, .stop-station { min-width: 0; }
 /* Expected: "On time" (mute) / a delayed time (delay colour, mono) / "Cancelled". */
