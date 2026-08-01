@@ -49,7 +49,7 @@ function mapService(service: RTTService, kind: BoardKind): Service | null {
     id: service.scheduleMetadata.uniqueIdentity,
     scheduledTime,
     expectedTime,
-    platform: platformFrom(service.locationMetadata?.platform),
+    platform: platformFrom(service.locationMetadata?.platform, service.temporalData?.status === 'AT_PLATFORM'),
     destination: otherEnd(service, kind),
     operator: service.scheduleMetadata.operator.name,
     coaches: coachesFrom(service.locationMetadata?.numberOfVehicles),
@@ -57,12 +57,16 @@ function mapService(service: RTTService, kind: BoardKind): Service | null {
   };
 }
 
-/** Confirmed when `actual` is set; else provisional from `planned`; else unknown. */
-function platformFrom(platform: RTTPlannedActual | undefined): Platform | null {
+/** At-platform (train stopped here now) > confirmed (`actual` set) > provisional
+ *  (only `planned`). The at-platform flag comes from the location's live RTT
+ *  status and overrides the rest — if the train is there, the platform is known. */
+function platformFrom(platform: RTTPlannedActual | undefined, atPlatform = false): Platform | null {
   if (!platform) return null;
-  if (platform.actual) return { number: platform.actual, state: 'confirmed' };
-  if (platform.planned) return { number: platform.planned, state: 'provisional' };
-  return null;
+  const number = platform.actual ?? platform.planned;
+  if (!number) return null;
+  if (atPlatform) return { number, state: 'at-platform' };
+  if (platform.actual) return { number, state: 'confirmed' };
+  return { number, state: 'provisional' };
 }
 
 /** Passenger-vehicle (coach) count. Absent or <=0 means unknown -> null. */
@@ -110,7 +114,7 @@ function callingPointFrom(item: RTTServiceLocationItem): CallingPoint {
     station: item.location?.description ?? '',
     scheduledTime,
     expectedTime,
-    platform: platformFrom(item.locationMetadata?.platform),
+    platform: platformFrom(item.locationMetadata?.platform, item.temporalData?.status === 'AT_PLATFORM'),
     cancelled: item.temporalData?.displayAs === 'CANCELLED',
   };
 }

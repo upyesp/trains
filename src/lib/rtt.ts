@@ -40,6 +40,16 @@ export type RTTLocationDisplayAs =
   | 'TERMINATES'
   | 'DIVERTED';
 
+/** Where the train currently is relative to this location (RTT `LocationStatus`).
+ *  Absent/null when not reported. We surface only AT_PLATFORM in the UI today. */
+export type RTTLocationStatus =
+  | 'APPROACHING'
+  | 'ARRIVING'
+  | 'AT_PLATFORM'
+  | 'DEPART_PREPARING'
+  | 'DEPART_READY'
+  | 'DEPARTING';
+
 /** Per-location metadata (RTT `LocationMetadata`, narrowed). */
 export interface RTTLocationMetadata {
   platform?: RTTPlannedActual;
@@ -53,6 +63,9 @@ export interface RTTLocationTemporalData {
   departure?: RTTTemporalData;
   pass?: RTTTemporalData;
   displayAs?: RTTLocationDisplayAs;
+  /** Where the train is relative to this location (AT_PLATFORM, DEPARTING, ...).
+   *  Location-level (a sibling of arrival/departure/pass), per the RTT spec. */
+  status?: RTTLocationStatus | null;
 }
 
 /** A named geographic location (RTT `GeographicLocation`, narrowed). */

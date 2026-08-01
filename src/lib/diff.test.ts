@@ -71,6 +71,19 @@ describe('diffBoards', () => {
     ]);
   });
 
+  it('does NOT report a change when a confirmed platform becomes at-platform (train just arrived)', () => {
+    // The platform number is unchanged and already confirmed; the train arriving
+    // is routine churn, not a platform change worth announcing.
+    const previous = board([
+      service({ id: 'S1', platform: { number: '3', state: 'confirmed' } }),
+    ]);
+    const current = board([
+      service({ id: 'S1', platform: { number: '3', state: 'at-platform' } }),
+    ]);
+
+    expect(diffBoards(previous, current)).toEqual([]);
+  });
+
   it('reports a delay when the expected time swings by 6 minutes', () => {
     const previous = board([
       service({ id: 'S1', expectedTime: '2025-01-01T10:00:00Z' }),
