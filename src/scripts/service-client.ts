@@ -2,27 +2,17 @@
 //
 // The page is shareable: it reads ?id=<uniqueIdentity> from the URL, fetches the
 // service's full public calling pattern from the Worker, and renders an
-// accessible <table> of every stop with its timetable time, expected time (shown
-// only when it differs, else "On time"; "Cancelled" for cancelled stops) and
-// platform. Refreshes every 30s (paused while the tab is hidden) to keep
-// expected times live, mirroring the station board.
+// accessible list of stop cards (mirroring the station board) - each stop's
+// timetable time, expected time ("On time" when unchanged, else the expected
+// time; "Cancelled" for cancelled stops) and platform. Refreshes every 30s
+// (paused while the tab is hidden) to keep expected times live.
 
 import { fmtClock, fmtTime } from '../lib/format';
+import { esc, platformChip } from '../lib/html';
 import type { CallingPoint, Platform, ServiceDetail, ServiceDetailResponse } from '../lib/types';
 
 const REFRESH_MS = 30_000;
 const DEFAULT_API = 'https://trains-api.upyesp.workers.dev';
-
-const ESC: Record<string, string> = {
-  '&': '&amp;',
-  '<': '&lt;',
-  '>': '&gt;',
-  '"': '&quot;',
-  "'": '&#39;',
-};
-function esc(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => ESC[c] ?? c);
-}
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -51,56 +41,49 @@ function backLinkHtml(from: string | null): string {
   return `<a class="back-link" href="/stations/${from.toLowerCase()}/">← Back to ${esc(from)} board</a>`;
 }
 
-/** Platform rendered as compact text for a table cell (the board uses a chip). */
-function platformCell(p: Platform | null): string {
-  if (!p) {
-    return `<td class="plat-cell">—<span class="visually-hidden"> platform not allocated</span></td>`;
-  }
-  const n = esc(p.number);
-  if (p.state === 'provisional') {
-    return `<td class="plat-cell">${n} <span class="plat-prov" aria-hidden="true">provisional</span><span class="visually-hidden"> platform, provisional</span></td>`;
-  }
-  return `<td class="plat-cell">${n}<span class="visually-hidden"> platform, confirmed</span></td>`;
+/** Platform rendered with the shared .plat chip, wrapped for the stop card. */
+function stopPlatform(p: Platform | null): string {
+  // The visually-hidden label is what AT announces; the chip's own inline
+  // "Platform" caption (aria-hidden) is the visible one.
+  const srLabel = p
+    ? '<span class="visually-hidden">Platform: </span>'
+    : '<span class="visually-hidden">Platform not allocated</span>';
+  return `<div class="stop-plat">${srLabel}${platformChip(p)}</div>`;
 }
 
-function pointRow(p: CallingPoint): string {
+function stopCard(p: CallingPoint): string {
   const sched = fmtTime(p.scheduledTime);
-  const schedCell = p.cancelled
-    ? `<td class="tt"><s>${esc(sched)}</s></td>`
-    : `<td class="tt">${esc(sched)}</td>`;
 
-  let expCell: string;
+  // Top-left: timetable time (struck when this stop is cancelled).
+  const timeInner = p.cancelled ? `<s>${esc(sched)}</s>` : esc(sched);
+  const timeHtml =
+    `<div class="stop-time"><span class="visually-hidden">Timetable </span><span class="time">${timeInner}</span></div>`;
+
+  // Bottom-left: station name, the card's primary text.
+  const stationHtml = `<div class="stop-station"><span class="dest">${esc(p.station)}</span></div>`;
+
+  // Top-right: the live status for this stop. A visually-hidden "Expected "
+  // disambiguates a delayed time from the timetable time for screen readers.
+  let expHtml: string;
   if (p.cancelled) {
-    expCell = `<td class="exp cancel">Cancelled</td>`;
+    expHtml = `<div class="stop-exp cancel"><span class="visually-hidden">Expected </span>Cancelled</div>`;
   } else {
     const exp = fmtTime(p.expectedTime);
-    expCell =
+    expHtml =
       exp === sched
-        ? `<td class="exp on-time">On time</td>`
-        : `<td class="exp delay">${esc(exp)}</td>`;
+        ? `<div class="stop-exp on-time"><span class="visually-hidden">Expected </span>On time</div>`
+        : `<div class="stop-exp delay"><span class="visually-hidden">Expected </span>${esc(exp)}</div>`;
   }
 
-  return `<tr><th scope="row" class="station">${esc(p.station)}</th>${schedCell}${expCell}${platformCell(p.platform)}</tr>`;
+  return `<li class="stop">${timeHtml}${stationHtml}${expHtml}${stopPlatform(p.platform)}</li>`;
 }
 
-function tableHtml(d: ServiceDetail): string {
-  const caption = `Calling points for the ${d.origin} to ${d.destination} service: station, timetable time, expected time, and platform.`;
-  const rows = d.points.map(pointRow).join('');
-  return `
-    <div class="calls-wrap">
-      <table class="calls">
-        <caption class="visually-hidden">${esc(caption)}</caption>
-        <thead>
-          <tr>
-            <th scope="col">Station</th>
-            <th scope="col">Timetable</th>
-            <th scope="col">Expected</th>
-            <th scope="col">Platform</th>
-          </tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>`;
+function stopsHtml(d: ServiceDetail): string {
+  // A real <ol> (the route is an ordered sequence) of stop cards, mirroring the
+  // station board's .svc rows so the two lists share a visual language. The
+  // aria-label frames the fields for screen readers, which (with no <th> here)
+  // hear each value via its visually-hidden cell label.
+  return `<ol class="stops" aria-label="Calling points for the ${esc(d.origin)} to ${esc(d.destination)} service: station, timetable time, expected time, and platform.">${d.points.map(stopCard).join('')}</ol>`;
 }
 
 function statusChip(d: ServiceDetail): string {
@@ -199,7 +182,7 @@ export function initServiceDetail(root: HTMLElement): void {
 
   function render(d: ServiceDetail): void {
     els.head.innerHTML = headerHtml(d);
-    els.body.innerHTML = d.points.length === 0 ? `<p class="board-msg">${EMPTY}</p>` : tableHtml(d);
+    els.body.innerHTML = d.points.length === 0 ? `<p class="board-msg">${EMPTY}</p>` : stopsHtml(d);
     const titleEl = document.getElementById('service-title');
     if (titleEl?.textContent) document.title = `${titleEl.textContent} — VIP Trains`;
   }

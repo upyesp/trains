@@ -13,6 +13,7 @@
 
 import { diffBoards } from '../lib/diff';
 import { fmtClock, fmtTime } from '../lib/format';
+import { esc, platformChip } from '../lib/html';
 import type {
   Board,
   BoardKind,
@@ -25,17 +26,6 @@ import { initCombobox } from './combobox';
 
 const REFRESH_MS = 30_000;
 const DEFAULT_API = 'https://trains-api.upyesp.workers.dev';
-
-const ESC: Record<string, string> = {
-  '&': '&amp;',
-  '<': '&lt;',
-  '>': '&gt;',
-  '"': '&quot;',
-  "'": '&#39;',
-};
-function esc(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => ESC[c] ?? c);
-}
 
 interface State {
   crs: string;
@@ -75,22 +65,8 @@ function delayMinutes(s: Service): number {
 // DOM is time, destination, platform, status: logical for screen readers, and
 // the desktop grid reads them into columns in that same order.
 
-// The chip, with a visible "Platform" caption stacked above the number and
-// centred (mobile only; .plat-label is hidden on desktop, which uses its column
-// header). The caption is aria-hidden - AT instead hear the visually-hidden
-// label in platformCell, which is the one announced.
-function platformChip(p: Platform | null): string {
-  const label = '<span class="plat-label" aria-hidden="true">Platform</span>';
-  if (!p) return `<span class="plat none" aria-hidden="true">${label}—</span>`;
-  const n = esc(p.number);
-  if (p.state === 'provisional') {
-    return `<span class="plat provisional">${label}${n}<span class="state">provisional</span></span>`;
-  }
-  // Confirmed platforms carry a visually-hidden label so the state is in text
-  // for screen readers without adding visual noise (ADR-0002).
-  return `<span class="plat">${label}${n}<span class="visually-hidden">, confirmed</span></span>`;
-}
-
+// The enclosing cell (platformCell) carries the screen-reader label and
+// wraps the shared chip (src/lib/html), which owns the visible caption.
 function platformCell(p: Platform | null): string {
   // This visually-hidden label is the one screen readers announce; the visible
   // "Platform" caption now lives inside the chip (platformChip).

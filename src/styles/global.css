@@ -465,44 +465,37 @@ h1.service-title {
 .service-sub, .service-date { margin: 0 0 4px; color: var(--fg-mute); font-size: .9rem; }
 .service-status { margin: 10px 0 0; }
 
-/* The calling pattern is a real <table> with <th scope> headers (ADR-0002): the
-   richest semantics for a grid of related data, and the structure every screen
-   reader navigates by row+column. Times/platform are right-aligned numbers so a
-   glance down a column lines up; the station name is a row header. */
-.calls-wrap { overflow-x: auto; }
-.calls {
-  width: 100%; border-collapse: collapse;
-  font-size: .95rem; color: var(--board-fg);
+/* Calling points are an <ol> of stop cards that share the station board's
+   visual language (.time / .dest / .plat) so the two lists read as one design.
+   Desktop: a four-column row (time | station | expected | platform); phones
+   reflow to a 2x2 card mirroring the .svc board row so nothing overflows and no
+   horizontal scroll is needed. There are no <th> here, so each data field carries
+   a visually-hidden label for screen readers and the list's aria-label frames
+   the fields. */
+.stops { list-style: none; margin: 0; padding: 0; }
+.stop {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr) 7rem 6.5rem;
+  align-items: center;
+  column-gap: 16px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--board-line);
 }
-.calls th, .calls td {
-  padding: 11px 20px; vertical-align: middle;
-  border-bottom: 1px solid var(--board-line); text-align: left;
+.stops > :last-child { border-bottom: 0; }
+.stop-time, .stop-station { min-width: 0; }
+/* Expected: "On time" (mute) / a delayed time (delay colour, mono) / "Cancelled". */
+.stop-exp { justify-self: end; text-align: right; white-space: nowrap; }
+.stop-exp.on-time { color: var(--board-mute); }
+.stop-exp.delay {
+  color: var(--board-delay); font-weight: 600;
+  font-family: var(--mono); font-variant-numeric: tabular-nums;
 }
-.calls thead th {
-  background: var(--board-bg);   /* opaque so sticky covers scrolled rows */
-  font-size: .68rem; letter-spacing: .1em; text-transform: uppercase;
-  color: var(--board-mute); font-weight: 500;
-}
-.calls tbody > :last-child td,
-.calls tbody > :last-child th { border-bottom: 0; }
-.calls tbody th.station { font-weight: 600; }
-/* Right-align the three numeric columns (timetable / expected / platform) and
-   their headers for a tidy, scannable board read. */
-.calls th[scope="col"]:not(:first-child),
-.calls td.tt, .calls td.exp, .calls td.plat-cell {
-  text-align: right;
-}
-.calls .tt, .calls .exp, .calls .plat-cell {
-  font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap;
-}
-.calls .exp.delay { color: var(--board-delay); font-weight: 600; }
-.calls .exp.cancel { color: var(--board-cancel); font-weight: 600; }
-.calls .exp.on-time { color: var(--board-mute); }
-.calls td.tt s { text-decoration: line-through; color: var(--board-mute); }
-.calls .plat-prov {
-  font-family: var(--sans); font-size: .62rem; letter-spacing: .06em;
-  text-transform: uppercase; color: var(--board-mute); margin-left: 5px;
-}
+.stop-exp.cancel { color: var(--board-cancel); font-weight: 600; }
+.stop-time .time s { text-decoration: line-through; color: var(--board-mute); }
+.stop-plat { justify-self: center; text-align: center; }
+/* On the board the "Platform" caption is mobile-only (desktop has a column
+   header); the detail page has no header, so show it at every breakpoint. */
+.stops .plat-label { display: block; margin-bottom: 2px; }
 
 /* ---------- Responsive ---------- */
 @media (max-width: 560px) {
@@ -556,9 +549,23 @@ h1.service-title {
   .dest { font-size: .96rem; }
   .as-of { padding: 12px 14px 4px; }
   .brand-tag { display: none; }   /* keep the header tidy on narrow phones */
-  /* Tighten the calling-points table on phones; the .calls-wrap scrolls
-     horizontally if a long station name still overflows. */
-  .calls th, .calls td { padding: 9px 14px; }
+  /* Reflow each calling-point card into a 2x2 layout mirroring the .svc board
+     row (time + expected on top, station + platform below) so a long station
+     name wraps instead of forcing a horizontal scroll. */
+  .stop {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "time   exp"
+      "station plat";
+    align-items: center;
+    column-gap: 14px;
+    row-gap: 6px;
+    padding: 14px 16px;
+  }
+  .stop-time    { grid-area: time; min-width: 0; }
+  .stop-exp     { grid-area: exp; }
+  .stop-station { grid-area: station; min-width: 0; }
+  .stop-plat    { grid-area: plat; justify-self: end; }
 }
 
 /* ---------- Reduced motion ---------- */
