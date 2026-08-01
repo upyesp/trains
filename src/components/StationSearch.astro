@@ -31,5 +31,18 @@ const { label = 'Change station' } = Astro.props;
 <script>
   import { initCombobox } from '../scripts/combobox';
   const combo = document.getElementById('combo');
-  if (combo instanceof HTMLElement) initCombobox(combo);
+  if (combo instanceof HTMLElement) {
+    // Arriving from a service's calling points, the URL carries
+    // ?station=<name>; prefill the search with it and auto-choose (which lists
+    // that station's departures). Consume the param first so the browser Back
+    // button returns to a clean home rather than re-triggering the auto-choose.
+    const params = new URLSearchParams(window.location.search);
+    const initialName = params.get('station');
+    if (initialName) {
+      params.delete('station');
+      const qs = params.toString();
+      history.replaceState(null, '', qs ? `/?${qs}` : '/');
+    }
+    initCombobox(combo, initialName ? { initialName } : {});
+  }
 </script>

@@ -14,6 +14,10 @@ import type { CallingPoint, Platform, ServiceDetail, ServiceDetailResponse } fro
 const REFRESH_MS = 30_000;
 const DEFAULT_API = 'https://trains-api.upyesp.workers.dev';
 
+/** Share glyph (Lucide "share-2": three linked nodes) for the header button.
+ *  aria-hidden - the button's aria-label is the accessible name. */
+const SHARE_ICON = `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.42" y1="6.51" x2="8.59" y2="10.49"/></svg>`;
+
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
@@ -75,15 +79,20 @@ function stopCard(p: CallingPoint): string {
         : `<div class="stop-exp delay"><span class="visually-hidden">Expected </span>${esc(exp)}</div>`;
   }
 
-  return `<li class="stop">${timeHtml}${stationHtml}${expHtml}${stopPlatform(p.platform)}</li>`;
+  // The whole card links to the home search primed with this station, which
+  // then lists that station's departures (a bare /stations/<crs> URL = no
+  // "calling at" filter, even if one was set on a previous board).
+  const href = `/?${new URLSearchParams({ station: p.station }).toString()}`;
+  return `<li class="stop-item"><a class="stop" href="${href}">${timeHtml}${stationHtml}${expHtml}${stopPlatform(p.platform)}<span class="visually-hidden">View live departures from this station.</span></a></li>`;
 }
 
 function stopsHtml(d: ServiceDetail): string {
   // A real <ol> (the route is an ordered sequence) of stop cards, mirroring the
   // station board's .svc rows so the two lists share a visual language. The
-  // aria-label frames the fields for screen readers, which (with no <th> here)
-  // hear each value via its visually-hidden cell label.
-  return `<ol class="stops" aria-label="Calling points for the ${esc(d.origin)} to ${esc(d.destination)} service: station, timetable time, expected time, and platform.">${d.points.map(stopCard).join('')}</ol>`;
+  // visible "Calling Points" heading (in the header) is the list's accessible
+  // name (aria-labelledby); each value also carries a visually-hidden field
+  // label for screen readers.
+  return `<ol class="stops" aria-labelledby="stops-title">${d.points.map(stopCard).join('')}</ol>`;
 }
 
 function statusChip(d: ServiceDetail): string {
@@ -104,6 +113,11 @@ function headerHtml(d: ServiceDetail): string {
   const chip = statusChip(d);
   return `
     <h1 class="service-title" id="service-title">${esc(d.origin)} to ${esc(d.destination)}</h1>
+    <div class="stops-heading">
+      <h2 class="stops-title" id="stops-title">Calling Points</h2>
+      <button type="button" class="share-btn" aria-label="Share this service">${SHARE_ICON}</button>
+      <span class="share-status" role="status" aria-live="polite"></span>
+    </div>
     ${sub ? `<p class="service-sub">${sub}</p>` : ''}
     ${date ? `<p class="service-date">${date}</p>` : ''}
     ${chip ? `<p class="service-status">${chip}</p>` : ''}`;
@@ -152,6 +166,41 @@ export function initServiceDetail(root: HTMLElement): void {
   const state: State = { id, from, apiBase, mock, prev: null, asAtMs: null };
 
   els.back.innerHTML = backLinkHtml(state.from);
+
+  async function shareService(): Promise<void> {
+    const url = window.location.href;
+    const text = `I'm on this train: ${url}`;
+    const status = els.head.querySelector('.share-status');
+    try {
+      if (typeof navigator.share === 'function') {
+        await navigator.share({ title: document.title, text });
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(text);
+        flashStatus(status, 'Link copied to clipboard');
+      } else {
+        flashStatus(status, 'Copying the link isn\u2019t available here \u2014 use the address bar.');
+      }
+    } catch {
+      // The user dismissed the native share sheet; nothing to do.
+    }
+  }
+
+  function flashStatus(el: Element | null, msg: string): void {
+    if (!(el instanceof HTMLElement)) return;
+    el.textContent = msg;
+    window.setTimeout(() => {
+      if (el.textContent === msg) el.textContent = '';
+    }, 2500);
+  }
+
+  // Share button (delegated on the persistent header; the button itself is
+  // re-created every refresh). Web Share API -> native sheet; clipboard copy as
+  // a desktop fallback, announced via the button's polite status region.
+  els.head.addEventListener('click', (event: Event) => {
+    if (!(event.target instanceof Element)) return;
+    if (!(event.target.closest('.share-btn') instanceof HTMLElement)) return;
+    void shareService();
+  });
 
   if (!id) {
     els.head.innerHTML = '';

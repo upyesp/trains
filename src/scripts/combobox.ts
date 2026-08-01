@@ -28,6 +28,11 @@ export interface ComboboxOptions {
   selectable?: boolean;
   /** CRS to resolve + preselect once the station list loads (selectable mode). */
   initialCrs?: string | null;
+  /** Station NAME to prefill the input with and auto-choose once the list loads
+   *  (arriving from a service's calling points via /?station=<name>). On an
+   *  exact match it lists that station's departures; otherwise the dropdown
+   *  opens with the closest matches for the user to pick. */
+  initialName?: string | null;
 }
 
 const ESC: Record<string, string> = {
@@ -307,5 +312,22 @@ export function initCombobox(combo: HTMLElement, opts: ComboboxOptions = {}): vo
   // Preload + resolve an initial selection (filter mode restored from the URL).
   if (selectable && opts.initialCrs) {
     void ensureLoaded().catch(() => {});
+  }
+
+  // Prefill + auto-choose from a station name (arriving from calling points).
+  // Shows the name immediately; once the list loads, an exact match is chosen
+  // (navigates to that station's departures), else the dropdown opens to pick.
+  if (opts.initialName) {
+    input.value = opts.initialName;
+    void ensureLoaded()
+      .then((list) => {
+        const needle = (opts.initialName ?? '').trim().toLowerCase();
+        const exact = list.find((s) => s.name.toLowerCase() === needle);
+        if (exact) choose(exact);
+        else openAndPaint();
+      })
+      .catch(() => {
+        /* leave the prefilled name; the user can retry */
+      });
   }
 }
