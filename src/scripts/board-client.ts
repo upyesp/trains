@@ -75,27 +75,29 @@ function delayMinutes(s: Service): number {
 // DOM is time, destination, platform, status: logical for screen readers, and
 // the desktop grid reads them into columns in that same order.
 
-// The chip itself. The enclosing cell (platformCell) carries the labels.
+// The chip, with a visible "Platform" caption stacked above the number and
+// centred (mobile only; .plat-label is hidden on desktop, which uses its column
+// header). The caption is aria-hidden - AT instead hear the visually-hidden
+// label in platformCell, which is the one announced.
 function platformChip(p: Platform | null): string {
-  if (!p) return `<span class="plat none" aria-hidden="true">—</span>`;
+  const label = '<span class="plat-label" aria-hidden="true">Platform</span>';
+  if (!p) return `<span class="plat none" aria-hidden="true">${label}—</span>`;
   const n = esc(p.number);
   if (p.state === 'provisional') {
-    return `<span class="plat provisional">${n}<span class="state">provisional</span></span>`;
+    return `<span class="plat provisional">${label}${n}<span class="state">provisional</span></span>`;
   }
   // Confirmed platforms carry a visually-hidden label so the state is in text
   // for screen readers without adding visual noise (ADR-0002).
-  return `<span class="plat">${n}<span class="visually-hidden">, confirmed</span></span>`;
+  return `<span class="plat">${label}${n}<span class="visually-hidden">, confirmed</span></span>`;
 }
 
 function platformCell(p: Platform | null): string {
-  // A visible "Platform" caption is shown only on phones (mobile CSS); the
-  // desktop board uses its column header instead. It is aria-hidden so screen
-  // readers don't double-read it next to the visually-hidden label below, which
-  // is the one AT announces.
+  // This visually-hidden label is the one screen readers announce; the visible
+  // "Platform" caption now lives inside the chip (platformChip).
   const srLabel = p
     ? '<span class="visually-hidden">Platform: </span>'
     : '<span class="visually-hidden">Platform not allocated</span>';
-  return `<div class="svc-plat"><span class="plat-label" aria-hidden="true">Platform</span>${srLabel}${platformChip(p)}</div>`;
+  return `<div class="svc-plat">${srLabel}${platformChip(p)}</div>`;
 }
 
 function timeCell(s: Service): string {

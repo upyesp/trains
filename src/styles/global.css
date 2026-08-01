@@ -414,8 +414,9 @@ h1.station {
 .plat.provisional { border-style: dashed; }
 .plat .state { font-family: var(--sans); font-weight: 500; font-size: .6rem; letter-spacing: .04em; color: var(--board-mute); text-transform: uppercase; margin-top: 2px; }
 .plat.none { border-style: dashed; color: var(--board-mute); }
-/* Mobile-only caption above the chip (desktop shows the "Platform" column
-   header instead). Hidden by default; the responsive block reveals it. */
+/* Mobile-only caption inside the chip, above the number (desktop shows the
+   "Platform" column header instead). Hidden by default; the responsive block
+   reveals it. */
 .plat-label { display: none; }
 
 .chip {
@@ -527,17 +528,16 @@ h1.service-title {
   .svc-dest   { grid-area: dest; min-width: 0; }
   .svc-plat   {
     grid-area: plat; justify-self: end; text-align: right;
-    /* Stack the visible "Platform" caption above the chip (phones only). The
-       desktop board has no per-row caption - it uses the column header. */
-    display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
   }
-  /* Phones have no column headers, so each chip gets a visible "Platform"
-     caption. */
+  /* Phones have no column headers, so each chip shows a visible "Platform"
+     caption inside the box, stacked above the number and centred (the .plat
+     chip is a centred column flex). margin-bottom lifts it off the number. */
   .plat-label {
     display: block;
     font-family: var(--sans); font-weight: 500;
     font-size: .62rem; letter-spacing: .08em; text-transform: uppercase;
     color: var(--board-mute);
+    margin-bottom: 2px;
   }
   /* Reserve a consistent chip width on phones: without this the box only widens
      when "PROVISIONAL" shows, so the right column jitters between rows. 6.25rem
