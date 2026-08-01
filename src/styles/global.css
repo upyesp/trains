@@ -414,6 +414,10 @@ h1.station {
 .plat.provisional { border-style: dashed; }
 .plat .state { font-family: var(--sans); font-weight: 500; font-size: .6rem; letter-spacing: .04em; color: var(--board-mute); text-transform: uppercase; margin-top: 2px; }
 .plat.none { border-style: dashed; color: var(--board-mute); }
+/* "At platform" caption: the train is here now, so make it prominent (full
+   foreground, semibold) rather than mute like "provisional". Solid border like a
+   confirmed platform. */
+.plat.at-platform .state { color: var(--board-fg); font-weight: 600; }
 /* Mobile-only caption inside the chip, above the number (desktop shows the
    "Platform" column header instead). Hidden by default; the responsive block
    reveals it. */

@@ -128,6 +128,7 @@ const ERROR_ROW = '<li class="board-msg error">Couldn\u2019t load the live board
 
 function describePlatform(p: Platform | null): string {
   if (!p) return 'no platform is allocated';
+  if (p.state === 'at-platform') return `at platform ${p.number}`;
   if (p.state === 'confirmed') return `platform confirmed — platform ${p.number}`;
   return `provisional platform ${p.number}`;
 }

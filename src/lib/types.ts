@@ -6,8 +6,10 @@
 export interface Platform {
   /** The platform number/letter as displayed, e.g. "3". */
   number: string;
-  /** Whether the station has confirmed this platform yet. A provisional platform can still change. */
-  state: 'provisional' | 'confirmed';
+  /** `provisional` = only the timetabled platform (`planned`); `confirmed` = the
+   *  station has reported it (`actual`); `at-platform` = the train is stopped
+   *  there right now (RTT status AT_PLATFORM — implies confirmed). */
+  state: 'provisional' | 'confirmed' | 'at-platform';
 }
 
 /** A single scheduled train run — a departure from, or arrival at, a station. */

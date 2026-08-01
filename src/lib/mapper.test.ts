@@ -92,9 +92,10 @@ describe('mapLocationLineUp', () => {
   });
 
   describe('platform state', () => {
-    it('is confirmed when actual is set, provisional when only planned, null when neither', () => {
+    it('is at-platform when status is AT_PLATFORM, confirmed when actual is set, provisional when only planned, null when neither', () => {
       const resp: RTTLocationResponse = {
         services: [
+          service({ id: 'at-platform', locationMetadata: { platform: { planned: '1', actual: '1' } }, temporalData: { displayAs: 'CALL', status: 'AT_PLATFORM', departure: { scheduleAdvertised: '2026-07-27T08:05:00+01:00' } } }),
           service({ id: 'confirmed', locationMetadata: { platform: { planned: '1', actual: '1' } } }),
           service({ id: 'provisional', locationMetadata: { platform: { planned: '2' } } }),
           service({ id: 'none' }), // no locationMetadata at all
@@ -105,10 +106,26 @@ describe('mapLocationLineUp', () => {
       const byId = Object.fromEntries(board.services.map((s) => [s.id, s.platform]));
 
       expect(byId).toEqual({
+        'at-platform': { number: '1', state: 'at-platform' },
         confirmed: { number: '1', state: 'confirmed' },
         provisional: { number: '2', state: 'provisional' },
         none: null,
       });
+    });
+
+    it('treats at-platform as at-platform even when only a planned number is present', () => {
+      // RTT reports the train at the platform but only the planned number is set
+      // (defensive): the live status is authoritative.
+      const board = mapLocationLineUp(
+        {
+          services: [
+            service({ id: 'ap', locationMetadata: { platform: { planned: '9' } }, temporalData: { displayAs: 'CALL', status: 'AT_PLATFORM', departure: { scheduleAdvertised: '2026-07-27T08:05:00+01:00' } } }),
+          ],
+        },
+        'WAT',
+        'departures',
+      );
+      expect(board.services[0]?.platform).toEqual({ number: '9', state: 'at-platform' });
     });
   });
 

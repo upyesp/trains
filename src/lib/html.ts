@@ -32,6 +32,10 @@ export function platformChip(p: Platform | null): string {
   const label = '<span class="plat-label" aria-hidden="true">Platform</span>';
   if (!p) return `<span class="plat none" aria-hidden="true">${label}—</span>`;
   const n = esc(p.number);
+  if (p.state === 'at-platform') {
+    // Visible caption (also spoken) — the train is at this platform right now.
+    return `<span class="plat at-platform">${label}${n}<span class="state">At platform</span></span>`;
+  }
   if (p.state === 'provisional') {
     return `<span class="plat provisional">${label}${n}<span class="state">provisional</span></span>`;
   }
