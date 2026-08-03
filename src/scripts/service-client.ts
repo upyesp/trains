@@ -31,6 +31,20 @@ function fmtDate(iso: string): string {
   return `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]} ${m[1]}`;
 }
 
+/** Scheduled journey duration between two ISO datetimes as "1h 23m" / "45m",
+ *  computed from the first to the last calling point. Empty when the times are
+ *  missing or not in order (e.g. a single-point run). */
+function fmtDuration(isoStart: string, isoEnd: string): string {
+  const ms = Date.parse(isoEnd) - Date.parse(isoStart);
+  if (!Number.isFinite(ms) || ms <= 0) return '';
+  const mins = Math.round(ms / 60_000);
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (h > 0 && m > 0) return `${h}h ${m}m`;
+  if (h > 0) return `${h}h`;
+  return `${m}m`;
+}
+
 function delayMinutesAt(p: CallingPoint): number {
   const sched = Date.parse(p.scheduledTime);
   const exp = Date.parse(p.expectedTime);
@@ -107,8 +121,12 @@ function statusChip(d: ServiceDetail): string {
 }
 
 function headerHtml(d: ServiceDetail): string {
+  // Journey summary after the operator: scheduled duration · number of stops
+  // · coach count. Each part drops out when its data is absent.
+  const journey = fmtDuration(d.points[0]?.scheduledTime ?? '', d.points[d.points.length - 1]?.scheduledTime ?? '');
+  const stops = d.points.length ? `${d.points.length} ${d.points.length === 1 ? 'stop' : 'stops'}` : '';
   const coaches = d.coaches ? `${d.coaches} ${d.coaches === 1 ? 'coach' : 'coaches'}` : '';
-  const sub = [d.operator, coaches].filter(Boolean).map(esc).join(' · ');
+  const sub = [d.operator, journey, stops, coaches].filter(Boolean).map(esc).join(' · ');
   const date = d.points[0] ? fmtDate(d.points[0].scheduledTime) : '';
   const chip = statusChip(d);
   return `
