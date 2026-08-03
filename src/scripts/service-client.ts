@@ -158,7 +158,7 @@ function headerHtml(d: ServiceDetail): string {
   const status = serviceStatus(d);
   const next = nextStopName(d);
   return `
-    <h1 class="service-title" id="service-title">${originTime ? `${originTime} — ` : ''}${esc(d.origin)} to ${esc(d.destination)}</h1>
+    <h1 class="service-title" id="service-title">${originTime ? `${originTime} ` : ''}${esc(d.origin)} to ${esc(d.destination)}</h1>
     <div class="stops-heading">
       <h2 class="stops-title" id="stops-title">Calling Points</h2>
       <button type="button" class="share-btn" aria-label="Share this service">${SHARE_ICON}</button>
