@@ -362,9 +362,16 @@ h1.station {
 .svc {
   display: grid;
   grid-template-columns: 9.5rem 1fr 4.5rem 6rem;
+  grid-template-areas: "time dest plat status";
   align-items: center;
   column-gap: 16px;
 }
+/* Place cells by name so the DOM order is free to follow the screen-reader
+   reading order (platform last) without reshuffling the desktop columns. */
+.svc-time, .col-time { grid-area: time; }
+.svc-dest, .col-dest { grid-area: dest; }
+.svc-plat, .col-plat { grid-area: plat; }
+.svc-status, .col-status { grid-area: status; }
 .board-cols {
   padding: 14px 20px 8px;
   color: var(--board-mute);
@@ -531,10 +538,12 @@ h2.stops-title {
      -webkit-text-size-adjust: 100% and renders rem sizes at face value - which
      left the .6-.9rem board text too small. 112.5% = ~18px root (was 16px). */
   html { font-size: 112.5%; }
-  /* Reflow each service into a compact card so nothing overflows a phone:
-     time + status on the top line, destination + platform below. DOM order
-     (time, dest, plat, status) is unchanged, so screen-reader reading order
-     stays logical - only the visual layout reflows (ADR-0002). */
+  /* Reflow each service into a stacked card: time + status on the top line,
+     destination full-width below it, then the platform chip on its own line.
+     Platform used to sit beside the destination and starve it of width (it
+     wrapped after a few characters); on its own line the destination gets the
+     full width. DOM order (time, dest, status, plat) puts the platform LAST for
+     screen readers - the grid just reflows the visuals. */
   .board-cols { display: none; }
   .svc {
     /* minmax(0,1fr) + min-width:0 on the items lets a very long single-word
@@ -542,7 +551,8 @@ h2.stops-title {
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
       "time   status"
-      "dest   plat";
+      "dest   dest"
+      "plat   plat";
     align-items: center;
     column-gap: 14px;
     row-gap: 6px;
@@ -551,9 +561,7 @@ h2.stops-title {
   .svc-time   { grid-area: time; min-width: 0; }
   .svc-status { grid-area: status; justify-self: end; text-align: right; }
   .svc-dest   { grid-area: dest; min-width: 0; }
-  .svc-plat   {
-    grid-area: plat; justify-self: end; text-align: right;
-  }
+  .svc-plat   { grid-area: plat; justify-self: start; }
   /* Phones have no column headers, so each chip shows a visible "Platform"
      caption inside the box, stacked above the number and centred (the .plat
      chip is a centred column flex). margin-bottom lifts it off the number. */
@@ -581,14 +589,15 @@ h2.stops-title {
   .dest { font-size: .96rem; }
   .as-of { padding: 12px 14px 4px; }
   .brand-tag { display: none; }   /* keep the header tidy on narrow phones */
-  /* Reflow each calling-point card into a 2x2 layout mirroring the .svc board
-     row (time + expected on top, station + platform below) so a long station
-     name wraps instead of forcing a horizontal scroll. */
+  /* Same stack as a .svc board row: time + expected on the top line, station
+     full-width, then the platform chip on its own line below - so a long station
+     name wraps instead of being squeezed beside the platform. */
   .stop {
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
       "time   exp"
-      "station plat";
+      "station station"
+      "plat   plat";
     align-items: center;
     column-gap: 14px;
     row-gap: 6px;
@@ -597,7 +606,7 @@ h2.stops-title {
   .stop-time    { grid-area: time; min-width: 0; }
   .stop-exp     { grid-area: exp; }
   .stop-station { grid-area: station; min-width: 0; }
-  .stop-plat    { grid-area: plat; justify-self: end; }
+  .stop-plat    { grid-area: plat; justify-self: start; }
 }
 
 /* ---------- Reduced motion ---------- */

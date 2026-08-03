@@ -115,7 +115,7 @@ function rowHtml(s: Service, crs: string): string {
   // The whole row is one link to the service detail page - a native <a> gives
   // keyboard + screen-reader support for free. The trailing visually-hidden
   // text states the link's purpose; the visible cells supply the specifics.
-  return `<li class="svc-item"><a class="${cls}" href="${rowHref(s, crs)}">${timeCell(s)}${destCell(s)}${platformCell(s.platform)}${statusCell(s)}<span class="visually-hidden">. View all calling points with live times for this service.</span></a></li>`;
+  return `<li class="svc-item"><a class="${cls}" href="${rowHref(s, crs)}">${timeCell(s)}${destCell(s)}${statusCell(s)}${platformCell(s.platform)}<span class="visually-hidden">. View all calling points with live times for this service.</span></a></li>`;
 }
 
 const LOADING_ROW = '<li class="board-msg">Loading live board…</li>';
