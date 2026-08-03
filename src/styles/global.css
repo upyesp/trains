@@ -562,7 +562,7 @@ h2.stops-title {
   .svc-time   { grid-area: time; min-width: 0; }
   .svc-status { grid-area: status; justify-self: end; text-align: right; }
   .svc-dest   { grid-area: dest; min-width: 0; }
-  .svc-plat   { grid-area: plat; justify-self: start; }
+  .svc-plat   { grid-area: plat; justify-self: stretch; }
   /* Phones have no column headers, so each chip shows a visible "Platform"
      caption inside the box, stacked above the number and centred (the .plat
      chip is a centred column flex). margin-bottom lifts it off the number. */
@@ -573,12 +573,10 @@ h2.stops-title {
     color: var(--board-mute);
     margin-bottom: 2px;
   }
-  /* Reserve a consistent chip width on phones: without this the box only widens
-     when "PROVISIONAL" shows, so the right column jitters between rows. 6.25rem
-     is the "PROVISIONAL" chip's width (number + uppercase state text + padding);
-     every chip now holds that width whether or not the state shows. Desktop keeps
-     its fluid min-width. */
-  .plat { min-width: 6.25rem; }
+  /* Full-width platform bar on its own row: the chip stretches to the row
+     width and its caption / number / state centre within it (the chip is a
+     centred column flex). Desktop keeps its fluid min-width. */
+  .plat { width: 100%; }
   /* Stack a delayed time (scheduled over expected) so its column can't force
      the platform off-screen - a horizontal nowrap '08:05 -> 08:11' (~135px)
      made the first track too wide on narrow phones; stacked it's ~61px. The
@@ -607,7 +605,7 @@ h2.stops-title {
   .stop-time    { grid-area: time; min-width: 0; }
   .stop-exp     { grid-area: exp; }
   .stop-station { grid-area: station; min-width: 0; }
-  .stop-plat    { grid-area: plat; justify-self: start; }
+  .stop-plat    { grid-area: plat; justify-self: stretch; }
 }
 
 /* ---------- Reduced motion ---------- */
