@@ -131,16 +131,17 @@ function serviceStatus(d: ServiceDetail): string {
 }
 
 /** The first calling point whose scheduled time is still in the future,
- *  excluding the origin (which would just repeat the departure). Empty when the
- *  service has passed every stop. */
-function nextStopName(d: ServiceDetail): string {
+ *  excluding the origin (which would just repeat the departure). Returns the
+ *  whole point so the caller can also read its expected time. Null when no
+ *  future stop remains (journey completed) or the origin hasn't departed yet. */
+function nextStop(d: ServiceDetail): CallingPoint | null {
   const now = Date.now();
   for (let i = 0; i < d.points.length; i++) {
     const p = d.points[i];
     if (!p) continue;
-    if (Date.parse(p.scheduledTime) > now) return i === 0 ? '' : p.station;
+    if (Date.parse(p.scheduledTime) > now) return i === 0 ? null : p;
   }
-  return '';
+  return null;
 }
 
 function headerHtml(d: ServiceDetail): string {
@@ -156,7 +157,10 @@ function headerHtml(d: ServiceDetail): string {
   const date = d.points[0] ? fmtDate(d.points[0].scheduledTime) : '';
   const chip = statusChip(d);
   const status = serviceStatus(d);
-  const next = nextStopName(d);
+  const next = nextStop(d);
+  const last = d.points[d.points.length - 1];
+  const journeyCompleted = !next && last && Date.parse(last.scheduledTime) <= Date.now();
+  const completedAt = journeyCompleted ? last.expectedTime : '';
   return `
     <h1 class="service-title" id="service-title">${originTime ? `${originTime} ` : ''}${esc(d.origin)} to ${esc(d.destination)}</h1>
     <div class="stops-heading">
@@ -164,8 +168,8 @@ function headerHtml(d: ServiceDetail): string {
       <button type="button" class="share-btn" aria-label="Share this service">${SHARE_ICON}</button>
       <span class="share-status" role="status" aria-live="polite"></span>
     </div>
-    ${status ? `<p class="service-sub">Status: ${status}</p>` : ''}
-    ${next ? `<p class="service-sub">Next stop: ${esc(next)}</p>` : ''}
+    ${status ? `<p class="service-sub">Status: ${status}${completedAt ? `, completed at ${fmtTime(completedAt)}` : ''}</p>` : ''}
+    ${next ? `<p class="service-sub">Next stop: ${esc(next.station)}, expected ${fmtTime(next.expectedTime)}</p>` : ''}
     ${sub ? `<p class="service-sub">${sub}</p>` : ''}
     ${date ? `<p class="service-date">${date}</p>` : ''}
     ${chip ? `<p class="service-status">${chip}</p>` : ''}`;
