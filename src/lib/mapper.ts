@@ -53,8 +53,21 @@ function mapService(service: RTTService, kind: BoardKind): Service | null {
     destination: otherEnd(service, kind),
     operator: service.scheduleMetadata.operator.name,
     coaches: coachesFrom(service.locationMetadata?.numberOfVehicles),
+    journeyMins: journeyMinutes(service),
     cancelled: service.temporalData.displayAs === 'CANCELLED',
   };
+}
+
+/** Scheduled origin→destination duration in minutes, from the board's
+ *  origin/destination endpoint times (LocationPair.temporalData.scheduleAdvertised).
+ *  Null when RTT doesn't carry those times or they are out of order. */
+function journeyMinutes(service: RTTService): number | null {
+  const originTime = service.origin?.[0]?.temporalData?.scheduleAdvertised;
+  const dest = service.destination?.[service.destination.length - 1];
+  const destTime = dest?.temporalData?.scheduleAdvertised;
+  if (!originTime || !destTime) return null;
+  const ms = Date.parse(destTime) - Date.parse(originTime);
+  return Number.isFinite(ms) && ms > 0 ? Math.round(ms / 60_000) : null;
 }
 
 /** At-platform (train stopped here now) > confirmed (`actual` set) > provisional

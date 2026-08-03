@@ -24,6 +24,7 @@ function board(): Board {
         destination: 'Weymouth',
         operator: 'SWR',
         coaches: null,
+        journeyMins: null,
         cancelled: false,
       },
     ],
