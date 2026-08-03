@@ -29,14 +29,23 @@ const { title, description } = Astro.props;
     <meta name="apple-mobile-web-app-status-bar-style" content="black" />
     <meta name="apple-mobile-web-app-title" content="VIP Trains" />
     <meta name="theme-color" id="theme-color" content="#0f141b" />
-    <!-- Apply the saved theme BEFORE first paint: defaults to dark, no FOUC,
-         and works as dark even with JS disabled (the :root defaults are dark). -->
+    <!-- Apply the saved theme BEFORE first paint: try the user's stored
+         preference, else follow the device's system theme, falling back to
+         dark. Works as dark even with JS disabled (:root defaults are dark). -->
     <script is:inline>
       (function () {
-        try {
-          var t = localStorage.getItem('theme');
-          t = (t === 'light' || t === 'dark') ? t : 'dark';
-        } catch (e) { t = 'dark'; }
+        var t;
+        try { t = localStorage.getItem('theme'); } catch (e) { /* no-op */ }
+
+        if (t !== 'light' && t !== 'dark') {
+          // No saved preference — follow the device's system theme.
+          try {
+            t = window.matchMedia('(prefers-color-scheme: dark)').matches
+              ? 'dark'
+              : 'light';
+          } catch (e) { t = 'dark'; }
+        }
+
         var h = document.documentElement;
         h.setAttribute('data-theme', t);
         h.style.colorScheme = t;
