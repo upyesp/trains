@@ -63,7 +63,7 @@ function stopPlatform(p: Platform | null): string {
   return `<div class="stop-plat">${srLabel}${platformChip(p)}</div>`;
 }
 
-function stopCard(p: CallingPoint): string {
+function stopCard(p: CallingPoint, isLast: boolean): string {
   const sched = fmtTime(p.scheduledTime);
 
   // Top-left: timetable time (struck when this stop is cancelled).
@@ -74,9 +74,10 @@ function stopCard(p: CallingPoint): string {
   // Bottom-left: station name, the card's primary text.
   const stationHtml = `<div class="stop-station"><span class="dest">${esc(p.station)}</span></div>`;
 
-  // Top-right: the live status for this stop. A "Departed"/"Expected" prefix
-  // tells whether the train has already left this calling point (past) or has
-  // not arrived yet (future), based on a comparison with the current clock.
+  // Top-right: the live status for this stop. A "Departed"/"Expected"/"Completed"
+  // prefix tells whether the train has already left this calling point (past) or
+  // has not arrived yet (future). The final stop uses "Completed" instead of
+  // "Departed" — the train doesn't depart its destination, it finishes there.
   let expHtml: string;
   if (p.cancelled) {
     expHtml = `<div class="stop-exp cancel">Cancelled</div>`;
@@ -84,9 +85,12 @@ function stopCard(p: CallingPoint): string {
     const exp = fmtTime(p.expectedTime);
     const pointMs = Date.parse(p.scheduledTime);
     const isPast = Number.isFinite(pointMs) && pointMs < Date.now();
-    const prefix = isPast ? 'Departed' : 'Expected';
+    let prefix: string;
+    if (isLast && isPast) prefix = 'Completed';
+    else if (isPast) prefix = 'Departed';
+    else prefix = 'Expected';
     const cls = exp === sched ? 'on-time' : 'delay';
-    expHtml = `<div class="stop-exp ${cls}">${prefix} ${exp === sched ? 'On time' : exp}</div>`;
+    expHtml = `<div class="stop-exp ${cls}">${prefix} ${exp === sched ? 'on time' : exp}</div>`;
   }
 
   // The whole card links to the home search primed with this station, which
@@ -102,7 +106,7 @@ function stopsHtml(d: ServiceDetail): string {
   // visible "Calling Points" heading (in the header) is the list's accessible
   // name (aria-labelledby); each value also carries a visually-hidden field
   // label for screen readers.
-  return `<ol class="stops" aria-labelledby="stops-title">${d.points.map(stopCard).join('')}</ol>`;
+  return `<ol class="stops" aria-labelledby="stops-title">${d.points.map((p, i) => stopCard(p, i === d.points.length - 1)).join('')}</ol>`;
 }
 
 function statusChip(d: ServiceDetail): string {
@@ -160,7 +164,14 @@ function headerHtml(d: ServiceDetail): string {
   const next = nextStop(d);
   const last = d.points[d.points.length - 1];
   const journeyCompleted = !next && last && Date.parse(last.scheduledTime) <= Date.now();
-  const completedAt = journeyCompleted ? last.expectedTime : '';
+  let completionSuffix = '';
+  if (journeyCompleted && last) {
+    const diff = (Date.parse(last.expectedTime) - Date.parse(last.scheduledTime)) / 60_000;
+    const completedTime = fmtTime(last.expectedTime);
+    if (Math.abs(diff) < 1) completionSuffix = `, completed on time at ${completedTime}`;
+    else if (diff > 0) completionSuffix = `, completed late at ${completedTime}`;
+    else completionSuffix = `, completed early at ${completedTime}`;
+  }
   return `
     <h1 class="service-title" id="service-title">${originTime ? `${originTime} ` : ''}${esc(d.origin)} to ${esc(d.destination)}</h1>
     <div class="stops-heading">
@@ -168,7 +179,7 @@ function headerHtml(d: ServiceDetail): string {
       <button type="button" class="share-btn" aria-label="Share this service">${SHARE_ICON}</button>
       <span class="share-status" role="status" aria-live="polite"></span>
     </div>
-    ${status ? `<p class="service-sub">Status: ${status}${completedAt ? `, completed at ${fmtTime(completedAt)}` : ''}</p>` : ''}
+    ${status ? `<p class="service-sub">Status: ${status}${completionSuffix}</p>` : ''}
     ${next ? `<p class="service-sub">Next stop: ${esc(next.station)}, expected ${fmtTime(next.expectedTime)}</p>` : ''}
     ${sub ? `<p class="service-sub">${sub}</p>` : ''}
     ${date ? `<p class="service-date">${date}</p>` : ''}
