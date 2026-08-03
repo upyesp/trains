@@ -122,9 +122,11 @@ function statusChip(d: ServiceDetail): string {
 
 function headerHtml(d: ServiceDetail): string {
   // Journey summary after the operator: scheduled duration · number of stops
-  // · coach count. Each part drops out when its data is absent.
+  // · coach count. "Stops" excludes the origin (you board there - it's not a
+  // stop you travel to); each part drops out when its data is absent.
   const journey = fmtDuration(d.points[0]?.scheduledTime ?? '', d.points[d.points.length - 1]?.scheduledTime ?? '');
-  const stops = d.points.length ? `${d.points.length} ${d.points.length === 1 ? 'stop' : 'stops'}` : '';
+  const stopCount = Math.max(0, d.points.length - 1);
+  const stops = stopCount > 0 ? `${stopCount} ${stopCount === 1 ? 'stop' : 'stops'}` : '';
   const coaches = d.coaches ? `${d.coaches} ${d.coaches === 1 ? 'coach' : 'coaches'}` : '';
   const sub = [d.operator, journey, stops, coaches].filter(Boolean).map(esc).join(' · ');
   const date = d.points[0] ? fmtDate(d.points[0].scheduledTime) : '';
