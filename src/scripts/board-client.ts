@@ -12,7 +12,7 @@
 // itself is unreachable.
 
 import { diffBoards } from '../lib/diff';
-import { fmtClock, fmtTime } from '../lib/format';
+import { fmtClock, fmtDurationMin, fmtTime } from '../lib/format';
 import { esc, platformChip } from '../lib/html';
 import type {
   Board,
@@ -89,10 +89,11 @@ function timeCell(s: Service): string {
 }
 
 function destCell(s: Service): string {
-  const coaches = s.coaches
-    ? `<span class="coaches">${s.coaches} ${s.coaches === 1 ? 'coach' : 'coaches'}</span>`
-    : '';
-  return `<div class="svc-dest"><span class="dest">${esc(s.destination)}<span class="toc">${esc(s.operator)}</span>${coaches}</span></div>`;
+  const journey = s.journeyMins != null ? fmtDurationMin(s.journeyMins) : '';
+  const coaches = s.coaches != null ? `${s.coaches} ${s.coaches === 1 ? 'coach' : 'coaches'}` : '';
+  const meta = [journey, coaches].filter(Boolean).map(esc).join(' · ');
+  const metaHtml = meta ? `<span class="coaches">${meta}</span>` : '';
+  return `<div class="svc-dest"><span class="dest">${esc(s.destination)}<span class="toc">${esc(s.operator)}</span>${metaHtml}</span></div>`;
 }
 
 function statusCell(s: Service): string {
@@ -171,10 +172,10 @@ function mockBoardResponse(crs: string, kind: BoardKind): BoardResponse {
   const t = (h: number, m: number) =>
     `${today}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
   const services: Service[] = [
-    { id: 'M1', scheduledTime: t(10, 38), expectedTime: t(10, 38), platform: { number: '3', state: 'confirmed' }, destination: 'Leeds', operator: 'LNER', coaches: 9, cancelled: false },
-    { id: 'M2', scheduledTime: t(10, 42), expectedTime: t(10, 48), platform: { number: '9', state: 'confirmed' }, destination: 'Newcastle', operator: 'LNER', coaches: 9, cancelled: false },
-    { id: 'M3', scheduledTime: t(10, 45), expectedTime: t(10, 45), platform: { number: '1', state: 'provisional' }, destination: 'Edinburgh', operator: 'LNER', coaches: 10, cancelled: false },
-    { id: 'M4', scheduledTime: t(10, 50), expectedTime: t(10, 50), platform: null, destination: 'York', operator: 'LNER', coaches: null, cancelled: true },
+    { id: 'M1', scheduledTime: t(10, 38), expectedTime: t(10, 38), platform: { number: '3', state: 'confirmed' }, destination: 'Leeds', operator: 'LNER', coaches: 9, journeyMins: 45, cancelled: false },
+    { id: 'M2', scheduledTime: t(10, 42), expectedTime: t(10, 48), platform: { number: '9', state: 'confirmed' }, destination: 'Newcastle', operator: 'LNER', coaches: 9, journeyMins: 90, cancelled: false },
+    { id: 'M3', scheduledTime: t(10, 45), expectedTime: t(10, 45), platform: { number: '1', state: 'provisional' }, destination: 'Edinburgh', operator: 'LNER', coaches: 10, journeyMins: 230, cancelled: false },
+    { id: 'M4', scheduledTime: t(10, 50), expectedTime: t(10, 50), platform: null, destination: 'York', operator: 'LNER', coaches: null, journeyMins: null, cancelled: true },
   ];
   return { board: { station: crs, kind, services }, asAt: Date.now(), stale: false };
 }

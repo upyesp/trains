@@ -22,3 +22,17 @@ export function fmtClock(epochMs: number): string {
     minute: '2-digit',
   });
 }
+
+/**
+ * Render a duration in minutes as "1h 23m" / "45m" / "2h". Empty string for
+ * null, undefined, or non-positive values. Shared by the board (per-service
+ * origin→destination duration) and the service-detail journey time.
+ */
+export function fmtDurationMin(mins: number | null | undefined): string {
+  if (mins == null || mins <= 0 || !Number.isFinite(mins)) return '';
+  const h = Math.floor(mins / 60);
+  const m = Math.round(mins) % 60;
+  if (h > 0 && m > 0) return `${h}h ${m}m`;
+  if (h > 0) return `${h}h`;
+  return `${m}m`;
+}

@@ -7,7 +7,7 @@
 // time; "Cancelled" for cancelled stops) and platform. Refreshes every 30s
 // (paused while the tab is hidden) to keep expected times live.
 
-import { fmtClock, fmtTime } from '../lib/format';
+import { fmtClock, fmtDurationMin, fmtTime } from '../lib/format';
 import { esc, platformChip } from '../lib/html';
 import type { CallingPoint, Platform, ServiceDetail, ServiceDetailResponse } from '../lib/types';
 
@@ -31,18 +31,12 @@ function fmtDate(iso: string): string {
   return `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]} ${m[1]}`;
 }
 
-/** Scheduled journey duration between two ISO datetimes as "1h 23m" / "45m",
- *  computed from the first to the last calling point. Empty when the times are
- *  missing or not in order (e.g. a single-point run). */
+/** Scheduled journey duration between two ISO datetimes, via the shared
+ *  fmtDurationMin ("1h 23m"). Empty when the times are missing or not in order. */
 function fmtDuration(isoStart: string, isoEnd: string): string {
   const ms = Date.parse(isoEnd) - Date.parse(isoStart);
   if (!Number.isFinite(ms) || ms <= 0) return '';
-  const mins = Math.round(ms / 60_000);
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  if (h > 0 && m > 0) return `${h}h ${m}m`;
-  if (h > 0) return `${h}h`;
-  return `${m}m`;
+  return fmtDurationMin(Math.round(ms / 60_000));
 }
 
 function delayMinutesAt(p: CallingPoint): number {

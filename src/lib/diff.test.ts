@@ -11,6 +11,7 @@ function service(overrides: Partial<Service> = {}): Service {
     destination: 'Leeds',
     operator: 'LNER',
     coaches: null,
+    journeyMins: null,
     cancelled: false,
     ...overrides,
   };

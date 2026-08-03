@@ -58,10 +58,33 @@ describe('mapLocationLineUp', () => {
             destination: 'Weymouth',
             operator: 'South Western Railway',
             coaches: null,
+            journeyMins: null,
             cancelled: false,
           },
         ],
       });
+    });
+  });
+
+  describe('journey time', () => {
+    it('derives the origin→destination duration from the endpoint times', () => {
+      const board = mapLocationLineUp(
+        {
+          services: [
+            service({
+              id: 'fast',
+              origin: [{ location: { description: 'A' }, temporalData: { scheduleAdvertised: '2026-08-03T10:00:00' } }],
+              destination: [{ location: { description: 'B' }, temporalData: { scheduleAdvertised: '2026-08-03T11:30:00' } }],
+              temporalData: { displayAs: 'CALL', departure: { scheduleAdvertised: '2026-08-03T10:00:00' } },
+            }),
+            service({ id: 'no-times' }), // endpoints without temporalData
+          ],
+        },
+        'WAT',
+        'departures',
+      );
+      const byId = Object.fromEntries(board.services.map((s) => [s.id, s.journeyMins]));
+      expect(byId).toEqual({ fast: 90, 'no-times': null });
     });
   });
 

@@ -76,6 +76,10 @@ export interface RTTGeographicLocation {
 /** An origin/destination pair (RTT `LocationPair`, narrowed). */
 export interface RTTLocationPair {
   location: RTTGeographicLocation;
+  /** Timing at this endpoint (origin departure / destination arrival). The board
+   *  response populates this on its origin/destination pairs, so a service's
+   *  end-to-end duration can be derived without a detail call. */
+  temporalData?: RTTTemporalData;
 }
 
 /** Service operator (narrowed from `ScheduleMetadata.operator`). */
