@@ -13,6 +13,13 @@ const { title, description } = Astro.props;
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Cap text inflation at the author's sizes in EVERY browser. Firefox,
+         Chrome and Safari each run their own inflation algorithm, which made
+         text larger in Firefox than Chrome; `100%` keeps every browser at the
+         sizes we set (it does NOT block the user's own font-size setting).
+         Inline so the build's CSS transformer can't strip the -webkit-/-moz-
+         prefixes that Chrome/Safari and older Firefox need. -->
+    <style is:inline>html{-webkit-text-size-adjust:100%;-moz-text-size-adjust:100%;text-size-adjust:100%}</style>
     <title>{title}</title>
     {description && <meta name="description" content={description} />}
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />

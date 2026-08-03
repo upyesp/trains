@@ -92,7 +92,9 @@
 }
 
 * { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
+/* text-size-adjust lives in BaseLayout as an is:inline <style>: the build's CSS
+   transformer (Lightning) strips the -webkit-/-moz- prefixes this rule needs to
+   cap text inflation in every browser. */
 body {
   margin: 0;
   background: var(--bg);
@@ -533,11 +535,10 @@ h2.stops-title {
 
 /* ---------- Responsive ---------- */
 @media (max-width: 560px) {
-  /* Larger rem basis on phones so small text reads consistently across
-     browsers. Firefox inflates small text itself, but Chrome honours
-     -webkit-text-size-adjust: 100% and renders rem sizes at face value - which
-     left the .6-.9rem board text too small. 112.5% = ~18px root (was 16px). */
-  html { font-size: 112.5%; }
+  /* With inflation capped above, every browser renders rem sizes at face value,
+     so a larger root makes text comfortably readable on phones in all of them.
+     125% = ~20px root (was 16px default / 18px previously). */
+  html { font-size: 125%; }
   /* Reflow each service into a stacked card: time + status on the top line,
      destination full-width below it, then the platform chip on its own line.
      Platform used to sit beside the destination and starve it of width (it
