@@ -74,17 +74,19 @@ function stopCard(p: CallingPoint): string {
   // Bottom-left: station name, the card's primary text.
   const stationHtml = `<div class="stop-station"><span class="dest">${esc(p.station)}</span></div>`;
 
-  // Top-right: the live status for this stop. A visually-hidden "Expected "
-  // disambiguates a delayed time from the timetable time for screen readers.
+  // Top-right: the live status for this stop. A "Departed"/"Expected" prefix
+  // tells whether the train has already left this calling point (past) or has
+  // not arrived yet (future), based on a comparison with the current clock.
   let expHtml: string;
   if (p.cancelled) {
-    expHtml = `<div class="stop-exp cancel"><span class="visually-hidden">Expected </span>Cancelled</div>`;
+    expHtml = `<div class="stop-exp cancel">Cancelled</div>`;
   } else {
     const exp = fmtTime(p.expectedTime);
-    expHtml =
-      exp === sched
-        ? `<div class="stop-exp on-time"><span class="visually-hidden">Expected </span>On time</div>`
-        : `<div class="stop-exp delay"><span class="visually-hidden">Expected </span>${esc(exp)}</div>`;
+    const pointMs = Date.parse(p.scheduledTime);
+    const isPast = Number.isFinite(pointMs) && pointMs < Date.now();
+    const prefix = isPast ? 'Departed' : 'Expected';
+    const cls = exp === sched ? 'on-time' : 'delay';
+    expHtml = `<div class="stop-exp ${cls}">${prefix} ${exp === sched ? 'On time' : exp}</div>`;
   }
 
   // The whole card links to the home search primed with this station, which
@@ -114,7 +116,35 @@ function statusChip(d: ServiceDetail): string {
   return '';
 }
 
+/** The origin's departure status: past (Departed on time / Departed at HH:MM)
+ *  or future (Scheduled HH:MM). Uses the client clock for now. */
+function serviceStatus(d: ServiceDetail): string {
+  const origin = d.points[0];
+  if (!origin || !origin.scheduledTime) return '';
+  const sched = origin.scheduledTime;
+  const exp = origin.expectedTime;
+  const schedMs = Date.parse(sched);
+  if (schedMs <= Date.now()) {
+    return exp === sched ? 'Departed on time' : `Departed at ${fmtTime(exp)}`;
+  }
+  return `Scheduled ${fmtTime(sched)}`;
+}
+
+/** The first calling point whose scheduled time is still in the future,
+ *  excluding the origin (which would just repeat the departure). Empty when the
+ *  service has passed every stop. */
+function nextStopName(d: ServiceDetail): string {
+  const now = Date.now();
+  for (let i = 0; i < d.points.length; i++) {
+    const p = d.points[i];
+    if (!p) continue;
+    if (Date.parse(p.scheduledTime) > now) return i === 0 ? '' : p.station;
+  }
+  return '';
+}
+
 function headerHtml(d: ServiceDetail): string {
+  const originTime = fmtTime(d.points[0]?.scheduledTime ?? '');
   // Journey summary after the operator: scheduled duration · number of stops
   // · coach count. "Stops" excludes the origin (you board there - it's not a
   // stop you travel to); each part drops out when its data is absent.
@@ -125,13 +155,17 @@ function headerHtml(d: ServiceDetail): string {
   const sub = [d.operator, journey, stops, coaches].filter(Boolean).map(esc).join(' · ');
   const date = d.points[0] ? fmtDate(d.points[0].scheduledTime) : '';
   const chip = statusChip(d);
+  const status = serviceStatus(d);
+  const next = nextStopName(d);
   return `
-    <h1 class="service-title" id="service-title">${esc(d.origin)} to ${esc(d.destination)}</h1>
+    <h1 class="service-title" id="service-title">${originTime ? `${originTime} — ` : ''}${esc(d.origin)} to ${esc(d.destination)}</h1>
     <div class="stops-heading">
       <h2 class="stops-title" id="stops-title">Calling Points</h2>
       <button type="button" class="share-btn" aria-label="Share this service">${SHARE_ICON}</button>
       <span class="share-status" role="status" aria-live="polite"></span>
     </div>
+    ${status ? `<p class="service-sub">Status: ${status}</p>` : ''}
+    ${next ? `<p class="service-sub">Next stop: ${esc(next)}</p>` : ''}
     ${sub ? `<p class="service-sub">${sub}</p>` : ''}
     ${date ? `<p class="service-date">${date}</p>` : ''}
     ${chip ? `<p class="service-status">${chip}</p>` : ''}`;
