@@ -98,7 +98,7 @@ body {
   background: var(--bg);
   color: var(--fg);
   font-family: var(--sans);
-  font-size: 16px;
+  font-size: 1rem;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   transition: background-color .18s ease, color .18s ease;
@@ -526,6 +526,11 @@ h2.stops-title {
 
 /* ---------- Responsive ---------- */
 @media (max-width: 560px) {
+  /* Larger rem basis on phones so small text reads consistently across
+     browsers. Firefox inflates small text itself, but Chrome honours
+     -webkit-text-size-adjust: 100% and renders rem sizes at face value - which
+     left the .6-.9rem board text too small. 112.5% = ~18px root (was 16px). */
+  html { font-size: 112.5%; }
   /* Reflow each service into a compact card so nothing overflows a phone:
      time + status on the top line, destination + platform below. DOM order
      (time, dest, plat, status) is unchanged, so screen-reader reading order
