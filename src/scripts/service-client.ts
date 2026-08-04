@@ -14,9 +14,20 @@ import type { CallingPoint, Platform, ServiceDetail, ServiceDetailResponse } fro
 const REFRESH_MS = 30_000;
 const DEFAULT_API = 'https://trains-api.upyesp.workers.dev';
 
-/** Share glyph (Lucide "share-2": three linked nodes) for the header button.
- *  aria-hidden - the button's aria-label is the accessible name. */
-const SHARE_ICON = `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.42" y1="6.51" x2="8.59" y2="10.49"/></svg>`;
+/** Three-linked-circles share glyph (Lucide "share-2"), the standard on
+ *  Android, Windows and Linux. */
+const SHARE_ANDROID = `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.42" y1="6.51" x2="8.59" y2="10.49"/></svg>`;
+
+/** Box-with-up-arrow share glyph (Lucide "share"), matching the Safari toolbar
+ *  icon on iOS and macOS. */
+const SHARE_APPLE = `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>`;
+
+/** Pick the OS-appropriate share icon.  Apple users (iOS / macOS) get the
+ *  box-with-arrow glyph that matches Safari's share button; everyone else
+ *  gets the three-linked-circles glyph standard on Android and the web. */
+function shareIconHtml(): string {
+  return /Mac|iPad|iPhone|iPod/.test(navigator.userAgent) ? SHARE_APPLE : SHARE_ANDROID;
+}
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -176,7 +187,7 @@ function headerHtml(d: ServiceDetail): string {
     <h1 class="service-title" id="service-title">${originTime ? `${originTime} ` : ''}${esc(d.origin)} to ${esc(d.destination)}</h1>
     <div class="stops-heading">
       <h2 class="stops-title" id="stops-title">Calling Points</h2>
-      <button type="button" class="share-btn" aria-label="Share this service">${SHARE_ICON}</button>
+      <button type="button" class="share-btn" aria-label="Share this page">${shareIconHtml()}</button>
       <span class="share-status" role="status" aria-live="polite"></span>
     </div>
     ${status ? `<p class="service-sub">Status: ${status}${completionSuffix}</p>` : ''}
