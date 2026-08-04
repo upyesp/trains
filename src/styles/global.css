@@ -502,8 +502,9 @@ h2.stops-title {
    reflow to a 2x2 card mirroring the .svc board row so nothing overflows and no
    horizontal scroll is needed. There are no <th> here, so each data field carries
    a visually-hidden label for screen readers; the visible "Calling Points"
-   heading is the list's accessible name (aria-labelledby). Each card is a link
-   to that station's departures. */
+   heading is the list's accessible name (aria-labelledby). Only the station
+   name is a clickable link — underlined so it's visually discoverable, and
+   narrow enough not to trigger accidentally. */
 .stops { list-style: none; margin: 0; padding: 0; }
 .stop-item { border-bottom: 1px solid var(--board-line); }
 .stop {
@@ -512,12 +513,18 @@ h2.stops-title {
   align-items: center;
   column-gap: 16px;
   padding: 14px 20px;
-  /* The whole card is a link to that station's departures. */
-  color: var(--board-fg);
-  text-decoration: none;
 }
-.stop:hover { background: var(--board-chip-bg); }
 .stops > :last-child { border-bottom: 0; }
+/* Station-name link inside a stop card. Always underlined (GDS-style) so
+   it's visually discoverable; the underline uses from-font thickness so it
+   scales naturally with the text. Underline offset keeps descenders clear. */
+.stop-link {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  text-decoration-thickness: from-font;
+  color: var(--board-fg);
+}
+.stop-link:hover { color: var(--brand); }
 .stop-time, .stop-station { min-width: 0; }
 /* Expected: "On time" (mute) / a delayed time (delay colour, mono) / "Cancelled". */
 .stop-exp { justify-self: end; text-align: right; white-space: nowrap; }
