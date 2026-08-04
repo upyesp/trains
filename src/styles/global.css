@@ -436,12 +436,14 @@ h1.station {
    "Platform" column header instead). Hidden by default; the responsive block
    reveals it. */
 .plat-label { display: none; }
-/* Desktop board: fixed chip width so the provisional / at-platform captions
-   don't make the chip wider than a confirmed one (the caption text is ~3.9rem
-   + 1.25rem padding, so 5.5rem fits it on one line and matches the widened
-   column above). Phones override to full-width in the responsive block. */
+/* Desktop board: fixed chip size so the provisional / at-platform captions
+   don't make the chip wider or taller than a confirmed one. 5.5rem wide fits
+   the widest caption ("provisional") on one line and matches the widened
+   column above; 3.6rem tall matches the tallest state (at-platform: number +
+   caption + padding ≈ 3.55rem), with the number/caption vertically centred.
+   Phones override to full-width in the responsive block. */
 @media (min-width: 561px) {
-  .svc-plat .plat { width: 5.5rem; }
+  .svc-plat .plat { width: 5.5rem; height: 3.6rem; }
 }
 
 .chip {
