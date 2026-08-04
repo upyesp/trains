@@ -383,12 +383,18 @@ h1.station {
 }
 .svc {
   padding: 14px 20px;
-  /* The row is a link to the service detail page. Inherit the board text colour
-     so unstyled it reads like any other row; drop the default underline. */
-  color: var(--board-fg);
-  text-decoration: none;
 }
-.svc:hover { background: var(--board-chip-bg); }
+/* Station-name link inside a board row. Same treatment as .stop-link on the
+   calling-points page: underline, from-font thickness, offset for descenders,
+   board-foreground colour, brand on hover. */
+.svc-link {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  text-decoration-thickness: from-font;
+  color: var(--board-fg);
+}
+.svc-link:visited { color: var(--board-fg); }
+.svc-link:hover { color: var(--brand); }
 .svc-item { border-bottom: 1px solid var(--board-line); }
 .board > :last-child { border-bottom: 0; }
 
@@ -523,6 +529,7 @@ h2.stops-title {
   text-decoration-thickness: from-font;
   color: var(--board-fg);
 }
+.stop-link:visited { color: var(--board-fg); }
 .stop-link:hover { color: var(--brand); }
 .stop-time, .stop-station { min-width: 0; }
 /* Expected: "On time" (mute) / a delayed time (delay colour, mono) / "Cancelled". */
