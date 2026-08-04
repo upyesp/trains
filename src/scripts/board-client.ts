@@ -93,7 +93,8 @@ function destCell(s: Service): string {
   const coaches = s.coaches != null ? `${s.coaches} ${s.coaches === 1 ? 'coach' : 'coaches'}` : '';
   const meta = [journey, coaches].filter(Boolean).map(esc).join(' · ');
   const metaHtml = meta ? `<span class="coaches">${meta}</span>` : '';
-  return `<div class="svc-dest"><span class="dest">${esc(s.destination)}<span class="toc">${esc(s.operator)}</span>${metaHtml}</span></div>`;
+  const href = `/service/?${new URLSearchParams({ id: s.id }).toString()}`;
+  return `<div class="svc-dest"><span class="dest"><a class="svc-link" href="${href}"><span class="dest-name">${esc(s.destination)}</span> <span class="visually-hidden">view calling points for this service</span></a><span class="toc">${esc(s.operator)}</span>${metaHtml}</span></div>`;
 }
 
 function statusCell(s: Service): string {
@@ -104,19 +105,11 @@ function statusCell(s: Service): string {
   return '<div class="svc-status"></div>';
 }
 
-function rowHref(s: Service, crs: string): string {
-  // Shareable per-service URL. `id` is the RTT uniqueIdentity; `from` lets the
-  // detail page offer a "back to this station" link (ignored when absent).
-  const q = new URLSearchParams({ id: s.id, from: crs });
-  return `/service/?${q.toString()}`;
-}
-
-function rowHtml(s: Service, crs: string): string {
+function rowHtml(s: Service, _crs: string): string {
   const cls = s.cancelled ? 'svc is-cancelled' : 'svc';
-  // The whole row is one link to the service detail page - a native <a> gives
-  // keyboard + screen-reader support for free. The trailing visually-hidden
-  // text states the link's purpose; the visible cells supply the specifics.
-  return `<li class="svc-item"><a class="${cls}" href="${rowHref(s, crs)}">${timeCell(s)}${destCell(s)}${statusCell(s)}${platformCell(s.platform)}<span class="visually-hidden">. View all calling points with live times for this service.</span></a></li>`;
+  // Only the station name is a link — not the whole row — so it's obvious
+  // and hard to trigger accidentally (same pattern as calling-point stops).
+  return `<li class="svc-item"><div class="${cls}">${timeCell(s)}${destCell(s)}${statusCell(s)}${platformCell(s.platform)}</div></li>`;
 }
 
 const LOADING_ROW = '<li class="board-msg">Loading live board…</li>';
