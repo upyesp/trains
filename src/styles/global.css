@@ -363,7 +363,7 @@ h1.station {
 .board-cols,
 .svc {
   display: grid;
-  grid-template-columns: 9.5rem 1fr 4.5rem 6rem;
+  grid-template-columns: 9.5rem 1fr 5.5rem 6rem;
   grid-template-areas: "time dest plat status";
   align-items: center;
   column-gap: 16px;
@@ -436,6 +436,13 @@ h1.station {
    "Platform" column header instead). Hidden by default; the responsive block
    reveals it. */
 .plat-label { display: none; }
+/* Desktop board: fixed chip width so the provisional / at-platform captions
+   don't make the chip wider than a confirmed one (the caption text is ~3.9rem
+   + 1.25rem padding, so 5.5rem fits it on one line and matches the widened
+   column above). Phones override to full-width in the responsive block. */
+@media (min-width: 561px) {
+  .svc-plat .plat { width: 5.5rem; }
+}
 
 .chip {
   display: inline-block; padding: 3px 9px; border-radius: 999px;
