@@ -82,8 +82,12 @@ function stopCard(p: CallingPoint, isLast: boolean): string {
   const timeHtml =
     `<div class="stop-time"><span class="visually-hidden">Timetable </span><span class="time">${timeInner}</span></div>`;
 
-  // Bottom-left: station name, the card's primary text.
-  const stationHtml = `<div class="stop-station"><span class="dest">${esc(p.station)}</span></div>`;
+  // Bottom-left: station name, the card's primary text. Only the station
+  // name is a link — not the whole card — so it's obvious and hard to
+  // trigger accidentally. The visually-hidden hint tells screen-reader
+  // users what the link does.
+  const href = `/?${new URLSearchParams({ station: p.station }).toString()}`;
+  const stationHtml = `<div class="stop-station"><a class="stop-link" href="${href}"><span class="dest">${esc(p.station)}</span> <span class="visually-hidden">show departures from this station</span></a></div>`;
 
   // Top-right: the live status for this stop. A "Departed"/"Expected"/"Completed"
   // prefix tells whether the train has already left this calling point (past) or
@@ -104,11 +108,7 @@ function stopCard(p: CallingPoint, isLast: boolean): string {
     expHtml = `<div class="stop-exp ${cls}">${prefix} ${exp === sched ? 'on time' : exp}</div>`;
   }
 
-  // The whole card links to the home search primed with this station, which
-  // then lists that station's departures (a bare /stations/<crs> URL = no
-  // "calling at" filter, even if one was set on a previous board).
-  const href = `/?${new URLSearchParams({ station: p.station }).toString()}`;
-  return `<li class="stop-item"><a class="stop" href="${href}">${timeHtml}${stationHtml}${expHtml}${stopPlatform(p.platform)}<span class="visually-hidden">View live departures from this station.</span></a></li>`;
+  return `<li class="stop-item"><div class="stop">${timeHtml}${stationHtml}${expHtml}${stopPlatform(p.platform)}</div></li>`;
 }
 
 function stopsHtml(d: ServiceDetail): string {
@@ -187,7 +187,7 @@ function headerHtml(d: ServiceDetail): string {
     <h1 class="service-title" id="service-title">${originTime ? `${originTime} ` : ''}${esc(d.origin)} to ${esc(d.destination)}</h1>
     <div class="stops-heading">
       <h2 class="stops-title" id="stops-title">Calling Points</h2>
-      <button type="button" class="share-btn" aria-label="Share this page">${shareIconHtml()}</button>
+      <button type="button" class="share-btn" aria-label="Share this list of calling points">${shareIconHtml()}</button>
       <span class="share-status" role="status" aria-live="polite"></span>
     </div>
     ${status ? `<p class="service-sub">Status: ${status}${completionSuffix}</p>` : ''}
