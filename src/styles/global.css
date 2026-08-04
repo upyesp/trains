@@ -412,6 +412,14 @@ h1.station {
 .dest { font-family: var(--sans); font-weight: 600; font-size: 1.02rem; overflow-wrap: break-word; }
 .dest .toc { display: block; color: var(--board-mute); font-weight: 400; font-size: .78rem; margin-top: 2px; }
 .dest .coaches { display: block; color: var(--board-mute); font-weight: 400; font-size: .78rem; margin-top: 1px; }
+/* On board rows the station name is underlined so users can see the row is
+   clickable (the whole row is a link). Same treatment as .stop-link on the
+   calling-points page: from-font thickness, offset for descenders. */
+.svc .dest {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  text-decoration-thickness: from-font;
+}
 
 /* Platform chip - state in TEXT, reinforced by styling */
 .plat {
