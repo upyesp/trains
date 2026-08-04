@@ -187,9 +187,7 @@ function headerHtml(d: ServiceDetail): string {
     <h1 class="service-title" id="service-title">${originTime ? `${originTime} ` : ''}${esc(d.origin)} to ${esc(d.destination)}</h1>
     <div class="stops-heading">
       <h2 class="stops-title" id="stops-title">Calling Points</h2>
-      <!-- TEMP DIAGNOSTIC: hard-coded icon, no OS detection (shareIconHtml is
-           bypassed). Revert to ${shareIconHtml()} after the Firefox test. -->
-      <button type="button" class="share-btn" aria-label="Share this list of calling points">${SHARE_ANDROID}</button>
+      <button type="button" class="share-btn" aria-label="Share this list of calling points">${shareIconHtml()}</button>
       <span class="share-status" role="status" aria-live="polite"></span>
     </div>
     ${status ? `<p class="service-sub">Status: ${status}${completionSuffix}</p>` : ''}
