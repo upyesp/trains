@@ -266,6 +266,26 @@ header.site {
   clip: rect(0,0,0,0);
   white-space: nowrap; border: 0;
 }
+.privacy-note { margin: 14px 0 40px; font-size: .9rem; color: var(--fg-mute); }
+
+/* ---------- Privacy page ---------- */
+.privacy { max-width: 42rem; margin: 0 0 40px; }
+.privacy h2 {
+  font-family: var(--sans); font-weight: 600; font-size: 1.15rem;
+  color: var(--fg); margin: 26px 0 8px;
+}
+.privacy p { margin: 0 0 12px; color: var(--fg); }
+.privacy ul { margin: 0 0 12px; padding-left: 1.25rem; display: grid; gap: 6px; }
+.privacy li { color: var(--fg); }
+.privacy a,
+.privacy-note a {
+  color: var(--fg);
+  text-decoration: underline;
+  text-underline-offset: .15em;
+  text-decoration-thickness: from-font;
+}
+.privacy a:hover,
+.privacy-note a:hover { color: var(--amber); }
 
 /* ---------- Station header ---------- */
 .station-head { margin-bottom: 18px; }
