@@ -1,0 +1,84 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+// Contact page: an accessible form that POSTs to the Worker's /contact route
+// (urlencoded — a CORS "simple request", so no preflight). The Worker
+// validates, rate-limits, and emails the submission via Resend. The form
+// works without JS too (native post → 303 redirect to ?sent=1); the client
+// script (contact-client.ts) adds inline validation and friendly status.
+//
+// `||` (not ??) so an empty/unset var falls back to the live Worker.
+const apiBase = import.meta.env.PUBLIC_API || 'https://trains-api.upyesp.workers.dev';
+---
+
+<BaseLayout
+  title="Contact — VIP Trains"
+  description="Get in touch about the VIP Trains live departure boards."
+>
+  <h1 class="page-title">Contact</h1>
+  <p class="page-lede">
+    Spotted a problem with a board, or just want to say hello? Send a message
+    and it will arrive in our inbox.
+  </p>
+
+  <form id="contact-form" class="contact" action={`${apiBase}/contact`} method="post">
+    <div class="field">
+      <label for="cf-name">Your name</label>
+      <input
+        id="cf-name"
+        name="name"
+        type="text"
+        required
+        maxlength="100"
+        autocomplete="name"
+        aria-describedby="cf-name-error"
+      />
+      <p class="field-error" id="cf-name-error" hidden></p>
+    </div>
+
+    <div class="field">
+      <label for="cf-email">Your email</label>
+      <input
+        id="cf-email"
+        name="email"
+        type="email"
+        required
+        maxlength="254"
+        autocomplete="email"
+        aria-describedby="cf-email-error"
+      />
+      <p class="field-error" id="cf-email-error" hidden></p>
+    </div>
+
+    <div class="field">
+      <label for="cf-message">Message</label>
+      <textarea
+        id="cf-message"
+        name="message"
+        required
+        maxlength="5000"
+        rows="8"
+        aria-describedby="cf-message-error"
+      ></textarea>
+      <p class="field-error" id="cf-message-error" hidden></p>
+    </div>
+
+    <!-- Honeypot: invisible to humans and screen readers; bots fill it in.
+         The Worker rejects any submission with this field populated. -->
+    <p class="hp" aria-hidden="true">
+      <label for="cf-hp">Leave this field empty</label>
+      <input id="cf-hp" name="website" type="text" tabindex="-1" autocomplete="off" />
+    </p>
+
+    <div class="form-actions">
+      <button type="submit" class="submit-btn">Send message</button>
+      <p class="form-status" id="cf-status" role="status"></p>
+    </div>
+  </form>
+</BaseLayout>
+
+<script>
+  import { initContactForm } from '../scripts/contact-client';
+  const form = document.getElementById('contact-form');
+  if (form instanceof HTMLFormElement) initContactForm(form);
+</script>

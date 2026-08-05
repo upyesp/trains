@@ -83,3 +83,74 @@ export function parseServiceRequest(
 
   return { ok: true, request: { id } };
 }
+
+// ---- Contact form ----
+
+/** A validated contact-form submission. */
+export interface ContactInput {
+  name: string;
+  email: string;
+  message: string;
+}
+
+/** One field-level validation failure, for the JSON error body. */
+export interface ContactIssue {
+  field: 'name' | 'email' | 'message';
+  code: 'required' | 'too-long' | 'invalid-email';
+}
+
+export type ContactParseResult =
+  | { ok: true; request: ContactInput }
+  | {
+      ok: false;
+      reason: 'not-found' | 'method-not-allowed' | 'bad-request';
+      /** Field-level failures (present when reason is bad-request). */
+      issues?: ContactIssue[];
+    };
+
+const NAME_MAX = 100;
+const EMAIL_MAX = 254;
+const MESSAGE_MAX = 5000;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Parse a contact-form submission: `POST /contact` with an
+ * `application/x-www-form-urlencoded` body (`name`, `email`, `message`, plus
+ * the `website` honeypot field that bots fill in — it must be empty). Pure:
+ * takes the already-read body string, so it is fully unit-testable. Native
+ * (no-JS) form posts and the JS client both send this shape — urlencoded is a
+ * CORS "simple request", so the browser needs no preflight for it.
+ */
+export function parseContactRequest(
+  method: string,
+  pathname: string,
+  rawBody: string | null,
+): ContactParseResult {
+  if (pathname !== '/contact') return { ok: false, reason: 'not-found' };
+  if (method !== 'POST') return { ok: false, reason: 'method-not-allowed' };
+
+  const params = new URLSearchParams(rawBody ?? '');
+  const name = (params.get('name') ?? '').trim();
+  const email = (params.get('email') ?? '').trim();
+  const message = (params.get('message') ?? '').trim();
+  const honeypot = (params.get('website') ?? '').trim();
+
+  // Bots fill the hidden honeypot field; a real user never sees it. Reject
+  // without spending rate-limit budget.
+  if (honeypot.length > 0) return { ok: false, reason: 'bad-request' };
+
+  const issues: ContactIssue[] = [];
+  if (name.length === 0) issues.push({ field: 'name', code: 'required' });
+  else if (name.length > NAME_MAX) issues.push({ field: 'name', code: 'too-long' });
+
+  if (email.length === 0) issues.push({ field: 'email', code: 'required' });
+  else if (email.length > EMAIL_MAX) issues.push({ field: 'email', code: 'too-long' });
+  else if (!EMAIL_RE.test(email)) issues.push({ field: 'email', code: 'invalid-email' });
+
+  if (message.length === 0) issues.push({ field: 'message', code: 'required' });
+  else if (message.length > MESSAGE_MAX) issues.push({ field: 'message', code: 'too-long' });
+
+  if (issues.length > 0) return { ok: false, reason: 'bad-request', issues };
+
+  return { ok: true, request: { name, email, message } };
+}

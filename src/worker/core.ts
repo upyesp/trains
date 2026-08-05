@@ -1,7 +1,8 @@
 import { selectToServe } from '../lib/cache';
 import type { CacheEntry } from '../lib/cache';
 import type { Board, BoardKind, BoardResponse, ServiceDetail } from '../lib/types';
-import { parseBoardRequest, parseServiceRequest } from './router';
+import { parseBoardRequest, parseContactRequest, parseServiceRequest } from './router';
+import type { ContactInput } from './router';
 import type { RttFetchOutcome, ServiceFetchOutcome } from './rtt';
 
 export interface WorkerResponse {
@@ -35,7 +36,7 @@ export interface ServeConfig {
 
 /** Fixed CORS baseline sent whenever a response is CORS-enabled. */
 const CORS_BASE: Record<string, string> = {
-  'access-control-allow-methods': 'GET, OPTIONS',
+  'access-control-allow-methods': 'GET, POST, OPTIONS',
   'access-control-allow-headers': 'Content-Type',
   'access-control-max-age': '86400',
   // Always vary on Origin so a cached allowed-origin response is never served
@@ -197,6 +198,110 @@ export async function serveServiceDetail(
 
   await deps.cache.set(cacheKey, { data: fetched.data, asAt: deps.now });
   return json(200, { detail: fetched.data, asAt: deps.now, stale: false }, cors);
+}
+
+export type SendContactEmail = (request: ContactInput) => Promise<{ ok: boolean }>;
+
+/** In-isolate sliding-window hit log per client IP (see createRateLimitStore). */
+export type RateLimitStore = Map<string, number[]>;
+
+export interface ContactConfig {
+  /** Site base URL, used for the no-JS success redirect. */
+  siteBase: string;
+  /** Sliding-window throttle for form submissions, per client IP. */
+  rateWindowMs: number;
+  rateLimitMax: number;
+}
+
+/**
+ * Sliding-window rate limiter, keyed by client IP. Pure of I/O. Returns true
+ * when the caller is over the limit (and records nothing); false otherwise
+ * (recording the hit). Stale hits fall out of the window, so the log is
+ * self-pruning per key; orphaned keys are harmless in-memory.
+ */
+export function rateLimited(
+  store: RateLimitStore,
+  ip: string,
+  now: number,
+  windowMs: number,
+  max: number,
+): boolean {
+  const cutoff = now - windowMs;
+  const hits = (store.get(ip) ?? []).filter((t) => t > cutoff);
+  if (hits.length >= max) {
+    store.set(ip, hits);
+    return true;
+  }
+  hits.push(now);
+  store.set(ip, hits);
+  return false;
+}
+
+/**
+ * Orchestrate one contact-form submission: parse -> validate -> per-IP rate
+ * limit -> email -> respond. The email sender and the clock are injected, so
+ * this is fully unit-testable. JSON responses for API-style requests; a 303
+ * redirect to the site's success page when the request came from a native
+ * (no-JS) form post (those send Accept: text/html).
+ */
+export async function serveContact(
+  input: {
+    method: string;
+    pathname: string;
+    body: string | null;
+    origin: string | null;
+    ip: string | null;
+    acceptsHtml: boolean;
+  },
+  deps: {
+    sendEmail: SendContactEmail;
+    rateLimits: RateLimitStore;
+    now: number;
+    config: ServeConfig & ContactConfig;
+  },
+): Promise<WorkerResponse> {
+  const cors = corsHeaders(input.origin, deps.config.allowedOrigins);
+
+  // CORS preflight: always 204; browsers proceed only if we echoed the origin.
+  if (input.method === 'OPTIONS') {
+    return { status: 204, headers: cors ?? {}, body: null };
+  }
+
+  const parsed = parseContactRequest(input.method, input.pathname, input.body);
+  if (!parsed.ok) {
+    const status =
+      parsed.reason === 'method-not-allowed' ? 405 : parsed.reason === 'bad-request' ? 400 : 404;
+    return json(status, { error: parsed.reason, issues: parsed.issues ?? [] }, cors);
+  }
+
+  // Valid submissions only spend the throttle budget; honeypot hits and bad
+  // payloads return before this point.
+  if (
+    rateLimited(
+      deps.rateLimits,
+      input.ip ?? 'unknown',
+      deps.now,
+      deps.config.rateWindowMs,
+      deps.config.rateLimitMax,
+    )
+  ) {
+    return json(429, { error: 'rate-limited' }, cors);
+  }
+
+  const sent = await deps.sendEmail(parsed.request);
+  if (!sent.ok) {
+    return json(503, { error: 'email-failed' }, cors);
+  }
+
+  // No-JS fallback: bounce to the site's success page rather than dumping JSON.
+  if (input.acceptsHtml) {
+    return {
+      status: 303,
+      headers: { location: `${deps.config.siteBase}/contact?sent=1`, ...(cors ?? {}) },
+      body: null,
+    };
+  }
+  return json(200, { ok: true }, cors);
 }
 
 /**

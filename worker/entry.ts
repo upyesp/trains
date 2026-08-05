@@ -21,10 +21,13 @@ import {
   createMemoryCacheStore,
   parseAllowedOrigins,
   serveBoard,
+  serveContact,
   serveServiceDetail,
 } from '../src/worker/core';
+import type { RateLimitStore, WorkerResponse } from '../src/worker/core';
 import { parseRetryAfter, parseRttResult, parseServiceResult, serviceQueryIdentity } from '../src/worker/rtt';
 import type { RttFetchOutcome, ServiceFetchOutcome } from '../src/worker/rtt';
+import { sendContactEmail } from '../src/worker/resend';
 import { createMemoryAccessTokenStore, getAccessToken } from '../src/worker/auth';
 import type { AccessTokenStore, FetchAccessToken } from '../src/worker/auth';
 import type { BoardKind } from '../src/lib/types';
@@ -36,6 +39,12 @@ interface Env {
   TIME_WINDOW?: string;
   TTL_SEC?: string;
   CORS_ORIGIN?: string; // comma-separated allowlist; defaults to production site
+  // Contact form (Resend). The API key is a secret: `wrangler secret put RESEND_API_KEY`.
+  RESEND_API_KEY?: string;
+  CONTACT_FROM?: string; // verified sender, e.g. "VIP Trains <contact@viptrains.org>"
+  CONTACT_TO?: string; // destination inbox
+  CONTACT_RATE_WINDOW_MS?: string;
+  CONTACT_RATE_MAX?: string;
 }
 
 // One cache per route per Worker isolate (see core.createMemoryCacheStore).
@@ -43,6 +52,7 @@ interface Env {
 const boardCache = createMemoryCacheStore();
 const serviceCache = createMemoryCacheStore();
 const authStore = createMemoryAccessTokenStore();
+const contactRateLimits: RateLimitStore = new Map();
 
 /** Origins allowed by CORS. Defaults to the production site; override via CORS_ORIGIN. */
 const PRODUCTION_ORIGIN = 'https://www.viptrains.org';
@@ -72,22 +82,54 @@ export default {
     const now = Date.now();
     const authedGet = makeAuthedGet(env, authStore);
 
-    // /service (exact) is the service-detail route; everything else falls
-    // through to the board route, which 404s unknown paths.
-    const result =
-      url.pathname === '/service'
-        ? await serveServiceDetail(input, {
-            fetchService: makeServiceFetcher(authedGet),
-            cache: serviceCache,
-            now,
-            config,
-          })
-        : await serveBoard(input, {
-            fetchRtt: makeBoardFetcher(env, authedGet),
-            cache: boardCache,
-            now,
-            config,
-          });
+    let result: WorkerResponse;
+    if (url.pathname === '/service') {
+      result = await serveServiceDetail(input, {
+        fetchService: makeServiceFetcher(authedGet),
+        cache: serviceCache,
+        now,
+        config,
+      });
+    } else if (url.pathname === '/contact') {
+      // The form body is small; read it only on the contact route. Accept is
+      // used to detect native (no-JS) form posts so we can redirect them to a
+      // success page instead of returning JSON.
+      const body = await request.text();
+      result = await serveContact(
+        {
+          ...input,
+          body,
+          ip: request.headers.get('CF-Connecting-IP'),
+          acceptsHtml: (request.headers.get('Accept') ?? '').includes('text/html'),
+        },
+        {
+          sendEmail: (req) =>
+            sendContactEmail(
+              {
+                apiKey: env.RESEND_API_KEY ?? '',
+                from: env.CONTACT_FROM ?? '',
+                to: env.CONTACT_TO ?? '',
+              },
+              req,
+            ),
+          rateLimits: contactRateLimits,
+          now,
+          config: {
+            ...config,
+            siteBase: resolveAllowedOrigins(env.CORS_ORIGIN)[0] ?? PRODUCTION_ORIGIN,
+            rateWindowMs: Number(env.CONTACT_RATE_WINDOW_MS ?? 10 * 60 * 1000),
+            rateLimitMax: Number(env.CONTACT_RATE_MAX ?? 3),
+          },
+        },
+      );
+    } else {
+      result = await serveBoard(input, {
+        fetchRtt: makeBoardFetcher(env, authedGet),
+        cache: boardCache,
+        now,
+        config,
+      });
+    }
 
     const body = result.body === null ? null : JSON.stringify(result.body);
     return new Response(body, { status: result.status, headers: result.headers });
