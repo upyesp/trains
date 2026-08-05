@@ -3,7 +3,9 @@ import {
   corsHeaders,
   createMemoryCacheStore,
   parseAllowedOrigins,
+  rateLimited,
   serveBoard,
+  serveContact,
   serveServiceDetail,
 } from './core';
 import type { FetchRtt, FetchService } from './core';
@@ -55,6 +57,36 @@ function failFetch(): { fetch: FetchRtt; calls: () => number } {
 
 const cfg = { ttlSec: 30, allowedOrigins: [ORIGIN] };
 
+const contactCfg = {
+  ...cfg,
+  siteBase: ORIGIN,
+  rateWindowMs: 10 * 60 * 1000,
+  rateLimitMax: 3,
+};
+
+function contactInput() {
+  return {
+    method: 'POST',
+    pathname: '/contact',
+    body: new URLSearchParams({
+      name: 'Ada Lovelace',
+      email: 'ada@example.com',
+      message: 'The board at WAT looks stuck.',
+    }).toString(),
+    origin: ORIGIN,
+    ip: '203.0.113.7',
+    acceptsHtml: false,
+  };
+}
+
+function okSend() {
+  return async () => ({ ok: true });
+}
+
+function failSend() {
+  return async () => ({ ok: false });
+}
+
 describe('corsHeaders', () => {
   it('reflects an allowlisted origin verbatim', () => {
     const h = corsHeaders(ORIGIN, [ORIGIN]);
@@ -81,7 +113,7 @@ describe('corsHeaders', () => {
 
   it('always sends the method/header/max-age baseline', () => {
     const h = corsHeaders(ORIGIN, [ORIGIN]);
-    expect(h?.['access-control-allow-methods']).toBe('GET, OPTIONS');
+    expect(h?.['access-control-allow-methods']).toBe('GET, POST, OPTIONS');
     expect(h?.['access-control-allow-headers']).toBe('Content-Type');
     expect(h?.['access-control-max-age']).toBe('86400');
   });
@@ -390,5 +422,173 @@ describe('serveServiceDetail', () => {
     );
     expect(res.headers['access-control-allow-origin']).toBe(ORIGIN);
     expect(res.headers['content-type']).toContain('application/json');
+  });
+});
+
+describe('serveContact', () => {
+  it('sends the parsed submission and returns 200 ok', async () => {
+    let received: unknown = null;
+    const res = await serveContact(contactInput(), {
+      sendEmail: async (req) => {
+        received = req;
+        return { ok: true };
+      },
+      rateLimits: new Map(),
+      now: 1_000_000,
+      config: contactCfg,
+    });
+    expect(received).toEqual({
+      name: 'Ada Lovelace',
+      email: 'ada@example.com',
+      message: 'The board at WAT looks stuck.',
+    });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true });
+  });
+
+  it('redirects to the success page for a native (no-JS) form post', async () => {
+    const res = await serveContact(
+      { ...contactInput(), acceptsHtml: true },
+      { sendEmail: okSend(), rateLimits: new Map(), now: 1_000_000, config: contactCfg },
+    );
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe(`${ORIGIN}/contact?sent=1`);
+  });
+
+  it('returns 400 with issues for an invalid payload', async () => {
+    const res = await serveContact(
+      { ...contactInput(), body: 'name=&email=bad&message=' },
+      { sendEmail: okSend(), rateLimits: new Map(), now: 1_000_000, config: contactCfg },
+    );
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({
+      error: 'bad-request',
+      issues: [
+        { field: 'name', code: 'required' },
+        { field: 'email', code: 'invalid-email' },
+        { field: 'message', code: 'required' },
+      ],
+    });
+  });
+
+  it('rejects a bot honeypot fill without sending', async () => {
+    let sent = 0;
+    const res = await serveContact(
+      {
+        ...contactInput(),
+        body: new URLSearchParams({
+          name: 'Ada',
+          email: 'ada@example.com',
+          message: 'Hi',
+          website: 'http://spam.example',
+        }).toString(),
+      },
+      {
+        sendEmail: async () => {
+          sent++;
+          return { ok: true };
+        },
+        rateLimits: new Map(),
+        now: 1_000_000,
+        config: contactCfg,
+      },
+    );
+    expect(res.status).toBe(400);
+    expect(sent).toBe(0);
+  });
+
+  it('rate-limits a chatty IP after the max, without sending', async () => {
+    let sent = 0;
+    const send = async () => {
+      sent++;
+      return { ok: true };
+    };
+    const store = new Map<string, number[]>();
+    for (let i = 0; i < 3; i++) {
+      const res = await serveContact(contactInput(), {
+        sendEmail: send,
+        rateLimits: store,
+        now: 1_000_000 + i * 1000,
+        config: contactCfg,
+      });
+      expect(res.status).toBe(200);
+    }
+    const res = await serveContact(contactInput(), {
+      sendEmail: send,
+      rateLimits: store,
+      now: 1_003_000,
+      config: contactCfg,
+    });
+    expect(res.status).toBe(429);
+    expect(res.body).toEqual({ error: 'rate-limited' });
+    expect(sent).toBe(3);
+  });
+
+  it('allows a new submission after the window elapses', async () => {
+    const store = new Map<string, number[]>();
+    for (let i = 0; i < 3; i++) {
+      await serveContact(contactInput(), {
+        sendEmail: okSend(),
+        rateLimits: store,
+        now: 1_000_000 + i * 1000,
+        config: contactCfg,
+      });
+    }
+    const res = await serveContact(contactInput(), {
+      sendEmail: okSend(),
+      rateLimits: store,
+      now: 1_000_000 + 11 * 60 * 1000,
+      config: contactCfg,
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it('returns 503 when the email send fails', async () => {
+    const res = await serveContact(contactInput(), {
+      sendEmail: failSend(),
+      rateLimits: new Map(),
+      now: 1_000_000,
+      config: contactCfg,
+    });
+    expect(res.status).toBe(503);
+    expect(res.body).toEqual({ error: 'email-failed' });
+  });
+
+  it('answers CORS preflight with 204', async () => {
+    const res = await serveContact(
+      { method: 'OPTIONS', pathname: '/contact', body: null, origin: ORIGIN, ip: null, acceptsHtml: false },
+      { sendEmail: okSend(), rateLimits: new Map(), now: 1_000_000, config: contactCfg },
+    );
+    expect(res.status).toBe(204);
+    expect(res.headers['access-control-allow-origin']).toBe(ORIGIN);
+  });
+
+  it('returns 404 for paths other than /contact and 405 for non-POST', async () => {
+    const deps = { sendEmail: okSend(), rateLimits: new Map(), now: 1_000_000, config: contactCfg };
+    const notFound = await serveContact({ ...contactInput(), pathname: '/nope' }, deps);
+    expect(notFound.status).toBe(404);
+    const wrongMethod = await serveContact({ ...contactInput(), method: 'GET' }, deps);
+    expect(wrongMethod.status).toBe(405);
+  });
+});
+
+describe('rateLimited', () => {
+  it('records hits and limits at the window max', () => {
+    const store = new Map<string, number[]>();
+    expect(rateLimited(store, 'ip', 1000, 10000, 2)).toBe(false);
+    expect(rateLimited(store, 'ip', 2000, 10000, 2)).toBe(false);
+    expect(rateLimited(store, 'ip', 3000, 10000, 2)).toBe(true);
+  });
+
+  it('forgets hits outside the window', () => {
+    const store = new Map<string, number[]>();
+    rateLimited(store, 'ip', 1000, 10000, 1);
+    expect(rateLimited(store, 'ip', 20_000, 10000, 1)).toBe(false);
+  });
+
+  it('tracks IPs independently', () => {
+    const store = new Map<string, number[]>();
+    rateLimited(store, 'a', 1000, 10000, 1);
+    expect(rateLimited(store, 'b', 1000, 10000, 1)).toBe(false);
   });
 });

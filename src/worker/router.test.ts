@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseBoardRequest, parseServiceRequest } from './router';
+import { parseBoardRequest, parseContactRequest, parseServiceRequest } from './router';
 
 describe('parseBoardRequest', () => {
   it('parses GET /board/WAT with the default departures kind', () => {
@@ -107,6 +107,88 @@ describe('parseServiceRequest', () => {
 
   it('returns method-not-allowed for non-GET', () => {
     expect(parseServiceRequest('POST', '/service', { id: 'x' })).toEqual({
+      ok: false,
+      reason: 'method-not-allowed',
+    });
+  });
+});
+
+describe('parseContactRequest', () => {
+  const body = (fields: Record<string, string>): string =>
+    new URLSearchParams(fields).toString();
+
+  it('parses a valid submission, trimming whitespace', () => {
+    const raw = body({ name: '  Ada Lovelace ', email: 'ada@example.com', message: '  Hi there  ' });
+    expect(parseContactRequest('POST', '/contact', raw)).toEqual({
+      ok: true,
+      request: { name: 'Ada Lovelace', email: 'ada@example.com', message: 'Hi there' },
+    });
+  });
+
+  it('treats a missing honeypot field as empty (allowed)', () => {
+    const raw = body({ name: 'Ada', email: 'ada@example.com', message: 'Hi' });
+    expect(parseContactRequest('POST', '/contact', raw).ok).toBe(true);
+  });
+
+  it('rejects when the honeypot field is filled (a bot)', () => {
+    const raw = body({
+      name: 'Ada',
+      email: 'ada@example.com',
+      message: 'Hi',
+      website: 'http://spam.example',
+    });
+    expect(parseContactRequest('POST', '/contact', raw)).toEqual({
+      ok: false,
+      reason: 'bad-request',
+    });
+  });
+
+  it('rejects missing required fields with per-field issues', () => {
+    expect(parseContactRequest('POST', '/contact', '')).toEqual({
+      ok: false,
+      reason: 'bad-request',
+      issues: [
+        { field: 'name', code: 'required' },
+        { field: 'email', code: 'required' },
+        { field: 'message', code: 'required' },
+      ],
+    });
+  });
+
+  it('rejects an invalid email', () => {
+    const raw = body({ name: 'Ada', email: 'not-an-email', message: 'Hi' });
+    expect(parseContactRequest('POST', '/contact', raw)).toEqual({
+      ok: false,
+      reason: 'bad-request',
+      issues: [{ field: 'email', code: 'invalid-email' }],
+    });
+  });
+
+  it('rejects an over-long message', () => {
+    const raw = body({ name: 'Ada', email: 'ada@example.com', message: 'x'.repeat(5001) });
+    expect(parseContactRequest('POST', '/contact', raw)).toEqual({
+      ok: false,
+      reason: 'bad-request',
+      issues: [{ field: 'message', code: 'too-long' }],
+    });
+  });
+
+  it('rejects an over-long name', () => {
+    const raw = body({ name: 'x'.repeat(101), email: 'ada@example.com', message: 'Hi' });
+    expect(parseContactRequest('POST', '/contact', raw)).toEqual({
+      ok: false,
+      reason: 'bad-request',
+      issues: [{ field: 'name', code: 'too-long' }],
+    });
+  });
+
+  it('returns not-found for any path other than exactly /contact', () => {
+    expect(parseContactRequest('POST', '/contact/x', '')).toEqual({ ok: false, reason: 'not-found' });
+    expect(parseContactRequest('POST', '/board/WAT', '')).toEqual({ ok: false, reason: 'not-found' });
+  });
+
+  it('returns method-not-allowed for non-POST', () => {
+    expect(parseContactRequest('GET', '/contact', '')).toEqual({
       ok: false,
       reason: 'method-not-allowed',
     });
