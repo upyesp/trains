@@ -23,11 +23,6 @@ const { title, description } = Astro.props;
     <title>{title}</title>
     {description && <meta name="description" content={description} />}
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
-    <meta name="apple-mobile-web-app-title" content="VIP Trains" />
     <meta name="theme-color" id="theme-color" content="#0f141b" />
     <!-- Apply the saved theme BEFORE first paint: try the user's stored
          preference, else follow the device's system theme, falling back to
@@ -114,12 +109,17 @@ const { title, description } = Astro.props;
       import { initMenu } from '../scripts/menu';
       initMenu(document.body);
     </script>
-    <!-- Register the service worker for installability + offline shell. It never
-         caches the live board API (see public/sw.js), so departures stay live. -->
+    <!-- No longer a PWA: unregister any service worker a previous install left
+         behind and drop its caches, so the site behaves as a plain website. -->
     <script is:inline>
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', function () {
-          navigator.serviceWorker.register('/sw.js').catch(function () {});
+        navigator.serviceWorker.getRegistrations().then(function (rs) {
+          rs.forEach(function (r) { r.unregister(); });
+        });
+      }
+      if (window.caches) {
+        caches.keys().then(function (keys) {
+          keys.forEach(function (k) { caches.delete(k); });
         });
       }
     </script>
