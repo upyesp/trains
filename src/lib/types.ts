@@ -54,10 +54,19 @@ export interface CallingPoint {
   /** Expected (live) time at this stop, from the SAME element as scheduledTime
    * so the pair is direction-consistent. Equal to scheduledTime when "on time". */
   expectedTime: string;
-  /** Recorded actual time at this stop, ISO 8601. Present once the train has
-   *  passed and TRUST reported it (RTT `realtimeActual`). The truth for past
-   *  stops — preferred over `expectedTime` for display. */
-  actualTime?: string;
+  /** Recorded actual ARRIVAL time, ISO 8601. Present once the train has arrived
+   *  and TRUST reported it (RTT `arrival.realtimeActual`). Absent at the origin
+   *  (it only departs there). This is the truth behind "Arrived HH:MM". */
+  actualArrival?: string;
+  /** Recorded actual DEPARTURE time, ISO 8601. Present once the train has left
+   *  and TRUST reported it (RTT `departure.realtimeActual`). Absent at the
+   *  terminus (it only arrives there). This is the truth behind "Departed
+   *  HH:MM" — never the arrival time. */
+  actualDeparture?: string;
+  /** Timetable departure time, ISO 8601 (RTT `departure.scheduleAdvertised`),
+   *  present when the stop has a departure element. Lets the UI judge whether a
+   *  recorded departure ran on time. */
+  scheduledDeparture?: string;
   /** True when RTT has NO live report for this stop (RTT `realtimeNoReport`).
    *  With no forecast, estimate, or actual either, the expected time is just the
    *  timetable — the UI must NOT present it as "on time". */

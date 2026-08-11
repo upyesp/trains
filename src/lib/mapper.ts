@@ -128,13 +128,20 @@ function callingPointFrom(item: RTTServiceLocationItem): CallingPoint {
   const expectedTime = t
     ? (t.realtimeForecast ?? t.realtimeEstimate ?? scheduledTime)
     : scheduledTime;
+  // The actuals stay element-typed: actualArrival from the arrival element,
+  // actualDeparture (and its timetable time) from the departure element. A
+  // "Departed" time must be the departure, never the arrival.
+  const arrival = item.temporalData?.arrival;
+  const departure = item.temporalData?.departure;
   return {
     station: item.location?.description ?? '',
     scheduledTime,
     expectedTime,
-    // Same direction-consistency rule as mapService: the actual and the
-    // no-report flag come from the same temporal element as the times.
-    ...(t?.realtimeActual ? { actualTime: t.realtimeActual } : {}),
+    ...(arrival?.realtimeActual ? { actualArrival: arrival.realtimeActual } : {}),
+    ...(departure?.realtimeActual ? { actualDeparture: departure.realtimeActual } : {}),
+    ...(departure?.scheduleAdvertised ? { scheduledDeparture: departure.scheduleAdvertised } : {}),
+    // The no-report flag comes from the same element as the times (arrival
+    // where advertised, else departure, else pass).
     ...(t?.realtimeNoReport === true ? { noReport: true } : {}),
     platform: platformFrom(item.locationMetadata?.platform, item.temporalData?.status === 'AT_PLATFORM'),
     cancelled: item.temporalData?.displayAs === 'CANCELLED',

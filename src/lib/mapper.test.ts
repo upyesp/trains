@@ -427,8 +427,8 @@ describe('mapServiceDetail', () => {
       coaches: null,
       cancelled: false,
       points: [
-        { station: 'London Waterloo', scheduledTime: D('08:05'), expectedTime: D('08:05'), platform: null, cancelled: false },
-        { station: 'Clapham Junction', scheduledTime: D('08:11'), expectedTime: D('08:11'), platform: { number: '3', state: 'confirmed' }, cancelled: false },
+        { station: 'London Waterloo', scheduledTime: D('08:05'), expectedTime: D('08:05'), scheduledDeparture: D('08:05'), platform: null, cancelled: false },
+        { station: 'Clapham Junction', scheduledTime: D('08:11'), expectedTime: D('08:11'), scheduledDeparture: D('08:12'), platform: { number: '3', state: 'confirmed' }, cancelled: false },
         { station: 'Weymouth', scheduledTime: D('10:02'), expectedTime: D('10:02'), platform: null, cancelled: false },
       ],
     });
@@ -588,7 +588,7 @@ describe('mapServiceDetail', () => {
   });
 
   describe('actual times and the no-report flag', () => {
-    it('maps the recorded actual and the no-report flag from the chosen element', () => {
+    it('maps arrival/departure actuals separately and the no-report flag', () => {
       const detail = mapServiceDetail(
         {
           service: {
@@ -599,7 +599,7 @@ describe('mapServiceDetail', () => {
                 temporalData: {
                   displayAs: 'CALL',
                   arrival: { scheduleAdvertised: D('08:11'), realtimeActual: D('08:19') },
-                  departure: { scheduleAdvertised: D('08:12'), realtimeNoReport: true },
+                  departure: { scheduleAdvertised: D('08:12'), realtimeActual: D('08:21') },
                 },
               }),
               stop({
@@ -614,16 +614,20 @@ describe('mapServiceDetail', () => {
         },
         'x',
       );
-      // The arrival is the chosen element: actual rides with it.
+      // The arrival is the chosen element for the primary times; the actuals
+      // stay element-typed so "Departed" can never show an arrival time.
       expect(detail.points[0]).toMatchObject({
         expectedTime: D('08:11'),
-        actualTime: D('08:19'),
+        actualArrival: D('08:19'),
+        actualDeparture: D('08:21'),
+        scheduledDeparture: D('08:12'),
       });
       expect(detail.points[1]).toMatchObject({ noReport: true });
-      expect(detail.points[1]).not.toHaveProperty('actualTime');
+      expect(detail.points[1]).not.toHaveProperty('actualArrival');
+      expect(detail.points[1]).not.toHaveProperty('actualDeparture');
     });
 
-    it('omits actualTime/noReport keys when RTT does not supply them', () => {
+    it('omits the actual/noReport keys when RTT does not supply them', () => {
       const detail = mapServiceDetail(
         {
           service: {
@@ -634,7 +638,9 @@ describe('mapServiceDetail', () => {
         'x',
       );
       const p = detail.points[0]!;
-      expect('actualTime' in p).toBe(false);
+      expect('actualArrival' in p).toBe(false);
+      expect('actualDeparture' in p).toBe(false);
+      expect('scheduledDeparture' in p).toBe(false);
       expect('noReport' in p).toBe(false);
     });
   });

@@ -51,9 +51,10 @@ function fmtDuration(isoStart: string, isoEnd: string): string {
 }
 
 function delayMinutesAt(p: CallingPoint): number {
-  // The recorded actual (once passed) beats the forecast: it's the truth.
+  // Lateness on ARRIVAL at the final stop: the recorded actual (once passed)
+  // beats the forecast.
   const sched = Date.parse(p.scheduledTime);
-  const exp = Date.parse(p.actualTime ?? p.expectedTime);
+  const exp = Date.parse(p.actualArrival ?? p.expectedTime);
   if (Number.isNaN(sched) || Number.isNaN(exp)) return 0;
   return Math.round((exp - sched) / 60_000);
 }
@@ -90,38 +91,43 @@ function stopCard(p: CallingPoint, isLast: boolean): string {
   const href = `/?${new URLSearchParams({ station: p.station }).toString()}`;
   const stationHtml = `<div class="stop-station"><a class="stop-link" href="${href}"><span class="dest">${esc(p.station)}</span> <span class="visually-hidden">show departures from this station</span></a></div>`;
 
-  // Top-right: the live status for this stop. A "Departed"/"Expected"/"Completed"
-  // prefix tells whether the train has already left this calling point (past) or
-  // has not arrived yet (future). The final stop uses "Completed" instead of
-  // "Departed" — the train doesn't depart its destination, it finishes there.
-  //
-  // Truthfulness rules:
-  //  - once the train has passed and TRUST recorded it (actualTime), the actual
-  //    is shown — "Departed 09:10" rather than a stale "on time";
-  //  - when RTT has NO live report (noReport) and no actual either, the train
-  //    may be running late undetected — we must NOT claim "on time".
+  // Top-right: the live status for this stop. The prefix tells what has
+  // actually happened, driven by RTT's recorded actuals, not the client clock:
+  //  - "Completed" (final stop, arrival actual) — the train finishes here;
+  //  - "Departed" (departure actual) — the train has LEFT, shown at the
+  //    departure time, never the arrival time;
+  //  - "Arrived" (arrival actual, no departure yet) — the train is standing
+  //    at the station;
+  //  - "Expected" — not here yet (arrival forecast);
+  //  - no report at all (noReport) — "no live data": the train may be running
+  //    late undetected, so we must NOT claim "on time".
   let expHtml: string;
   if (p.cancelled) {
     expHtml = `<div class="stop-exp cancel">Cancelled</div>`;
   } else {
     const schedStr = fmtTime(p.scheduledTime);
-    const actual = p.actualTime ? fmtTime(p.actualTime) : null;
-    const pointMs = Date.parse(p.scheduledTime);
-    // An actual time proves the stop is past, even if the train ran early.
-    const isPast = actual != null || (Number.isFinite(pointMs) && pointMs < Date.now());
-    let prefix: string;
-    if (isLast && isPast) prefix = 'Completed';
-    else if (isPast) prefix = 'Departed';
-    else prefix = 'Expected';
-    if (actual) {
-      const cls = actual === schedStr ? 'on-time' : 'delay';
-      expHtml = `<div class="stop-exp ${cls}">${prefix} ${actual === schedStr ? 'on time' : actual}</div>`;
+    const arr = p.actualArrival ? fmtTime(p.actualArrival) : null;
+    const dep = p.actualDeparture ? fmtTime(p.actualDeparture) : null;
+    const depSched = p.scheduledDeparture ? fmtTime(p.scheduledDeparture) : null;
+    if (isLast && arr) {
+      const cls = arr === schedStr ? 'on-time' : 'delay';
+      expHtml = `<div class="stop-exp ${cls}">Completed ${arr === schedStr ? 'on time' : arr}</div>`;
+    } else if (dep) {
+      // On-time judgement against the scheduled DEPARTURE (the same element).
+      const onTime = depSched != null && dep === depSched;
+      expHtml = `<div class="stop-exp ${onTime ? 'on-time' : 'delay'}">Departed ${onTime ? 'on time' : dep}</div>`;
+    } else if (arr) {
+      const cls = arr === schedStr ? 'on-time' : 'delay';
+      expHtml = `<div class="stop-exp ${cls}">Arrived ${arr === schedStr ? 'on time' : arr}</div>`;
     } else if (p.noReport) {
+      const pointMs = Date.parse(p.scheduledTime);
+      const isPast = Number.isFinite(pointMs) && pointMs < Date.now();
+      const prefix = isLast ? 'Completed' : isPast ? 'Departed' : 'Expected';
       expHtml = `<div class="stop-exp no-report">${prefix} — no live data</div>`;
     } else {
       const exp = fmtTime(p.expectedTime);
       const cls = exp === schedStr ? 'on-time' : 'delay';
-      expHtml = `<div class="stop-exp ${cls}">${prefix} ${exp === schedStr ? 'on time' : exp}</div>`;
+      expHtml = `<div class="stop-exp ${cls}">Expected ${exp === schedStr ? 'on time' : exp}</div>`;
     }
   }
 
@@ -150,13 +156,14 @@ function statusChip(d: ServiceDetail): string {
 
 /** The origin's departure status: past (Departed on time / Departed at HH:MM)
  *  or future (Scheduled HH:MM). Uses the client clock for now. The recorded
- *  actual beats the forecast once the train has gone; with no report at all we
- *  say so rather than claiming "on time". */
+ *  departure actual (the origin only departs — it has no arrival) beats the
+ *  forecast once the train has gone; with no report at all we say so rather
+ *  than claiming "on time". */
 function serviceStatus(d: ServiceDetail): string {
   const origin = d.points[0];
   if (!origin || !origin.scheduledTime) return '';
   const sched = origin.scheduledTime;
-  const actual = origin.actualTime;
+  const actual = origin.actualDeparture;
   const exp = origin.expectedTime;
   const schedMs = Date.parse(sched);
   if (actual || schedMs <= Date.now()) {
@@ -178,7 +185,7 @@ function nextStop(d: ServiceDetail): CallingPoint | null {
   for (let i = 0; i < d.points.length; i++) {
     const p = d.points[i];
     if (!p) continue;
-    if (p.actualTime) continue;
+    if (p.actualArrival || p.actualDeparture) continue;
     if (Date.parse(p.scheduledTime) > now) return i === 0 ? null : p;
   }
   return null;
@@ -200,13 +207,14 @@ function headerHtml(d: ServiceDetail): string {
   const next = nextStop(d);
   const last = d.points[d.points.length - 1];
   const journeyCompleted =
-    !next && last != null && (last.actualTime != null || Date.parse(last.scheduledTime) <= Date.now());
+    !next && last != null && (last.actualArrival != null || last.actualDeparture != null || Date.parse(last.scheduledTime) <= Date.now());
   let completionSuffix = '';
   if (journeyCompleted && last) {
     // The recorded actual (if TRUST reported it) is the truth; otherwise the
     // forecast. Only claim a result when we actually have one — with no report
     // at all (noReport and no forecast) there is nothing to say.
-    const lastTime = last.actualTime ?? (last.expectedTime !== last.scheduledTime ? last.expectedTime : null);
+    const lastTime =
+      last.actualArrival ?? last.actualDeparture ?? (last.expectedTime !== last.scheduledTime ? last.expectedTime : null);
     if (lastTime) {
       const diff = (Date.parse(lastTime) - Date.parse(last.scheduledTime)) / 60_000;
       const completedTime = fmtTime(lastTime);
