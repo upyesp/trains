@@ -5,35 +5,61 @@ describe('parseBoardRequest', () => {
   it('parses GET /board/WAT with the default departures kind', () => {
     expect(parseBoardRequest('GET', '/board/WAT', {})).toEqual({
       ok: true,
-      request: { crs: 'WAT', kind: 'departures', callsAt: null },
+      request: { crs: 'WAT', kind: 'departures', callsAt: null, lookback: null },
     });
   });
 
   it('uppercases the CRS', () => {
     expect(parseBoardRequest('GET', '/board/wat', {})).toEqual({
       ok: true,
-      request: { crs: 'WAT', kind: 'departures', callsAt: null },
+      request: { crs: 'WAT', kind: 'departures', callsAt: null, lookback: null },
     });
   });
 
   it('honours ?kind=arrivals', () => {
     expect(parseBoardRequest('GET', '/board/CLJ', { kind: 'arrivals' })).toEqual({
       ok: true,
-      request: { crs: 'CLJ', kind: 'arrivals', callsAt: null },
+      request: { crs: 'CLJ', kind: 'arrivals', callsAt: null, lookback: null },
     });
   });
 
   it('parses a ?callsAt filter CRS, uppercased', () => {
     expect(parseBoardRequest('GET', '/board/WAT', { callsAt: 'clj' })).toEqual({
       ok: true,
-      request: { crs: 'WAT', kind: 'departures', callsAt: 'CLJ' },
+      request: { crs: 'WAT', kind: 'departures', callsAt: 'CLJ', lookback: null },
     });
   });
 
   it('treats an empty callsAt as no filter', () => {
     expect(parseBoardRequest('GET', '/board/WAT', { callsAt: '' })).toEqual({
       ok: true,
-      request: { crs: 'WAT', kind: 'departures', callsAt: null },
+      request: { crs: 'WAT', kind: 'departures', callsAt: null, lookback: null },
+    });
+  });
+
+  it('parses a ?lookback (preceding-hour platform view)', () => {
+    expect(parseBoardRequest('GET', '/board/WAT', { lookback: '60' })).toEqual({
+      ok: true,
+      request: { crs: 'WAT', kind: 'departures', callsAt: null, lookback: 60 },
+    });
+    expect(parseBoardRequest('GET', '/board/WAT', { lookback: '0' })).toEqual({
+      ok: true,
+      request: { crs: 'WAT', kind: 'departures', callsAt: null, lookback: 0 },
+    });
+  });
+
+  it('rejects a lookback that is not 0-180 minutes', () => {
+    expect(parseBoardRequest('GET', '/board/WAT', { lookback: 'abc' })).toEqual({
+      ok: false,
+      reason: 'bad-lookback',
+    });
+    expect(parseBoardRequest('GET', '/board/WAT', { lookback: '-5' })).toEqual({
+      ok: false,
+      reason: 'bad-lookback',
+    });
+    expect(parseBoardRequest('GET', '/board/WAT', { lookback: '181' })).toEqual({
+      ok: false,
+      reason: 'bad-lookback',
     });
   });
 

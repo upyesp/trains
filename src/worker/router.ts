@@ -5,11 +5,18 @@ export interface BoardRequest {
   kind: BoardKind;
   /** Optional "calling at" filter (CRS). Null when no filter is requested. */
   callsAt: string | null;
+  /** Optional lookback in minutes (0-180) for the "preceding hour" platform
+   *  view; RTT is asked for `timeFrom = now - lookback`. Null = the default
+   *  forward-only window. */
+  lookback: number | null;
 }
 
 export type ParseResult =
   | { ok: true; request: BoardRequest }
-  | { ok: false; reason: 'not-found' | 'method-not-allowed' | 'bad-kind' | 'bad-calls-at' };
+  | {
+      ok: false;
+      reason: 'not-found' | 'method-not-allowed' | 'bad-kind' | 'bad-calls-at' | 'bad-lookback';
+    };
 
 /** A service-detail request: a single RTT `uniqueIdentity`. */
 export interface ServiceRequest {
@@ -53,7 +60,17 @@ export function parseBoardRequest(
     return { ok: false, reason: 'bad-calls-at' };
   }
 
-  return { ok: true, request: { crs, kind: kindRaw, callsAt } };
+  // Optional lookback (minutes) — the platform view's "preceding hour".
+  // Digits only, 0-180; anything else is a client bug, not a route.
+  const lookbackRaw = search['lookback'];
+  let lookback: number | null = null;
+  if (lookbackRaw !== undefined) {
+    if (!/^[0-9]{1,3}$/.test(lookbackRaw)) return { ok: false, reason: 'bad-lookback' };
+    lookback = Number(lookbackRaw);
+    if (lookback > 180) return { ok: false, reason: 'bad-lookback' };
+  }
+
+  return { ok: true, request: { crs, kind: kindRaw, callsAt, lookback } };
 }
 
 // RTT uniqueIdentity characters: namespace prefix (`gb-nr:`), the identity

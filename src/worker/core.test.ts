@@ -186,12 +186,12 @@ describe('serveBoard', () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ board: board(), asAt: 1000, stale: false });
     expect(ff.calls()).toBe(1);
-    expect(await cache.get('board:WAT:departures:-')).toEqual({ data: board(), asAt: 1000 });
+    expect(await cache.get('board:WAT:departures:-:-')).toEqual({ data: board(), asAt: 1000 });
   });
 
   it('serves a fresh cache hit without calling RTT, preserving the original timestamp', async () => {
     const cache = createMemoryCacheStore();
-    await cache.set('board:WAT:departures:-', { data: board(), asAt: 1000 });
+    await cache.set('board:WAT:departures:-:-', { data: board(), asAt: 1000 });
     const ff = okFetch(board());
     const res = await serveBoard(
       { method: 'GET', pathname: '/board/WAT', search: {}, origin: ORIGIN },
@@ -204,7 +204,7 @@ describe('serveBoard', () => {
 
   it('refetches once the cache is older than the TTL', async () => {
     const cache = createMemoryCacheStore();
-    await cache.set('board:WAT:departures:-', { data: board(), asAt: 1000 });
+    await cache.set('board:WAT:departures:-:-', { data: board(), asAt: 1000 });
     const ff = okFetch(board());
     // age = 40000ms > 30s TTL
     await serveBoard(
@@ -217,7 +217,7 @@ describe('serveBoard', () => {
   it('serves stale (flagged) with the original timestamp when upstream fails', async () => {
     const cache = createMemoryCacheStore();
     const cached = board();
-    await cache.set('board:WAT:departures:-', { data: cached, asAt: 1000 });
+    await cache.set('board:WAT:departures:-:-', { data: cached, asAt: 1000 });
     const ff = failFetch();
     const res = await serveBoard(
       { method: 'GET', pathname: '/board/WAT', search: {}, origin: ORIGIN },
@@ -279,8 +279,8 @@ describe('serveBoard', () => {
     expect(seen).toEqual([{ crs: 'WAT', kind: 'departures', callsAt: 'CLJ' }]);
     // A filtered board is cached under its own key, never shadowing the
     // unfiltered board for the same station under the shared per-station TTL.
-    expect(await cache.get('board:WAT:departures:CLJ')).toEqual({ data: b, asAt: 1000 });
-    expect(await cache.get('board:WAT:departures:-')).toBeNull();
+    expect(await cache.get('board:WAT:departures:CLJ:-')).toEqual({ data: b, asAt: 1000 });
+    expect(await cache.get('board:WAT:departures:-:-')).toBeNull();
   });
 });
 

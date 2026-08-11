@@ -527,6 +527,22 @@ h1.station {
    "Platform" column header instead). Hidden by default; the responsive block
    reveals it. */
 .plat-label { display: none; }
+/* The platform NUMBER as a link to that platform's board page: GDS-style
+   underline like the other links on the site (station names, 'here', etc.). */
+.plat-link {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  text-decoration-thickness: from-font;
+}
+.plat-link:hover { color: var(--amber); }
+
+/* Platform page section headings (departures / arrivals lists). */
+.plat-section { margin-top: 26px; }
+.plat-title {
+  font-family: var(--sans); font-weight: 600; font-size: 1.05rem;
+  color: var(--fg); margin: 0 0 10px;
+}
 /* Desktop board + calling points: fixed chip size so the provisional /
    at-platform captions don't make the chip wider or taller than a confirmed
    one. Board chips: 5.5rem wide (fits "provisional" on one line, matches the

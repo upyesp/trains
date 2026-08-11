@@ -12,7 +12,7 @@ export interface WorkerResponse {
 }
 
 export type FetchRtt = (
-  ctx: { crs: string; kind: BoardKind; callsAt: string | null },
+  ctx: { crs: string; kind: BoardKind; callsAt: string | null; lookback: number | null },
 ) => Promise<RttFetchOutcome>;
 
 export type FetchService = (id: string) => Promise<ServiceFetchOutcome>;
@@ -107,17 +107,17 @@ export async function serveBoard(
     const status =
       parsed.reason === 'method-not-allowed'
         ? 405
-        : parsed.reason === 'bad-kind' || parsed.reason === 'bad-calls-at'
+        : parsed.reason === 'bad-kind' || parsed.reason === 'bad-calls-at' || parsed.reason === 'bad-lookback'
           ? 400
           : 404;
     return json(status, { error: parsed.reason }, cors);
   }
 
-  const { crs, kind, callsAt } = parsed.request;
-  // The "calling at" filter is part of the cache identity: a filtered and an
-  // unfiltered board for the same station are different boards and must not
-  // shadow each other under the shared per-station TTL cache.
-  const cacheKey = `board:${crs}:${kind}:${callsAt ?? '-'}`;
+  const { crs, kind, callsAt, lookback } = parsed.request;
+  // The "calling at" filter and the lookback are part of the cache identity:
+  // differently-windowed boards for the same station are different boards and
+  // must not shadow each other under the shared per-station TTL cache.
+  const cacheKey = `board:${crs}:${kind}:${callsAt ?? '-'}:${lookback ?? '-'}`;
   // The shared store holds CacheEntry<unknown>; the namespaced key guarantees
   // this entry is a Board, so the cast is sound.
   const cached = (await deps.cache.get(cacheKey)) as CacheEntry<Board> | null;
@@ -127,7 +127,7 @@ export async function serveBoard(
     return json(200, { board: cached.data, asAt: cached.asAt, stale: false }, cors);
   }
 
-  const fetched = await deps.fetchRtt({ crs, kind, callsAt });
+  const fetched = await deps.fetchRtt({ crs, kind, callsAt, lookback });
   const decision = selectToServe<Board>(cached, fetched, deps.now);
 
   if (decision.status === 'unavailable') {

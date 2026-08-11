@@ -197,14 +197,22 @@ function makeBoardFetcher(
 ) {
   const timeWindow = Number(env.TIME_WINDOW ?? 120);
 
-  return async (ctx: { crs: string; kind: BoardKind; callsAt: string | null }): Promise<RttFetchOutcome> => {
+  return async (ctx: { crs: string; kind: BoardKind; callsAt: string | null; lookback: number | null }): Promise<RttFetchOutcome> => {
     // The optional "calling at" filter is applied upstream by RTT: departures
     // keep trains that SUBSEQUENTLY call there (filterTo); arrivals keep trains
     // that PREVIOUSLY called there (filterFrom). One call either way — RTT knows
     // the full calling pattern, so this costs no extra requests.
     const params = new URLSearchParams();
     params.set('code', ctx.crs);
-    params.set('timeWindow', String(timeWindow));
+    if (ctx.lookback != null) {
+      // Platform view: an explicit window covering the preceding hour(s) plus
+      // the usual forward window (timeFrom/timeTo are mutually exclusive with
+      // timeWindow per the RTT spec).
+      params.set('timeFrom', new Date(Date.now() - ctx.lookback * 60_000).toISOString());
+      params.set('timeTo', new Date(Date.now() + timeWindow * 60_000).toISOString());
+    } else {
+      params.set('timeWindow', String(timeWindow));
+    }
     if (ctx.callsAt) {
       params.set(ctx.kind === 'departures' ? 'filterTo' : 'filterFrom', ctx.callsAt);
     }

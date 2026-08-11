@@ -11,9 +11,9 @@
 // upstream failure; we only show our local "couldn't load" path when the Worker
 // itself is unreachable.
 
+import { boardRowsHtml, describeChanges, sameKey } from '../lib/board-html';
 import { diffBoards } from '../lib/diff';
-import { fmtClock, fmtDurationMin, fmtTime } from '../lib/format';
-import { esc, platformChip } from '../lib/html';
+import { fmtClock, fmtTime } from '../lib/format';
 import type {
   Board,
   BoardKind,
@@ -23,6 +23,12 @@ import type {
   Service,
 } from '../lib/types';
 import { initCombobox } from './combobox';
+
+const LOADING_ROW = '<li class="board-msg">Loading live board…</li>';
+const EMPTY_ROW = '<li class="board-msg">No services in the next two hours.</li>';
+const FILTERED_EMPTY_ROW =
+  '<li class="board-msg">No services calling at the selected station in the next two hours.</li>';
+const ERROR_ROW = '<li class="board-msg error">Couldn\u2019t load the live board. We\u2019ll keep trying.</li>';
 
 const REFRESH_MS = 30_000;
 const DEFAULT_API = 'https://trains-api.upyesp.workers.dev';
@@ -47,121 +53,6 @@ interface Elements {
   tablist: HTMLElement;
   tabs: HTMLButtonElement[];
   filterInput: HTMLInputElement | null;
-}
-
-// ---- Pure HTML builders (escaped; safe against RTT-provided strings) ----
-
-function delayMinutes(s: Service): number {
-  // The recorded actual (once the train has passed) beats the forecast.
-  const sched = Date.parse(s.scheduledTime);
-  const exp = Date.parse(s.actualTime ?? s.expectedTime);
-  if (Number.isNaN(sched) || Number.isNaN(exp)) return 0;
-  return Math.round((exp - sched) / 60_000);
-}
-
-// Each field renders as a labelled <div> inside an <li> (see StationBoard.astro).
-// The board is a real <ol> of service cards - not a <table> - so the layout is
-// fully responsive (cards on phones) without CSS display:block tricks that can
-// drop table semantics in some screen readers (ADR-0002). Field order in the
-// DOM is time, destination, platform, status: logical for screen readers, and
-// the desktop grid reads them into columns in that same order.
-
-// The enclosing cell (platformCell) carries the screen-reader label and
-// wraps the shared chip (src/lib/html), which owns the visible caption.
-function platformCell(p: Platform | null): string {
-  // This visually-hidden label is the one screen readers announce; the visible
-  // "Platform" caption now lives inside the chip (platformChip).
-  const srLabel = p
-    ? '<span class="visually-hidden">Platform: </span>'
-    : '<span class="visually-hidden">Platform not allocated</span>';
-  return `<div class="svc-plat">${srLabel}${platformChip(p)}</div>`;
-}
-
-function timeCell(s: Service): string {
-  const sched = fmtTime(s.scheduledTime);
-  if (s.cancelled) return `<div class="svc-time"><span class="time">${esc(sched)}</span></div>`;
-  const exp = fmtTime(s.expectedTime);
-  if (sched !== exp) {
-    // Visually-hidden words disambiguate the two times for screen readers:
-    // "Scheduled 08:05 expected 08:11" rather than two bare numbers.
-    return `<div class="svc-time"><span class="time"><span class="visually-hidden">Scheduled </span><span class="sched">${esc(sched)}</span><span class="arrow" aria-hidden="true">↘</span><span class="visually-hidden"> expected </span><span class="exp">${esc(exp)}</span></span></div>`;
-  }
-  return `<div class="svc-time"><span class="time">${esc(exp)}</span></div>`;
-}
-
-function destCell(s: Service): string {
-  const journey = s.journeyMins != null ? fmtDurationMin(s.journeyMins) : '';
-  const coaches = s.coaches != null ? `${s.coaches} ${s.coaches === 1 ? 'coach' : 'coaches'}` : '';
-  const meta = [journey, coaches].filter(Boolean).map(esc).join(' · ');
-  const metaHtml = meta ? `<span class="coaches">${meta}</span>` : '';
-  const href = `/service/?${new URLSearchParams({ id: s.id }).toString()}`;
-  return `<div class="svc-dest"><span class="dest"><a class="svc-link" href="${href}"><span class="dest-name">${esc(s.destination)}</span> <span class="visually-hidden">view calling points for this service</span></a><span class="toc">${esc(s.operator)}</span>${metaHtml}</span></div>`;
-}
-
-function statusCell(s: Service): string {
-  if (s.cancelled) return '<div class="svc-status"><span class="chip cancel">Cancelled</span></div>';
-  const mins = delayMinutes(s);
-  if (mins > 0) return `<div class="svc-status"><span class="chip delay">+${mins} min</span></div>`;
-  // Unreported: the expected time is just the timetable — "no chip = on time"
-  // would be a lie, so say so (RTT's own boards show "No report").
-  if (s.noReport && !s.actualTime) {
-    return '<div class="svc-status"><span class="chip no-report">No report</span></div>';
-  }
-  // On time: no chip (conventional for boards); the absence reads as "on time".
-  return '<div class="svc-status"></div>';
-}
-
-function rowHtml(s: Service, _crs: string): string {
-  const cls = s.cancelled ? 'svc is-cancelled' : 'svc';
-  // Only the station name is a link — not the whole row — so it's obvious
-  // and hard to trigger accidentally (same pattern as calling-point stops).
-  return `<li class="svc-item"><div class="${cls}">${timeCell(s)}${destCell(s)}${statusCell(s)}${platformCell(s.platform)}</div></li>`;
-}
-
-const LOADING_ROW = '<li class="board-msg">Loading live board…</li>';
-const EMPTY_ROW = '<li class="board-msg">No services in the next two hours.</li>';
-const FILTERED_EMPTY_ROW =
-  '<li class="board-msg">No services calling at the selected station in the next two hours.</li>';
-const ERROR_ROW = '<li class="board-msg error">Couldn\u2019t load the live board. We\u2019ll keep trying.</li>';
-
-// ---- Announcement phrasing (mirrors diffBoards output) ----
-
-function describePlatform(p: Platform | null): string {
-  if (!p) return 'no platform is allocated';
-  if (p.state === 'at-platform') return `at platform ${p.number}`;
-  if (p.state === 'confirmed') return `platform confirmed — platform ${p.number}`;
-  return `provisional platform ${p.number}`;
-}
-
-function describeChanges(changes: MeaningfulChange[], board: Board): string[] {
-  const byId = new Map(board.services.map((s) => [s.id, s]));
-  const noun = board.kind === 'arrivals' ? 'arrival' : 'departure';
-  const out: string[] = [];
-  for (const c of changes) {
-    const svc = byId.get(c.serviceId);
-    if (!svc) continue;
-    const when = fmtTime(svc.scheduledTime);
-    const dest = svc.destination;
-    switch (c.type) {
-      case 'cancellation':
-        out.push(`The ${when} ${noun} to ${dest} has been cancelled.`);
-        break;
-      case 'platform-change':
-        out.push(`The ${when} ${noun} to ${dest}: ${describePlatform(c.to)}.`);
-        break;
-      case 'delay': {
-        const exp = fmtTime(svc.expectedTime);
-        const verb = c.minutesSwing >= 5 ? 'is delayed, now expected at' : 'is running earlier, now expected at';
-        out.push(`The ${when} ${noun} to ${dest} ${verb} ${exp}.`);
-        break;
-      }
-    }
-  }
-  return out;
-}
-
-function sameKey(a: Board, b: Board): boolean {
-  return a.station === b.station && a.kind === b.kind;
 }
 
 // ---- Mock board for offline dev (PUBLIC_MOCK=true) ----
@@ -232,7 +123,7 @@ export function initBoard(root: HTMLElement): void {
         ? state.callsAt
           ? FILTERED_EMPTY_ROW
           : EMPTY_ROW
-        : board.services.map((s) => rowHtml(s, state.crs)).join('');
+        : boardRowsHtml(board.services, state.crs);
   }
 
   function setAsAt(epochMs: number, stale: boolean): void {

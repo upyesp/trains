@@ -9,38 +9,11 @@
 
 import { fmtClock, fmtDurationMin, fmtTime } from '../lib/format';
 import { esc, platformChip } from '../lib/html';
+import { onStationCrsReady, stationCrs, stationLabel } from '../lib/station-codes';
 import type { CallingPoint, Platform, ServiceDetail, ServiceDetailResponse } from '../lib/types';
 
 const REFRESH_MS = 30_000;
 const DEFAULT_API = 'https://trains-api.upyesp.workers.dev';
-
-// Official three-letter station codes ("London Waterloo (WAT)") come from the
-// bundled stations.json — the same data the search combobox fetches; RTT's
-// responses don't carry CRS codes. Loaded once per page, keyed by lowercased
-// station name; the header re-renders when the map arrives.
-let crsByStation: Map<string, string> | null = null;
-let stationsPromise: Promise<Map<string, string>> | null = null;
-
-function siteBase(): string {
-  // Astro replaces import.meta.env.BASE_URL with the configured base ("/" here).
-  return (import.meta.env.BASE_URL || '/').replace(/\/$/, '');
-}
-
-function loadStationCrs(): Promise<Map<string, string>> {
-  if (!stationsPromise) {
-    stationsPromise = fetch(`${siteBase()}/stations.json`, { cache: 'force-cache' })
-      .then((r) => (r.ok ? (r.json() as Promise<Array<{ name?: string; crs?: string }>>) : []))
-      .then((list) => {
-        const map = new Map<string, string>();
-        for (const s of list) {
-          if (s?.name && s?.crs) map.set(s.name.toLowerCase(), s.crs);
-        }
-        return map;
-      })
-      .catch(() => new Map());
-  }
-  return stationsPromise;
-}
 
 /** Three-linked-circles share glyph (Lucide "share-2"), the standard on
  *  Android, Windows and Linux. */
@@ -94,14 +67,19 @@ function backLinkHtml(from: string | null): string {
   return `<a class="back-link" href="/stations/${from.toLowerCase()}/">← Back to ${esc(from)} board</a>`;
 }
 
-/** Platform rendered with the shared .plat chip, wrapped for the stop card. */
-function stopPlatform(p: Platform | null): string {
+/** Platform rendered with the shared .plat chip, wrapped for the stop card.
+ *  When the stop's station code is known the chip number links to that
+ *  station's platform board. */
+function stopPlatform(p: Platform | null, station: string): string {
   // The visually-hidden label is what AT announces; the chip's own inline
   // "Platform" caption (aria-hidden) is the visible one.
   const srLabel = p
     ? '<span class="visually-hidden">Platform: </span>'
     : '<span class="visually-hidden">Platform not allocated</span>';
-  return `<div class="stop-plat">${srLabel}${platformChip(p)}</div>`;
+  const crs = stationCrs(station);
+  const href =
+    p && crs ? `/platform/?station=${encodeURIComponent(crs)}&platform=${encodeURIComponent(p.number)}` : undefined;
+  return `<div class="stop-plat">${srLabel}${platformChip(p, href)}</div>`;
 }
 
 function stopCard(p: CallingPoint, isLast: boolean): string {
@@ -156,7 +134,7 @@ function stopCard(p: CallingPoint, isLast: boolean): string {
     }
   }
 
-  return `<li class="stop-item"><div class="stop">${timeHtml}${stationHtml}${expHtml}${stopPlatform(p.platform)}</div></li>`;
+  return `<li class="stop-item"><div class="stop">${timeHtml}${stationHtml}${expHtml}${stopPlatform(p.platform, p.station)}</div></li>`;
 }
 
 function stopsHtml(d: ServiceDetail): string {
@@ -214,14 +192,6 @@ function nextStop(d: ServiceDetail): CallingPoint | null {
     if (Date.parse(p.scheduledTime) > now) return i === 0 ? null : p;
   }
   return null;
-}
-
-/** Station name with its official code, e.g. "London Waterloo (WAT)" — the
- *  convention used by other train sites. The code is appended only when the
- *  bundled stations list knows the station. */
-function stationLabel(name: string): string {
-  const crs = crsByStation?.get(name.toLowerCase());
-  return crs ? `${name} (${crs})` : name;
 }
 
 function headerHtml(d: ServiceDetail): string {
@@ -446,10 +416,9 @@ export function initServiceDetail(root: HTMLElement): void {
   void refresh();
   start();
 
-  // Resolve station codes for the header as soon as the list arrives (the
-  // first render happens without them, then updates in place).
-  void loadStationCrs().then((map) => {
-    crsByStation = map;
+  // Resolve station codes for the header and the platform links as soon as the
+  // list arrives (the first render happens without them, then updates in place).
+  onStationCrsReady(() => {
     if (state.prev) render(state.prev);
   });
 }

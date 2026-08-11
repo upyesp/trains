@@ -27,17 +27,24 @@ export function esc(s: string): string {
  * The caption is aria-hidden: screen readers instead hear the cell's
  * visually-hidden "Platform:" label (see platformCell in each client), so a stop
  * reads as "Platform: 4, confirmed".
+ *
+ * When `href` is given the NUMBER becomes a link to that platform's board page
+ * (underlined like the other links on the site); the number is the only
+ * clickable part of the chip.
  */
-export function platformChip(p: Platform | null): string {
+export function platformChip(p: Platform | null, href?: string): string {
   const label = '<span class="plat-label" aria-hidden="true">Platform</span>';
   if (!p) return `<span class="plat none" aria-hidden="true">${label}—</span>`;
   const n = esc(p.number);
+  const numberHtml = href
+    ? `<a class="plat-link" href="${href}">${n}<span class="visually-hidden"> — view this platform's departures and arrivals</span></a>`
+    : n;
   if (p.state === 'at-platform') {
     // Visible caption (also spoken) — the train is at this platform right now.
-    return `<span class="plat at-platform">${label}${n}<span class="state">At platform</span></span>`;
+    return `<span class="plat at-platform">${label}${numberHtml}<span class="state">At platform</span></span>`;
   }
   if (p.state === 'provisional') {
-    return `<span class="plat provisional">${label}${n}<span class="state">provisional</span></span>`;
+    return `<span class="plat provisional">${label}${numberHtml}<span class="state">provisional</span></span>`;
   }
-  return `<span class="plat">${label}${n}<span class="visually-hidden">, confirmed</span></span>`;
+  return `<span class="plat">${label}${numberHtml}<span class="visually-hidden">, confirmed</span></span>`;
 }
