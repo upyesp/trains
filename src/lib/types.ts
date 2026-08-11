@@ -48,9 +48,6 @@ export interface Service {
 export interface CallingPoint {
   /** Station name (RTT `location.description`). */
   station: string;
-  /** Official three-letter station code (RTT `location.crs`), e.g. "ADV".
-   *  Absent when RTT doesn't carry it (e.g. some non-GB locations). */
-  crs?: string;
   /** Timetable time at this stop (arrival where advertised; else the departure,
    * e.g. at the origin). ISO 8601. */
   scheduledTime: string;
@@ -86,14 +83,8 @@ export interface ServiceDetail {
   id: string;
   /** Scheduled origin name. */
   origin: string;
-  /** Official three-letter code for the origin (RTT `origin[].location.crs`),
-   *  when RTT carries it. */
-  originCrs?: string;
   /** Scheduled final destination name. */
   destination: string;
-  /** Official three-letter code for the destination (RTT `destination[].location.crs`),
-   *  when RTT carries it. */
-  destinationCrs?: string;
   /** Train Operating Company running this service. */
   operator: string;
   /** Number of passenger vehicles (coaches), or null when unknown. */

@@ -387,12 +387,9 @@ describe('mapLocationLineUp', () => {
 /** Build a service-location item (one stop on the full run), overriding the
  * bits each test cares about. Defaults to a normal CALL with an arrival and
  * departure at Clapham Junction. */
-function stop(over: Partial<RTTServiceLocationItem> & { station?: string; crs?: string }): RTTServiceLocationItem {
+function stop(over: Partial<RTTServiceLocationItem> & { station?: string }): RTTServiceLocationItem {
   return {
-    location: {
-      description: over.station ?? 'Clapham Junction',
-      ...(over.crs ? { crs: over.crs } : {}),
-    },
+    location: { description: over.station ?? 'Clapham Junction' },
     temporalData: over.temporalData ?? {
       displayAs: 'CALL',
       arrival: { scheduleAdvertised: '2026-07-27T08:02:00+01:00' },
@@ -647,33 +644,6 @@ describe('mapServiceDetail', () => {
       expect('actualDeparture' in p).toBe(false);
       expect('scheduledDeparture' in p).toBe(false);
       expect('noReport' in p).toBe(false);
-    });
-
-    it('carries the official CRS code on calling points and both ends', () => {
-      const detail = mapServiceDetail(
-        {
-          service: {
-            scheduleMetadata: { uniqueIdentity: 'x', operator: { name: 'SWR' } },
-            origin: [{ location: { description: 'Yeovil Junction', crs: 'YVJ' } }],
-            destination: [{ location: { description: 'London Waterloo', crs: 'WAT' } }],
-            locations: [
-              stop({
-                station: 'Andover',
-                crs: 'ADV',
-                temporalData: { displayAs: 'CALL', departure: { scheduleAdvertised: D('09:05') } },
-              }),
-            ],
-          },
-        },
-        'x',
-      );
-      expect(detail).toMatchObject({
-        origin: 'Yeovil Junction',
-        originCrs: 'YVJ',
-        destination: 'London Waterloo',
-        destinationCrs: 'WAT',
-      });
-      expect(detail.points[0]).toMatchObject({ station: 'Andover', crs: 'ADV' });
     });
   });
 });

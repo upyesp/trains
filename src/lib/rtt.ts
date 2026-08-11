@@ -71,8 +71,6 @@ export interface RTTLocationTemporalData {
 /** A named geographic location (RTT `GeographicLocation`, narrowed). */
 export interface RTTGeographicLocation {
   description: string;
-  /** Official three-letter station code, e.g. "ADV". Present for GB locations. */
-  crs?: string;
 }
 
 /** An origin/destination pair (RTT `LocationPair`, narrowed). */

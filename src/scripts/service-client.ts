@@ -14,6 +14,34 @@ import type { CallingPoint, Platform, ServiceDetail, ServiceDetailResponse } fro
 const REFRESH_MS = 30_000;
 const DEFAULT_API = 'https://trains-api.upyesp.workers.dev';
 
+// Official three-letter station codes ("London Waterloo (WAT)") come from the
+// bundled stations.json — the same data the search combobox fetches; RTT's
+// responses don't carry CRS codes. Loaded once per page, keyed by lowercased
+// station name; the header re-renders when the map arrives.
+let crsByStation: Map<string, string> | null = null;
+let stationsPromise: Promise<Map<string, string>> | null = null;
+
+function siteBase(): string {
+  // Astro replaces import.meta.env.BASE_URL with the configured base ("/" here).
+  return (import.meta.env.BASE_URL || '/').replace(/\/$/, '');
+}
+
+function loadStationCrs(): Promise<Map<string, string>> {
+  if (!stationsPromise) {
+    stationsPromise = fetch(`${siteBase()}/stations.json`, { cache: 'force-cache' })
+      .then((r) => (r.ok ? (r.json() as Promise<Array<{ name?: string; crs?: string }>>) : []))
+      .then((list) => {
+        const map = new Map<string, string>();
+        for (const s of list) {
+          if (s?.name && s?.crs) map.set(s.name.toLowerCase(), s.crs);
+        }
+        return map;
+      })
+      .catch(() => new Map());
+  }
+  return stationsPromise;
+}
+
 /** Three-linked-circles share glyph (Lucide "share-2"), the standard on
  *  Android, Windows and Linux. */
 const SHARE_ANDROID = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.42" y1="6.51" x2="8.59" y2="10.49"/></svg>`;
@@ -189,9 +217,10 @@ function nextStop(d: ServiceDetail): CallingPoint | null {
 }
 
 /** Station name with its official code, e.g. "London Waterloo (WAT)" — the
- *  convention used by other train sites. The code is appended only when RTT
- *  carries it. */
-function stationLabel(name: string, crs: string | undefined): string {
+ *  convention used by other train sites. The code is appended only when the
+ *  bundled stations list knows the station. */
+function stationLabel(name: string): string {
+  const crs = crsByStation?.get(name.toLowerCase());
   return crs ? `${name} (${crs})` : name;
 }
 
@@ -230,14 +259,14 @@ function headerHtml(d: ServiceDetail): string {
     }
   }
   return `
-    <h1 class="service-title" id="service-title">${originTime ? `${originTime} ` : ''}${esc(stationLabel(d.origin, d.originCrs))} to ${esc(stationLabel(d.destination, d.destinationCrs))}</h1>
+    <h1 class="service-title" id="service-title">${originTime ? `${originTime} ` : ''}${esc(stationLabel(d.origin))} to ${esc(stationLabel(d.destination))}</h1>
     <div class="stops-heading">
       <h2 class="stops-title" id="stops-title">Calling Points</h2>
       <button type="button" class="share-btn" aria-label="Share this list of calling points">${shareIconHtml()}</button>
       <span class="share-status" role="status" aria-live="polite"></span>
     </div>
     ${status ? `<p class="service-sub">Status: ${status}${completionSuffix}</p>` : ''}
-    ${next ? `<p class="service-sub">Next stop: ${esc(stationLabel(next.station, next.crs))}${next.noReport ? ' — no live data' : `, expected ${fmtTime(next.expectedTime)}`}</p>` : ''}
+    ${next ? `<p class="service-sub">Next stop: ${esc(stationLabel(next.station))}${next.noReport ? ' — no live data' : `, expected ${fmtTime(next.expectedTime)}`}</p>` : ''}
     ${sub ? `<p class="service-sub">${sub}</p>` : ''}
     ${date ? `<p class="service-date">${date}</p>` : ''}
     ${chip ? `<p class="service-status">${chip}</p>` : ''}`;
@@ -416,6 +445,13 @@ export function initServiceDetail(root: HTMLElement): void {
 
   void refresh();
   start();
+
+  // Resolve station codes for the header as soon as the list arrives (the
+  // first render happens without them, then updates in place).
+  void loadStationCrs().then((map) => {
+    crsByStation = map;
+    if (state.prev) render(state.prev);
+  });
 }
 
 // ---- Mock detail for offline dev (PUBLIC_MOCK=true) ----
