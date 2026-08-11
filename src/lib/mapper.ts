@@ -136,6 +136,7 @@ function callingPointFrom(item: RTTServiceLocationItem): CallingPoint {
   const departure = item.temporalData?.departure;
   return {
     station: item.location?.description ?? '',
+    ...(item.location?.crs ? { crs: item.location.crs } : {}),
     scheduledTime,
     expectedTime,
     ...(arrival?.realtimeActual ? { actualArrival: arrival.realtimeActual } : {}),
@@ -153,6 +154,11 @@ function callingPointFrom(item: RTTServiceLocationItem): CallingPoint {
  * several; the last is the advertised end). */
 function endpointName(pairs: RTTLocationPair[] | undefined): string {
   return pairs?.[pairs.length - 1]?.location.description ?? '';
+}
+
+/** The official three-letter code of the advertised end, when RTT carries it. */
+function endpointCrs(pairs: RTTLocationPair[] | undefined): string | undefined {
+  return pairs?.[pairs.length - 1]?.location.crs;
 }
 
 /**
@@ -179,10 +185,14 @@ export function mapServiceDetail(
     (i) => coachesFrom(i.locationMetadata?.numberOfVehicles) !== null,
   );
 
+  const originCrs = endpointCrs(svc?.origin) ?? points[0]?.crs;
+  const destinationCrs = endpointCrs(svc?.destination) ?? points[points.length - 1]?.crs;
   return {
     id: serviceId,
     origin: endpointName(svc?.origin) || points[0]?.station || '',
+    ...(originCrs ? { originCrs } : {}),
     destination: endpointName(svc?.destination) || points[points.length - 1]?.station || '',
+    ...(destinationCrs ? { destinationCrs } : {}),
     operator: svc?.scheduleMetadata.operator.name ?? '',
     coaches: coachesFrom(coachesItem?.locationMetadata?.numberOfVehicles),
     cancelled: points.some((p) => p.cancelled),

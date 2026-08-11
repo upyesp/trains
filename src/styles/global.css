@@ -302,7 +302,6 @@ h1.station {
   font-size: .82rem; letter-spacing: .12em;
   color: var(--fg-mute); text-transform: uppercase;
 }
-.station-crs code { color: var(--fg); font-weight: 600; }
 
 .station-meta {
   display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: center;

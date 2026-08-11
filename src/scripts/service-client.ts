@@ -188,6 +188,13 @@ function nextStop(d: ServiceDetail): CallingPoint | null {
   return null;
 }
 
+/** Station name with its official code, e.g. "London Waterloo (WAT)" — the
+ *  convention used by other train sites. The code is appended only when RTT
+ *  carries it. */
+function stationLabel(name: string, crs: string | undefined): string {
+  return crs ? `${name} (${crs})` : name;
+}
+
 function headerHtml(d: ServiceDetail): string {
   const originTime = fmtTime(d.points[0]?.scheduledTime ?? '');
   // Journey summary after the operator: scheduled duration · number of stops
@@ -223,14 +230,14 @@ function headerHtml(d: ServiceDetail): string {
     }
   }
   return `
-    <h1 class="service-title" id="service-title">${originTime ? `${originTime} ` : ''}${esc(d.origin)} to ${esc(d.destination)}</h1>
+    <h1 class="service-title" id="service-title">${originTime ? `${originTime} ` : ''}${esc(stationLabel(d.origin, d.originCrs))} to ${esc(stationLabel(d.destination, d.destinationCrs))}</h1>
     <div class="stops-heading">
       <h2 class="stops-title" id="stops-title">Calling Points</h2>
       <button type="button" class="share-btn" aria-label="Share this list of calling points">${shareIconHtml()}</button>
       <span class="share-status" role="status" aria-live="polite"></span>
     </div>
     ${status ? `<p class="service-sub">Status: ${status}${completionSuffix}</p>` : ''}
-    ${next ? `<p class="service-sub">Next stop: ${esc(next.station)}${next.noReport ? ' — no live data' : `, expected ${fmtTime(next.expectedTime)}`}</p>` : ''}
+    ${next ? `<p class="service-sub">Next stop: ${esc(stationLabel(next.station, next.crs))}${next.noReport ? ' — no live data' : `, expected ${fmtTime(next.expectedTime)}`}</p>` : ''}
     ${sub ? `<p class="service-sub">${sub}</p>` : ''}
     ${date ? `<p class="service-date">${date}</p>` : ''}
     ${chip ? `<p class="service-status">${chip}</p>` : ''}`;
