@@ -20,6 +20,15 @@ export interface Service {
   scheduledTime: string;
   /** Expected (live predicted) departure/arrival time, ISO 8601. May differ from scheduledTime. */
   expectedTime: string;
+  /** Recorded actual departure/arrival time, ISO 8601. Present once the train
+   *  has passed this stop and TRUST reported it (RTT `realtimeActual`). The
+   *  truth for past stops — preferred over `expectedTime` for display. */
+  actualTime?: string;
+  /** True when RTT has NO live report for this element (RTT `realtimeNoReport`).
+   *  With no forecast, estimate, or actual either, the expected time is just the
+   *  timetable — the UI must NOT present it as "on time" (the train may be
+   *  running late unreported). */
+  noReport?: boolean;
   /** Platform, or null when not yet announced. */
   platform: Platform | null;
   /** Final destination (departures) or origin (arrivals). */
@@ -45,6 +54,14 @@ export interface CallingPoint {
   /** Expected (live) time at this stop, from the SAME element as scheduledTime
    * so the pair is direction-consistent. Equal to scheduledTime when "on time". */
   expectedTime: string;
+  /** Recorded actual time at this stop, ISO 8601. Present once the train has
+   *  passed and TRUST reported it (RTT `realtimeActual`). The truth for past
+   *  stops — preferred over `expectedTime` for display. */
+  actualTime?: string;
+  /** True when RTT has NO live report for this stop (RTT `realtimeNoReport`).
+   *  With no forecast, estimate, or actual either, the expected time is just the
+   *  timetable — the UI must NOT present it as "on time". */
+  noReport?: boolean;
   /** Platform at this stop, or null when not announced. */
   platform: Platform | null;
   /** True when THIS stop is cancelled (RTT `displayAs === 'CANCELLED'`). */

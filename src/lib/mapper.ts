@@ -49,6 +49,11 @@ function mapService(service: RTTService, kind: BoardKind): Service | null {
     id: service.scheduleMetadata.uniqueIdentity,
     scheduledTime,
     expectedTime,
+    // Recorded actual (once the train has passed and TRUST reported it) and the
+    // "no live report" flag ride on the same element as the times, so the pair
+    // stays direction-consistent. Only present when RTT supplies them.
+    ...(temporal.realtimeActual ? { actualTime: temporal.realtimeActual } : {}),
+    ...(temporal.realtimeNoReport === true ? { noReport: true } : {}),
     platform: platformFrom(service.locationMetadata?.platform, service.temporalData?.status === 'AT_PLATFORM'),
     destination: otherEnd(service, kind),
     operator: service.scheduleMetadata.operator.name,
@@ -127,6 +132,10 @@ function callingPointFrom(item: RTTServiceLocationItem): CallingPoint {
     station: item.location?.description ?? '',
     scheduledTime,
     expectedTime,
+    // Same direction-consistency rule as mapService: the actual and the
+    // no-report flag come from the same temporal element as the times.
+    ...(t?.realtimeActual ? { actualTime: t.realtimeActual } : {}),
+    ...(t?.realtimeNoReport === true ? { noReport: true } : {}),
     platform: platformFrom(item.locationMetadata?.platform, item.temporalData?.status === 'AT_PLATFORM'),
     cancelled: item.temporalData?.displayAs === 'CANCELLED',
   };

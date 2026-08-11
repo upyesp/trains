@@ -323,6 +323,65 @@ describe('mapLocationLineUp', () => {
       expect(board.services.map((s) => s.id)).toEqual(['early', 'late']);
     });
   });
+
+  describe('actual times and the no-report flag', () => {
+    it('maps the recorded actual and the no-report flag from the chosen temporal element', () => {
+      const board = mapLocationLineUp(
+        {
+          services: [
+            service({
+              id: 'reported',
+              temporalData: {
+                displayAs: 'CALL',
+                departure: {
+                  scheduleAdvertised: '2026-07-27T08:05:00+01:00',
+                  realtimeActual: '2026-07-27T08:11:00+01:00',
+                },
+              },
+            }),
+            service({
+              id: 'unreported',
+              temporalData: {
+                displayAs: 'CALL',
+                departure: {
+                  scheduleAdvertised: '2026-07-27T08:12:00+01:00',
+                  realtimeNoReport: true,
+                },
+              },
+            }),
+          ],
+        },
+        'WAT',
+        'departures',
+      );
+      const [reported, unreported] = board.services;
+      expect(reported).toMatchObject({ actualTime: '2026-07-27T08:11:00+01:00' });
+      expect(reported).not.toHaveProperty('noReport');
+      expect(unreported).toMatchObject({
+        expectedTime: '2026-07-27T08:12:00+01:00',
+        noReport: true,
+      });
+      expect(unreported).not.toHaveProperty('actualTime');
+    });
+
+    it('omits actualTime/noReport keys entirely when RTT does not supply them', () => {
+      const board = mapLocationLineUp(
+        {
+          services: [
+            service({
+              id: 'plain',
+              temporalData: { displayAs: 'CALL', departure: { scheduleAdvertised: '2026-07-27T08:05:00+01:00' } },
+            }),
+          ],
+        },
+        'WAT',
+        'departures',
+      );
+      const s = board.services[0]!;
+      expect('actualTime' in s).toBe(false);
+      expect('noReport' in s).toBe(false);
+    });
+  });
 });
 
 /** Build a service-location item (one stop on the full run), overriding the
@@ -525,6 +584,58 @@ describe('mapServiceDetail', () => {
       coaches: null,
       cancelled: false,
       points: [],
+    });
+  });
+
+  describe('actual times and the no-report flag', () => {
+    it('maps the recorded actual and the no-report flag from the chosen element', () => {
+      const detail = mapServiceDetail(
+        {
+          service: {
+            scheduleMetadata: { uniqueIdentity: 'x', operator: { name: 'SWR' } },
+            locations: [
+              stop({
+                station: 'Reported',
+                temporalData: {
+                  displayAs: 'CALL',
+                  arrival: { scheduleAdvertised: D('08:11'), realtimeActual: D('08:19') },
+                  departure: { scheduleAdvertised: D('08:12'), realtimeNoReport: true },
+                },
+              }),
+              stop({
+                station: 'Unreported',
+                temporalData: {
+                  displayAs: 'CALL',
+                  arrival: { scheduleAdvertised: D('08:20'), realtimeNoReport: true },
+                },
+              }),
+            ],
+          },
+        },
+        'x',
+      );
+      // The arrival is the chosen element: actual rides with it.
+      expect(detail.points[0]).toMatchObject({
+        expectedTime: D('08:11'),
+        actualTime: D('08:19'),
+      });
+      expect(detail.points[1]).toMatchObject({ noReport: true });
+      expect(detail.points[1]).not.toHaveProperty('actualTime');
+    });
+
+    it('omits actualTime/noReport keys when RTT does not supply them', () => {
+      const detail = mapServiceDetail(
+        {
+          service: {
+            scheduleMetadata: { uniqueIdentity: 'x', operator: { name: 'SWR' } },
+            locations: [stop({ temporalData: { displayAs: 'CALL', arrival: { scheduleAdvertised: D('08:11') } } })],
+          },
+        },
+        'x',
+      );
+      const p = detail.points[0]!;
+      expect('actualTime' in p).toBe(false);
+      expect('noReport' in p).toBe(false);
     });
   });
 });

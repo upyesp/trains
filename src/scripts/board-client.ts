@@ -52,8 +52,9 @@ interface Elements {
 // ---- Pure HTML builders (escaped; safe against RTT-provided strings) ----
 
 function delayMinutes(s: Service): number {
+  // The recorded actual (once the train has passed) beats the forecast.
   const sched = Date.parse(s.scheduledTime);
-  const exp = Date.parse(s.expectedTime);
+  const exp = Date.parse(s.actualTime ?? s.expectedTime);
   if (Number.isNaN(sched) || Number.isNaN(exp)) return 0;
   return Math.round((exp - sched) / 60_000);
 }
@@ -101,6 +102,11 @@ function statusCell(s: Service): string {
   if (s.cancelled) return '<div class="svc-status"><span class="chip cancel">Cancelled</span></div>';
   const mins = delayMinutes(s);
   if (mins > 0) return `<div class="svc-status"><span class="chip delay">+${mins} min</span></div>`;
+  // Unreported: the expected time is just the timetable — "no chip = on time"
+  // would be a lie, so say so (RTT's own boards show "No report").
+  if (s.noReport && !s.actualTime) {
+    return '<div class="svc-status"><span class="chip no-report">No report</span></div>';
+  }
   // On time: no chip (conventional for boards); the absence reads as "on time".
   return '<div class="svc-status"></div>';
 }

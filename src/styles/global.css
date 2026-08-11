@@ -539,6 +539,9 @@ h1.station {
 }
 .chip.delay { color: var(--board-delay); border: 1px solid var(--board-delay-border); }
 .chip.cancel { color: var(--board-cancel); border: 1px solid var(--board-cancel-border); }
+/* "No report": muted — the train has no live data; the time shown is just
+   the timetable, not a prediction. Reads as "unknown", never as on time. */
+.chip.no-report { color: var(--board-mute); border: 1px solid var(--border); }
 
 /* Cancelled service: whole card demuted */
 .svc.is-cancelled { color: var(--board-mute); }
@@ -626,6 +629,7 @@ h2.stops-title {
 /* Expected: "On time" (mute) / a delayed time (delay colour, mono) / "Cancelled". */
 .stop-exp { justify-self: end; text-align: right; white-space: nowrap; }
 .stop-exp.on-time { color: var(--board-mute); }
+.stop-exp.no-report { color: var(--fg-mute); }
 .stop-exp.delay {
   color: var(--board-delay); font-weight: 600;
   font-family: var(--mono); font-variant-numeric: tabular-nums;

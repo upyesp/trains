@@ -51,8 +51,9 @@ function fmtDuration(isoStart: string, isoEnd: string): string {
 }
 
 function delayMinutesAt(p: CallingPoint): number {
+  // The recorded actual (once passed) beats the forecast: it's the truth.
   const sched = Date.parse(p.scheduledTime);
-  const exp = Date.parse(p.expectedTime);
+  const exp = Date.parse(p.actualTime ?? p.expectedTime);
   if (Number.isNaN(sched) || Number.isNaN(exp)) return 0;
   return Math.round((exp - sched) / 60_000);
 }
@@ -93,19 +94,35 @@ function stopCard(p: CallingPoint, isLast: boolean): string {
   // prefix tells whether the train has already left this calling point (past) or
   // has not arrived yet (future). The final stop uses "Completed" instead of
   // "Departed" — the train doesn't depart its destination, it finishes there.
+  //
+  // Truthfulness rules:
+  //  - once the train has passed and TRUST recorded it (actualTime), the actual
+  //    is shown — "Departed 09:10" rather than a stale "on time";
+  //  - when RTT has NO live report (noReport) and no actual either, the train
+  //    may be running late undetected — we must NOT claim "on time".
   let expHtml: string;
   if (p.cancelled) {
     expHtml = `<div class="stop-exp cancel">Cancelled</div>`;
   } else {
-    const exp = fmtTime(p.expectedTime);
+    const schedStr = fmtTime(p.scheduledTime);
+    const actual = p.actualTime ? fmtTime(p.actualTime) : null;
     const pointMs = Date.parse(p.scheduledTime);
-    const isPast = Number.isFinite(pointMs) && pointMs < Date.now();
+    // An actual time proves the stop is past, even if the train ran early.
+    const isPast = actual != null || (Number.isFinite(pointMs) && pointMs < Date.now());
     let prefix: string;
     if (isLast && isPast) prefix = 'Completed';
     else if (isPast) prefix = 'Departed';
     else prefix = 'Expected';
-    const cls = exp === sched ? 'on-time' : 'delay';
-    expHtml = `<div class="stop-exp ${cls}">${prefix} ${exp === sched ? 'on time' : exp}</div>`;
+    if (actual) {
+      const cls = actual === schedStr ? 'on-time' : 'delay';
+      expHtml = `<div class="stop-exp ${cls}">${prefix} ${actual === schedStr ? 'on time' : actual}</div>`;
+    } else if (p.noReport) {
+      expHtml = `<div class="stop-exp no-report">${prefix} — no live data</div>`;
+    } else {
+      const exp = fmtTime(p.expectedTime);
+      const cls = exp === schedStr ? 'on-time' : 'delay';
+      expHtml = `<div class="stop-exp ${cls}">${prefix} ${exp === schedStr ? 'on time' : exp}</div>`;
+    }
   }
 
   return `<li class="stop-item"><div class="stop">${timeHtml}${stationHtml}${expHtml}${stopPlatform(p.platform)}</div></li>`;
@@ -132,28 +149,36 @@ function statusChip(d: ServiceDetail): string {
 }
 
 /** The origin's departure status: past (Departed on time / Departed at HH:MM)
- *  or future (Scheduled HH:MM). Uses the client clock for now. */
+ *  or future (Scheduled HH:MM). Uses the client clock for now. The recorded
+ *  actual beats the forecast once the train has gone; with no report at all we
+ *  say so rather than claiming "on time". */
 function serviceStatus(d: ServiceDetail): string {
   const origin = d.points[0];
   if (!origin || !origin.scheduledTime) return '';
   const sched = origin.scheduledTime;
+  const actual = origin.actualTime;
   const exp = origin.expectedTime;
   const schedMs = Date.parse(sched);
-  if (schedMs <= Date.now()) {
+  if (actual || schedMs <= Date.now()) {
+    if (actual) return actual === sched ? 'Departed on time' : `Departed at ${fmtTime(actual)}`;
+    if (origin.noReport) return 'Departed — no live data';
     return exp === sched ? 'Departed on time' : `Departed at ${fmtTime(exp)}`;
   }
   return `Scheduled ${fmtTime(sched)}`;
 }
 
 /** The first calling point whose scheduled time is still in the future,
- *  excluding the origin (which would just repeat the departure). Returns the
- *  whole point so the caller can also read its expected time. Null when no
- *  future stop remains (journey completed) or the origin hasn't departed yet. */
+ *  excluding the origin (which would just repeat the departure). A stop with a
+ *  recorded actual is definitely passed (it may have run early), so it can never
+ *  be "next". Returns the whole point so the caller can also read its expected
+ *  time. Null when no future stop remains (journey completed) or the origin
+ *  hasn't departed yet. */
 function nextStop(d: ServiceDetail): CallingPoint | null {
   const now = Date.now();
   for (let i = 0; i < d.points.length; i++) {
     const p = d.points[i];
     if (!p) continue;
+    if (p.actualTime) continue;
     if (Date.parse(p.scheduledTime) > now) return i === 0 ? null : p;
   }
   return null;
@@ -174,14 +199,23 @@ function headerHtml(d: ServiceDetail): string {
   const status = serviceStatus(d);
   const next = nextStop(d);
   const last = d.points[d.points.length - 1];
-  const journeyCompleted = !next && last && Date.parse(last.scheduledTime) <= Date.now();
+  const journeyCompleted =
+    !next && last != null && (last.actualTime != null || Date.parse(last.scheduledTime) <= Date.now());
   let completionSuffix = '';
   if (journeyCompleted && last) {
-    const diff = (Date.parse(last.expectedTime) - Date.parse(last.scheduledTime)) / 60_000;
-    const completedTime = fmtTime(last.expectedTime);
-    if (Math.abs(diff) < 1) completionSuffix = `, completed on time at ${completedTime}`;
-    else if (diff > 0) completionSuffix = `, completed late at ${completedTime}`;
-    else completionSuffix = `, completed early at ${completedTime}`;
+    // The recorded actual (if TRUST reported it) is the truth; otherwise the
+    // forecast. Only claim a result when we actually have one — with no report
+    // at all (noReport and no forecast) there is nothing to say.
+    const lastTime = last.actualTime ?? (last.expectedTime !== last.scheduledTime ? last.expectedTime : null);
+    if (lastTime) {
+      const diff = (Date.parse(lastTime) - Date.parse(last.scheduledTime)) / 60_000;
+      const completedTime = fmtTime(lastTime);
+      if (Math.abs(diff) < 1) completionSuffix = `, completed on time at ${completedTime}`;
+      else if (diff > 0) completionSuffix = `, completed late at ${completedTime}`;
+      else completionSuffix = `, completed early at ${completedTime}`;
+    } else if (last.noReport) {
+      completionSuffix = ' — no live data';
+    }
   }
   return `
     <h1 class="service-title" id="service-title">${originTime ? `${originTime} ` : ''}${esc(d.origin)} to ${esc(d.destination)}</h1>
@@ -191,7 +225,7 @@ function headerHtml(d: ServiceDetail): string {
       <span class="share-status" role="status" aria-live="polite"></span>
     </div>
     ${status ? `<p class="service-sub">Status: ${status}${completionSuffix}</p>` : ''}
-    ${next ? `<p class="service-sub">Next stop: ${esc(next.station)}, expected ${fmtTime(next.expectedTime)}</p>` : ''}
+    ${next ? `<p class="service-sub">Next stop: ${esc(next.station)}${next.noReport ? ' — no live data' : `, expected ${fmtTime(next.expectedTime)}`}</p>` : ''}
     ${sub ? `<p class="service-sub">${sub}</p>` : ''}
     ${date ? `<p class="service-date">${date}</p>` : ''}
     ${chip ? `<p class="service-status">${chip}</p>` : ''}`;
