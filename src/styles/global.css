@@ -268,6 +268,19 @@ header.site {
 }
 .privacy-note { margin: 14px 0 40px; font-size: .9rem; color: var(--fg-mute); }
 
+/* ---------- About page ---------- */
+.about { max-width: 42rem; margin: 0 0 40px; }
+.about p { margin: 0 0 12px; color: var(--fg); }
+/* "here" link: same GDS-style underline as the clickable station names
+   (underline offset + from-font thickness), amber on hover. */
+.about a {
+  color: var(--fg);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  text-decoration-thickness: from-font;
+}
+.about a:hover { color: var(--amber); }
+
 /* ---------- Privacy page ---------- */
 .privacy { max-width: 42rem; margin: 0 0 40px; }
 .privacy h2 {
@@ -557,16 +570,6 @@ h1.station {
   letter-spacing: -0.03em; margin: 8px 0 10px;
 }
 .home-lede { color: var(--fg-mute); margin: 0 0 22px; max-width: 42ch; }
-/* "here" link in the lede: same GDS-style underline as the clickable station
-   names (underline offset + from-font thickness), inheriting the paragraph
-   colour; amber on hover like the privacy/contact page links. */
-.home-lede a {
-  color: inherit;
-  text-decoration: underline;
-  text-underline-offset: 0.15em;
-  text-decoration-thickness: from-font;
-}
-.home-lede a:hover { color: var(--amber); }
 
 footer.site { margin-top: 40px; color: var(--fg-mute); font-size: .8rem; }
 
