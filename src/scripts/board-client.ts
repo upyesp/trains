@@ -189,7 +189,9 @@ export function initBoard(root: HTMLElement): void {
   const mock = root.dataset.mock === 'true';
 
   // "calling at" filter restored from the URL (?callsAt=CLJ) so a saved
-  // favourite re-opens already filtered.
+  // favourite re-opens already filtered. The URL is written by a REAL
+  // navigation (updateUrl), never replaceState, so the page is always loaded
+  // with the filter already in place.
   const callsParam = new URLSearchParams(window.location.search).get('callsAt');
   const initialCallsAt =
     callsParam && /^[A-Za-z]{3}$/.test(callsParam) ? callsParam.toUpperCase() : null;
@@ -218,6 +220,11 @@ export function initBoard(root: HTMLElement): void {
     prev: null,
     asAtMs: null,
   };
+
+  // When a filter was restored from the URL (a reload after updateUrl's real
+  // navigation), announce it once the combobox has resolved the station name
+  // into the input — the reload replaced the old in-page announcement.
+  let filterRestorePending = initialCallsAt !== null;
 
   function render(board: Board): void {
     els.body.innerHTML =
@@ -275,6 +282,14 @@ export function initBoard(root: HTMLElement): void {
       setAsAt(resp.asAt, resp.stale);
       state.prev = resp.board;
       announce(messages);
+      if (filterRestorePending && state.callsAt) {
+        const fname = els.filterInput?.value.trim();
+        if (fname) {
+          filterRestorePending = false;
+          const noun = state.kind === 'arrivals' ? 'Arrivals' : 'Departures';
+          announce([`${noun} filtered to services calling at ${fname}.`]);
+        }
+      }
     } else if (state.prev && state.asAtMs !== null) {
       // Worker unreachable but we have a prior board - keep it, mark stale.
       setAsAt(state.asAtMs, true);
@@ -345,19 +360,13 @@ export function initBoard(root: HTMLElement): void {
       initialCrs: state.callsAt,
       onChoose: (station) => {
         state.callsAt = station.crs;
-        state.prev = null; // don't diff across a filter change
+        // updateUrl() navigates; the reloaded page restores the filter from
+        // the URL and announces it (filterRestorePending).
         updateUrl();
-        const noun = state.kind === 'arrivals' ? 'Arrivals' : 'Departures';
-        void refresh().then(() =>
-          announce([`${noun} filtered to services calling at ${station.name}.`]),
-        );
       },
       onClear: () => {
         state.callsAt = null;
-        state.prev = null;
         updateUrl();
-        const noun = state.kind === 'arrivals' ? 'Arrivals' : 'Departures';
-        void refresh().then(() => announce([`${noun} filter cleared.`]));
       },
     });
   }
@@ -366,7 +375,13 @@ export function initBoard(root: HTMLElement): void {
     const url = new URL(window.location.href);
     if (state.callsAt) url.searchParams.set('callsAt', state.callsAt);
     else url.searchParams.delete('callsAt');
-    window.history.replaceState({}, '', url);
+    // A REAL navigation, not replaceState: Android Chrome's "Add to home
+    // screen" saves the URL the page was LOADED with, so a same-document
+    // replaceState change would be lost on the saved icon (the browser's
+    // share option, which reads the live address bar, would keep it — the
+    // exact mismatch reported). The page restores the filter from ?callsAt=
+    // on load, so a reload is cheap and the filter survives everywhere.
+    window.location.assign(url.toString());
   }
 
   function setupClock(): void {
