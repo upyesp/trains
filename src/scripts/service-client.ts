@@ -91,14 +91,13 @@ function stopCard(p: CallingPoint, isLast: boolean): string {
   const href = `/?${new URLSearchParams({ station: p.station }).toString()}`;
   const stationHtml = `<div class="stop-station"><a class="stop-link" href="${href}"><span class="dest">${esc(p.station)}</span> <span class="visually-hidden">show departures from this station</span></a></div>`;
 
-  // Top-right: the live status for this stop. The prefix tells what has
-  // actually happened, driven by RTT's recorded actuals, not the client clock:
+  // Top-right: the live status for this stop. The displayed time is always a
+  // DEPARTURE time where the stop has one (matching other train boards):
+  //  - "Departed" (departure actual) — the train has LEFT, at the recorded
+  //    departure, never the arrival;
+  //  - "Expected" — not gone yet: the expected departure (arrival forecast at
+  //    the terminus, which has no departure);
   //  - "Completed" (final stop, arrival actual) — the train finishes here;
-  //  - "Departed" (departure actual) — the train has LEFT, shown at the
-  //    departure time, never the arrival time;
-  //  - "Arrived" (arrival actual, no departure yet) — the train is standing
-  //    at the station;
-  //  - "Expected" — not here yet (arrival forecast);
   //  - no report at all (noReport) — "no live data": the train may be running
   //    late undetected, so we must NOT claim "on time".
   let expHtml: string;
@@ -110,15 +109,13 @@ function stopCard(p: CallingPoint, isLast: boolean): string {
     const dep = p.actualDeparture ? fmtTime(p.actualDeparture) : null;
     const depSched = p.scheduledDeparture ? fmtTime(p.scheduledDeparture) : null;
     if (isLast && arr) {
+      // Terminus: the arrival IS the only time this stop has.
       const cls = arr === schedStr ? 'on-time' : 'delay';
       expHtml = `<div class="stop-exp ${cls}">Completed ${arr === schedStr ? 'on time' : arr}</div>`;
     } else if (dep) {
       // On-time judgement against the scheduled DEPARTURE (the same element).
       const onTime = depSched != null && dep === depSched;
       expHtml = `<div class="stop-exp ${onTime ? 'on-time' : 'delay'}">Departed ${onTime ? 'on time' : dep}</div>`;
-    } else if (arr) {
-      const cls = arr === schedStr ? 'on-time' : 'delay';
-      expHtml = `<div class="stop-exp ${cls}">Arrived ${arr === schedStr ? 'on time' : arr}</div>`;
     } else if (p.noReport) {
       const pointMs = Date.parse(p.scheduledTime);
       const isPast = Number.isFinite(pointMs) && pointMs < Date.now();

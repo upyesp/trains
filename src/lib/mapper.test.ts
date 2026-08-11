@@ -428,13 +428,13 @@ describe('mapServiceDetail', () => {
       cancelled: false,
       points: [
         { station: 'London Waterloo', scheduledTime: D('08:05'), expectedTime: D('08:05'), scheduledDeparture: D('08:05'), platform: null, cancelled: false },
-        { station: 'Clapham Junction', scheduledTime: D('08:11'), expectedTime: D('08:11'), scheduledDeparture: D('08:12'), platform: { number: '3', state: 'confirmed' }, cancelled: false },
+        { station: 'Clapham Junction', scheduledTime: D('08:12'), expectedTime: D('08:12'), scheduledDeparture: D('08:12'), platform: { number: '3', state: 'confirmed' }, cancelled: false },
         { station: 'Weymouth', scheduledTime: D('10:02'), expectedTime: D('10:02'), platform: null, cancelled: false },
       ],
     });
   });
 
-  it('prefers the arrival time; the origin (STARTS) has no arrival so shows its departure', () => {
+  it('prefers the departure time; the terminus (TERMINATES) has no departure so shows its arrival', () => {
     const detail = mapServiceDetail(
       {
         service: {
@@ -442,15 +442,16 @@ describe('mapServiceDetail', () => {
           locations: [
             stop({ station: 'Origin', temporalData: { displayAs: 'STARTS', departure: { scheduleAdvertised: D('09:00') } } }),
             stop({ station: 'Mid', temporalData: { displayAs: 'CALL', arrival: { scheduleAdvertised: D('09:30') }, departure: { scheduleAdvertised: D('09:31') } } }),
+            stop({ station: 'Terminus', temporalData: { displayAs: 'TERMINATES', arrival: { scheduleAdvertised: D('10:02') } } }),
           ],
         },
       },
       'x',
     );
-    expect(detail.points.map((p) => p.scheduledTime)).toEqual([D('09:00'), D('09:30')]);
+    expect(detail.points.map((p) => p.scheduledTime)).toEqual([D('09:00'), D('09:31'), D('10:02')]);
   });
 
-  it('reads expected time from the SAME element as the scheduled time (arrival delay against arrival)', () => {
+  it('reads expected time from the SAME element as the scheduled time (departure delay against departure)', () => {
     const detail = mapServiceDetail(
       {
         service: {
@@ -469,7 +470,7 @@ describe('mapServiceDetail', () => {
       'x',
     );
     expect(detail.points[0]).toEqual(
-      expect.objectContaining({ scheduledTime: D('08:11'), expectedTime: D('08:18') }),
+      expect.objectContaining({ scheduledTime: D('08:12'), expectedTime: D('08:20') }),
     );
   });
 
@@ -614,10 +615,11 @@ describe('mapServiceDetail', () => {
         },
         'x',
       );
-      // The arrival is the chosen element for the primary times; the actuals
+      // The departure is the chosen element for the primary times; the actuals
       // stay element-typed so "Departed" can never show an arrival time.
       expect(detail.points[0]).toMatchObject({
-        expectedTime: D('08:11'),
+        scheduledTime: D('08:12'),
+        expectedTime: D('08:12'),
         actualArrival: D('08:19'),
         actualDeparture: D('08:21'),
         scheduledDeparture: D('08:12'),

@@ -114,12 +114,13 @@ function isPublicStop(item: RTTServiceLocationItem): boolean {
   return d != null && PUBLIC_STOPS.has(d);
 }
 
-/** Pick the temporal element to show for a stop: arrival (most stops), else
- * departure (the origin only departs), else pass (defensive). Both scheduled and
- * expected times are read from the SAME element so the pair is direction-consistent
- * (an arrival delay against an arrival time, not a mismatched departure time). */
+/** Pick the temporal element to show for a stop: departure (most stops — the
+ *  time other boards show), else arrival (the terminus only arrives), else pass
+ *  (defensive). Both scheduled and expected times are read from the SAME element
+ *  so the pair is direction-consistent (a departure delay against a departure
+ *  time, not a mismatched arrival time). */
 function temporalFor(item: RTTServiceLocationItem): RTTTemporalData | undefined {
-  return item.temporalData?.arrival ?? item.temporalData?.departure ?? item.temporalData?.pass;
+  return item.temporalData?.departure ?? item.temporalData?.arrival ?? item.temporalData?.pass;
 }
 
 function callingPointFrom(item: RTTServiceLocationItem): CallingPoint {
@@ -159,9 +160,10 @@ function endpointName(pairs: RTTLocationPair[] | undefined): string {
  *
  * Only advertised public stops are kept (CALL/STARTS/TERMINATES/CANCELLED);
  * through-services (PASS) and diversions drop out. Each stop's time prefers the
- * advertised arrival, falling back to the departure (the origin) so the run's
- * first stop still has a time. The `serviceId` is the id the request was opened
- * with (the Worker knows it); it is echoed back as `detail.id`.
+ * advertised departure (the time other boards show), falling back to the
+ * arrival at the terminus so the run's last stop still has a time. The
+ * `serviceId` is the id the request was opened with (the Worker knows it); it
+ * is echoed back as `detail.id`.
  */
 export function mapServiceDetail(
   response: RTTServiceDetailResponse,
