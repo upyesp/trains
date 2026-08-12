@@ -301,16 +301,14 @@ header.site {
 .clear-btn:hover:not(:disabled) { background: var(--board-cancel-border); color: var(--fg); }
 .clear-btn:disabled { opacity: .5; cursor: default; }
 /* The list is a card of rows: each row is a link (the route) plus a Delete
-   button. user-select/touch-callout off on the rows so the long-press gesture
-   doesn't trigger the native text-selection/callout menus. */
+   button. */
 .history {
   list-style: none; margin: 0 0 40px; padding: 0;
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
   overflow: hidden;
 }
 .history:focus { outline: none; }   /* tabindex=-1 focus target; rows carry focus */
-.hist-item { display: flex; align-items: stretch; border-bottom: 1px solid var(--border);
-  -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.hist-item { display: flex; align-items: stretch; border-bottom: 1px solid var(--border); }
 .hist-item:last-child { border-bottom: 0; }
 .hist-link {
   flex: 1 1 auto; min-width: 0;

@@ -2,17 +2,14 @@
 //
 // Reads the locally-stored list of calling-points pages visited in the last two
 // weeks and renders it newest-first. Each row is a link back to that service's
-// calling points (short press), plus a Delete button. A long press on a row
-// opens the same confirmation dialog as its Delete button — both reach the
-// accessible path, so the gesture is a progressive enhancement and never the
-// only way to delete. The header's Clear-history button clears everything,
-// also behind a confirmation.
+// calling points (short press) plus a Delete button that opens a confirmation
+// dialog. The header's Clear-history button clears everything, also behind a
+// confirmation.
 //
 // Accessibility (ADR-0002): a real <ol> of rows, every action reachable by
 // keyboard and announced to a polite live region, state never conveyed by
 // colour alone, and a proper modal dialog (role/aria-modal, focus trap,
-// Escape, focus restored to the trigger). Long-press is touch-only; keyboard
-// and screen-reader users use the Delete buttons.
+// Escape, focus restored to the trigger).
 
 import { clearHistory, loadHistory, saveHistory, withoutEntry, type HistoryEntry } from '../lib/history';
 import { esc } from '../lib/html';
@@ -21,8 +18,6 @@ import { onStationCrsReady, stationLabel } from '../lib/station-codes';
 
 const EMPTY_MSG =
   'No services in your history yet. Open a service from a station board to see its calling points here.';
-const LONG_PRESS_MS = 500;
-const MOVE_THRESHOLD_PX = 10;
 
 /** Lucide "trash-2". */
 const TRASH_SVG =
@@ -252,95 +247,13 @@ export function initHistory(root: HTMLElement): void {
 
   // ---- Row interactions ----
 
-  // Delete buttons (delegated): keyboard/mouse/tap path to the dialog.
+  // Delete buttons (delegated): the single path to the delete dialog, for
+  // mouse, keyboard, touch and screen-reader users alike.
   els.list.addEventListener('click', (e) => {
     const btn = (e.target as Element | null)?.closest('.hist-delete') as HTMLButtonElement | null;
     if (!btn) return;
     e.preventDefault();
     openDeleteDialog(btn.dataset.id ?? '');
-  });
-
-  // Long press (touch only): hold a row ~0.5s to open its delete dialog. The
-  // gesture is a shortcut to the same dialog the Delete button opens, so it's
-  // never the only way to delete. A small move cancels (it's a scroll).
-  let lpTimer: ReturnType<typeof setTimeout> | undefined;
-  let lpFired = false;
-  let lpStartX = 0;
-  let lpStartY = 0;
-  let lastTouchEndMs = 0;
-
-  els.list.addEventListener(
-    'touchstart',
-    (e) => {
-      const item = (e.target as Element | null)?.closest('.hist-item') as HTMLElement | null;
-      const id = item?.dataset.id;
-      if (!id) return;
-      const t = e.touches[0];
-      if (!t) return;
-      lpFired = false;
-      lpStartX = t.clientX;
-      lpStartY = t.clientY;
-      lpTimer = setTimeout(() => {
-        lpFired = true;
-        if (typeof navigator.vibrate === 'function') {
-          try {
-            navigator.vibrate(15);
-          } catch {
-            /* vibration not available — gesture still works */
-          }
-        }
-        openDeleteDialog(id);
-      }, LONG_PRESS_MS);
-    },
-    { passive: true },
-  );
-  els.list.addEventListener(
-    'touchmove',
-    (e) => {
-      if (lpTimer === undefined) return;
-      const t = e.touches[0];
-      if (!t) return;
-      if (
-        Math.abs(t.clientX - lpStartX) > MOVE_THRESHOLD_PX ||
-        Math.abs(t.clientY - lpStartY) > MOVE_THRESHOLD_PX
-      ) {
-        clearTimeout(lpTimer);
-        lpTimer = undefined;
-      }
-    },
-    { passive: true },
-  );
-  const cancelLongPress = (): void => {
-    if (lpTimer !== undefined) {
-      clearTimeout(lpTimer);
-      lpTimer = undefined;
-    }
-  };
-  els.list.addEventListener(
-    'touchend',
-    () => {
-      cancelLongPress();
-      lastTouchEndMs = Date.now();
-    },
-    { passive: true },
-  );
-  els.list.addEventListener('touchcancel', cancelLongPress, { passive: true });
-  // A long press synthesises a click on touch-end; suppress it so the row
-  // doesn't navigate after the dialog opened. Capture phase beats the link.
-  els.list.addEventListener(
-    'click',
-    (e) => {
-      if (!lpFired) return;
-      e.preventDefault();
-      e.stopPropagation();
-      lpFired = false;
-    },
-    true,
-  );
-  // Suppress the native long-press menu (Android) / callout (iOS) on the rows.
-  // Only when a touch caused it, so desktop right-click is unaffected.
-  els.list.addEventListener('contextmenu', (e) => {
-    if (Date.now() - lastTouchEndMs < 1000) e.preventDefault();
   });
 
   els.clearBtn.addEventListener('click', openClearDialog);
