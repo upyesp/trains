@@ -459,6 +459,13 @@ h1.station {
   align-items: center;
   column-gap: 16px;
 }
+/* Platform page: there is no platform column (the page is one platform), so
+   the board collapses to a three-track Time / Destination / Status grid. */
+.board-cols.no-plat,
+.board.no-plat .svc {
+  grid-template-columns: 9.5rem 1fr 6rem;
+  grid-template-areas: "time dest status";
+}
 /* Place cells by name so the DOM order is free to follow the screen-reader
    reading order (platform last) without reshuffling the desktop columns. */
 .svc-time, .col-time { grid-area: time; }
@@ -537,12 +544,6 @@ h1.station {
 }
 .plat-link:hover { color: var(--amber); }
 
-/* Platform page section headings (departures / arrivals lists). */
-.plat-section { margin-top: 26px; }
-.plat-title {
-  font-family: var(--sans); font-weight: 600; font-size: 1.05rem;
-  color: var(--fg); margin: 0 0 10px;
-}
 /* Desktop board + calling points: fixed chip size so the provisional /
    at-platform captions don't make the chip wider or taller than a confirmed
    one. Board chips: 5.5rem wide (fits "provisional" on one line, matches the
@@ -554,9 +555,6 @@ h1.station {
 @media (min-width: 561px) {
   .svc-plat .plat { width: 5.5rem; height: 3.6rem; }
   .stop-plat .plat { height: 5.4rem; }
-  /* Platform page: status-only flag has no number, so size to its content
-     instead of the fixed chip box (keeps it centred in the 5.5rem column). */
-  .svc-plat .plat.plat-flag { width: auto; height: auto; min-width: 0; }
 }
 
 .chip {
@@ -698,6 +696,13 @@ h2.stops-title {
     row-gap: 6px;
     padding: 14px 16px;
   }
+  /* Platform page on phones: no platform row, so the card is just time +
+     status on the top line and destination full-width below it. */
+  .board.no-plat .svc {
+    grid-template-areas:
+      "time   status"
+      "dest   dest";
+  }
   .svc-time   { grid-area: time; min-width: 0; }
   .svc-status { grid-area: status; justify-self: end; text-align: right; }
   .svc-dest   { grid-area: dest; min-width: 0; }
@@ -716,9 +721,6 @@ h2.stops-title {
      width and its caption / number / state centre within it (the chip is a
      centred column flex). Desktop keeps its fluid min-width. */
   .plat { width: 100%; }
-  /* Platform page status flag: no number, so don't stretch to a full-width
-     bar — render as a compact badge on its own line. */
-  .plat.plat-flag { width: auto; }
   /* Stack a delayed time (scheduled over expected) so its column can't force
      the platform off-screen - a horizontal nowrap '08:05 -> 08:11' (~135px)
      made the first track too wide on narrow phones; stacked it's ~61px. The

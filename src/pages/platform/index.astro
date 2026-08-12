@@ -3,10 +3,11 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 
 // Per-platform board page. Static SSG shell; the client (platform-client.ts)
 // reads ?station=<CRS>&platform=<number> from the URL (so the page is
-// shareable and survives "add to home screen"), fetches both directions of
-// the station's board from the Worker with a one-hour lookback, and lists the
-// services that use this platform. Reached by clicking a platform number on
-// the station board or the calling-points list.
+// shareable and survives "add to home screen"), fetches the station's board
+// for the active direction (Departures / Arrivals tabs, like the station
+// board) with a one-hour lookback, and lists the services that use this
+// platform. Reached by clicking a platform number on the station board or the
+// calling-points list.
 //
 // `||` (not ??) so an empty/unset var falls back to the live Worker.
 const apiBase = import.meta.env.PUBLIC_API || 'https://trains-api.upyesp.workers.dev';
@@ -24,33 +25,48 @@ const mock = import.meta.env.PUBLIC_MOCK === 'true';
     <p class="page-lede" id="plat-lede"></p>
   </section>
 
-  <p class="as-of">
-    <span id="as-of">As of --:--</span>
-    <span class="stale" id="stale-note" role="status"></span>
-  </p>
+  <div class="tabs" role="tablist" aria-label="Board type" id="tablist">
+    <button
+      role="tab"
+      id="tab-dep"
+      data-kind="departures"
+      aria-selected="true"
+      aria-controls="plat-board"
+      tabindex="0">Departures</button
+    >
+    <button
+      role="tab"
+      id="tab-arr"
+      data-kind="arrivals"
+      aria-selected="false"
+      aria-controls="plat-board"
+      tabindex="-1">Arrivals</button
+    >
+  </div>
 
-  <section class="plat-section" aria-labelledby="plat-dep-title">
-    <h2 class="plat-title" id="plat-dep-title">Departures</h2>
-    <div class="board-cols" aria-hidden="true">
+  <section
+    id="plat-board"
+    class="board-panel"
+    role="tabpanel"
+    aria-labelledby="tab-dep"
+    tabindex="-1"
+    data-api={apiBase}
+    data-mock={mock ? 'true' : 'false'}
+  >
+    <p class="as-of">
+      <span id="as-of">As of --:--</span>
+      <span class="stale" id="stale-note" role="status"></span>
+    </p>
+    <div class="board-cols no-plat" aria-hidden="true">
       <span class="col-time">Time</span>
       <span class="col-dest">Destination</span>
-      <span class="col-plat">Platform</span>
       <span class="col-status">Status</span>
     </div>
-    <ol class="board" id="plat-dep" aria-label="Departures from this platform" data-api={apiBase} data-mock={mock ? 'true' : 'false'}>
-      <li class="board-msg">Loading platform…</li>
-    </ol>
-  </section>
-
-  <section class="plat-section" aria-labelledby="plat-arr-title">
-    <h2 class="plat-title" id="plat-arr-title">Arrivals</h2>
-    <div class="board-cols" aria-hidden="true">
-      <span class="col-time">Time</span>
-      <span class="col-dest">From</span>
-      <span class="col-plat">Platform</span>
-      <span class="col-status">Status</span>
-    </div>
-    <ol class="board" id="plat-arr" aria-label="Arrivals at this platform">
+    <ol
+      class="board no-plat"
+      id="plat-body"
+      aria-label="Services at this platform"
+    >
       <li class="board-msg">Loading platform…</li>
     </ol>
   </section>
@@ -66,7 +82,7 @@ const mock = import.meta.env.PUBLIC_MOCK === 'true';
 
   <script>
     import { initPlatform } from '../../scripts/platform-client';
-    const root = document.getElementById('plat-dep');
+    const root = document.getElementById('plat-board');
     if (root instanceof HTMLElement) initPlatform(root);
   </script>
 </BaseLayout>
