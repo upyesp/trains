@@ -8,6 +8,7 @@
 // (paused while the tab is hidden) to keep expected times live.
 
 import { fmtClock, fmtDurationMin, fmtTime } from '../lib/format';
+import { recordServiceVisit } from '../lib/history';
 import { esc, platformChip } from '../lib/html';
 import { onStationCrsReady, stationCrs, stationLabel } from '../lib/station-codes';
 import type { CallingPoint, Platform, ServiceDetail, ServiceDetailResponse } from '../lib/types';
@@ -255,6 +256,7 @@ interface State {
   mock: boolean;
   prev: ServiceDetail | null;
   asAtMs: number | null;
+  recorded: boolean;
 }
 
 interface Elements {
@@ -282,7 +284,7 @@ export function initServiceDetail(root: HTMLElement): void {
   if (!back || !head || !body || !asOf || !staleNote) return;
   const els: Elements = { back, head, body, asOf, staleNote };
 
-  const state: State = { id, from, apiBase, mock, prev: null, asAtMs: null };
+  const state: State = { id, from, apiBase, mock, prev: null, asAtMs: null, recorded: false };
 
   els.back.innerHTML = backLinkHtml(state.from);
 
@@ -378,6 +380,12 @@ export function initServiceDetail(root: HTMLElement): void {
       render(resp.detail);
       setAsAt(resp.asAt, resp.stale);
       state.prev = resp.detail;
+      // Record the visit to History once (the first successful load) — never
+      // on the 30s refreshes, so visitedAt reflects when the page was opened.
+      if (!state.recorded && resp.detail.id && resp.detail.origin) {
+        state.recorded = true;
+        recordServiceVisit(resp.detail);
+      }
     } else if (state.prev && state.asAtMs !== null) {
       // Worker unreachable but we have a prior detail — keep it, mark stale.
       setAsAt(state.asAtMs, true);

@@ -1,0 +1,70 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+// History page: lists the calling-points (service detail) pages visited in the
+// last two weeks, newest first. Lives entirely in localStorage; the client
+// (history-client.ts) reads it, renders the list, and wires the per-line delete
+// (long-press or its Delete button — both open a confirmation dialog) and the
+// header's Clear-history button. Entries older than two weeks are dropped
+// automatically (RTT only serves service details for ~two weeks).
+---
+
+<BaseLayout
+  title="History — VIPTrains.org"
+  description="Calling points pages you have viewed in the last two weeks."
+>
+  <h1 class="page-title">History</h1>
+  <p class="page-lede">
+    Calling points pages you&rsquo;ve viewed in the last two weeks, newest first.
+    Items older than two weeks are removed automatically &mdash; the live data
+    source only keeps services for that long.
+  </p>
+
+  <section id="history-root">
+    <div class="history-toolbar">
+      <span id="history-count" class="history-count"></span>
+      <button id="history-clear" class="clear-btn" type="button" disabled>
+        Clear history
+      </button>
+    </div>
+
+    <!-- Visually-hidden polite region: announces deletions / clears to AT. -->
+    <span id="history-announce" class="visually-hidden" role="status" aria-live="polite"></span>
+
+    <ol
+      id="history-list"
+      class="history"
+      aria-label="Recently viewed calling points"
+      tabindex="-1"
+    >
+      <li class="board-msg">Loading…</li>
+    </ol>
+  </section>
+
+  <!-- Confirmation dialog, shared by per-line delete and Clear history.
+       Filled and driven by history-client.ts; hidden until opened. -->
+  <div
+    id="history-dialog"
+    class="dialog-overlay"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="history-dialog-title"
+    aria-describedby="history-dialog-body"
+    hidden
+  >
+    <div class="dialog-panel">
+      <h2 id="history-dialog-title" class="dialog-title"></h2>
+      <p id="history-dialog-body" class="dialog-body"></p>
+      <div class="dialog-actions">
+        <button type="button" id="history-dialog-cancel" class="dialog-btn">Cancel</button>
+        <button type="button" id="history-dialog-confirm" class="dialog-btn danger"></button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    import { initHistory } from '../scripts/history-client';
+    const root = document.getElementById('history-root');
+    if (root instanceof HTMLElement) initHistory(root);
+  </script>
+</BaseLayout>
