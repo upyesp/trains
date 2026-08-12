@@ -554,6 +554,9 @@ h1.station {
 @media (min-width: 561px) {
   .svc-plat .plat { width: 5.5rem; height: 3.6rem; }
   .stop-plat .plat { height: 5.4rem; }
+  /* Platform page: status-only flag has no number, so size to its content
+     instead of the fixed chip box (keeps it centred in the 5.5rem column). */
+  .svc-plat .plat.plat-flag { width: auto; height: auto; min-width: 0; }
 }
 
 .chip {
@@ -713,6 +716,9 @@ h2.stops-title {
      width and its caption / number / state centre within it (the chip is a
      centred column flex). Desktop keeps its fluid min-width. */
   .plat { width: 100%; }
+  /* Platform page status flag: no number, so don't stretch to a full-width
+     bar — render as a compact badge on its own line. */
+  .plat.plat-flag { width: auto; }
   /* Stack a delayed time (scheduled over expected) so its column can't force
      the platform off-screen - a horizontal nowrap '08:05 -> 08:11' (~135px)
      made the first track too wide on narrow phones; stacked it's ~61px. The

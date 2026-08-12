@@ -48,3 +48,24 @@ export function platformChip(p: Platform | null, href?: string): string {
   }
   return `<span class="plat">${label}${numberHtml}<span class="visually-hidden">, confirmed</span></span>`;
 }
+
+/**
+ * The per-platform-page status flag: the number is redundant there (the page
+ * title and lede already name the platform), so this shows only the per-service
+ * state that still varies. "At platform" (the train is stopped here now) and
+ * "Provisional" (only the timetabled platform, might change) render a compact
+ * flag reusing the .plat box look (at-platform prominent, provisional dashed);
+ * confirmed — the norm on a platform page — renders nothing. The .plat-flag
+ * modifier lets the layout CSS size this to its content rather than the
+ * fixed/full-width treatment the numbered chip gets.
+ */
+export function platformStatusChip(p: Platform | null): string {
+  if (!p) return '';
+  if (p.state === 'at-platform') {
+    return '<span class="plat at-platform plat-flag"><span class="state">At platform</span></span>';
+  }
+  if (p.state === 'provisional') {
+    return '<span class="plat provisional plat-flag"><span class="state">Provisional</span></span>';
+  }
+  return '';
+}

@@ -9,7 +9,7 @@
 // the desktop grid reads them into columns in that same order.
 
 import { fmtDurationMin, fmtTime } from './format';
-import { esc, platformChip } from './html';
+import { esc, platformChip, platformStatusChip } from './html';
 import type { Board, MeaningfulChange, Platform, Service } from './types';
 
 function delayMinutes(s: Service): number {
@@ -22,8 +22,13 @@ function delayMinutes(s: Service): number {
 
 /** The enclosing cell (platformCell) carries the screen-reader label and
  *  wraps the shared chip (src/lib/html), which owns the visible caption.
- *  When `crs` is given the chip number links to that station's platform page. */
-function platformCell(p: Platform | null, crs: string | null): string {
+ *  When `crs` is given the chip number links to that station's platform page.
+ *  When `statusOnly` is set (platform page) the redundant number is dropped and
+ *  only the per-service state flag is shown. */
+function platformCell(p: Platform | null, crs: string | null, statusOnly = false): string {
+  if (statusOnly) {
+    return `<div class="svc-plat">${platformStatusChip(p)}</div>`;
+  }
   // This visually-hidden label is the one screen readers announce; the visible
   // "Platform" caption now lives inside the chip (platformChip).
   const srLabel = p
@@ -70,17 +75,19 @@ function statusCell(s: Service): string {
   return '<div class="svc-status"></div>';
 }
 
-function rowHtml(s: Service, crs: string | null): string {
+function rowHtml(s: Service, crs: string | null, statusOnly = false): string {
   const cls = s.cancelled ? 'svc is-cancelled' : 'svc';
   // Only the station name is a link — not the whole row — so it's obvious
   // and hard to trigger accidentally (same pattern as calling-point stops).
-  return `<li class="svc-item"><div class="${cls}">${timeCell(s)}${destCell(s)}${statusCell(s)}${platformCell(s.platform, crs)}</div></li>`;
+  return `<li class="svc-item"><div class="${cls}">${timeCell(s)}${destCell(s)}${statusCell(s)}${platformCell(s.platform, crs, statusOnly)}</div></li>`;
 }
 
 /** All rows of a board as HTML, in the given order. `crs` (when given) makes
- *  each row's platform chip link to that station's platform page. */
-export function boardRowsHtml(services: Service[], crs: string | null): string {
-  return services.map((s) => rowHtml(s, crs)).join('');
+ *  each row's platform chip link to that station's platform page. `statusOnly`
+ *  (platform page) drops the redundant platform number, keeping only the
+ *  per-service state flag. */
+export function boardRowsHtml(services: Service[], crs: string | null, statusOnly = false): string {
+  return services.map((s) => rowHtml(s, crs, statusOnly)).join('');
 }
 
 // ---- Announcement phrasing (mirrors diffBoards output) ----

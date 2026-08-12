@@ -59,8 +59,10 @@ interface Elements {
 }
 
 function renderList(el: HTMLOListElement, board: Board, emptyMsg: string): void {
-  // crs is null: this page's chips are plain (they'd only self-link).
-  el.innerHTML = board.services.length === 0 ? emptyMsg : boardRowsHtml(board.services, null);
+  // statusOnly: every service is on this platform, so the redundant platform
+  // NUMBER is dropped — only the per-service state flag (at-platform/provisional)
+  // is kept. crs is null: this page's chips are plain (they'd only self-link).
+  el.innerHTML = board.services.length === 0 ? emptyMsg : boardRowsHtml(board.services, null, true);
 }
 
 export function initPlatform(depRoot: HTMLElement): void {
