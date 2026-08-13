@@ -6,3 +6,4 @@ dist/
 .astro/
 .env
 .env.*
+skills-lock.json
