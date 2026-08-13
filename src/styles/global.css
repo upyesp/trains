@@ -588,7 +588,7 @@ h1.station {
   color: var(--board-fg);
 }
 .svc-link:visited { color: var(--board-fg); }
-.svc-link:hover { color: var(--brand); }
+.svc-link:hover { color: var(--board-delay); }
 .svc-item { border-bottom: 1px solid var(--board-line); }
 .board > :last-child { border-bottom: 0; }
 
@@ -749,7 +749,7 @@ h2.stops-title {
   color: var(--board-fg);
 }
 .stop-link:visited { color: var(--board-fg); }
-.stop-link:hover { color: var(--brand); }
+.stop-link:hover { color: var(--board-delay); }
 .stop-time, .stop-station { min-width: 0; }
 /* Expected: "On time" (mute) / a delayed time (delay colour, mono) / "Cancelled". */
 .stop-exp { justify-self: end; text-align: right; white-space: nowrap; }
