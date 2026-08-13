@@ -327,20 +327,17 @@ header.site {
    handles the gap. No hover colour change — the click affordance is the
    underlined stations. */
 .hist-date { margin-top: 2px; font-size: .95rem; }
+/* The whole route — origin, arrow, destination — carries the row's click
+   affordance as ONE continuous GDS-style underline (same treatment as the
+   station-name links on the boards), amber on hover. The whole row is one
+   link, so this is a styled span, not a nested anchor. */
 .hist-route { font-family: var(--sans); font-weight: 600; font-size: 1rem;
-  min-width: 0; overflow-wrap: break-word; }
-/* The origin and destination carry the row's click affordance: the same
-   GDS-style underline as the station-name links on the boards, amber on
-   hover. The whole row is one link, so these are spans, not nested anchors. */
-.hist-origin,
-.hist-dest {
+  min-width: 0; overflow-wrap: break-word;
   color: var(--fg);
   text-decoration: underline;
   text-underline-offset: 0.15em;
-  text-decoration-thickness: from-font;
-}
-.hist-link:hover .hist-origin,
-.hist-link:hover .hist-dest { color: var(--amber); }
+  text-decoration-thickness: from-font; }
+.hist-link:hover .hist-route { color: var(--amber); }
 .hist-arrow { color: var(--fg-mute); margin: 0 2px; }
 .hist-meta { display: block; color: var(--fg-mute); font-size: .8rem; margin-top: 2px; }
 /* Delete button: icon-only, separated by a left rule; accessible name carries
