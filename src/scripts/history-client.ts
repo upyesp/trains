@@ -112,7 +112,7 @@ export function initHistory(root: HTMLElement): void {
         <a class="hist-link" href="${esc(e.url)}">
           <span class="hist-top">
             <span class="hist-time">${esc(time)}<span class="hist-date">${esc(fmtServiceDate(e.originTime))}</span></span>
-            <span class="hist-route">${esc(stationLabel(e.origin))} <span class="hist-arrow" aria-hidden="true">&rarr;</span> ${esc(stationLabel(e.destination))}</span>
+            <span class="hist-route"><span class="hist-origin">${esc(stationLabel(e.origin))}</span> <span class="hist-arrow" aria-hidden="true">&rarr;</span> <span class="hist-dest">${esc(stationLabel(e.destination))}</span></span>
           </span>
           <span class="hist-meta">${esc(e.operator)} &middot; Last visited ${esc(fmtWhen(e.visitedAt))}</span>
         </a>

@@ -317,7 +317,6 @@ header.site {
   color: var(--fg); text-decoration: none;
 }
 .hist-link:hover { background: var(--surface-2); }
-.hist-link:hover .hist-time { color: var(--amber); }
 .hist-top { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
 .hist-time { font-family: var(--mono); font-variant-numeric: tabular-nums;
   font-weight: 600; font-size: 1.1rem; flex: 0 0 auto;
@@ -325,10 +324,23 @@ header.site {
   line-height: 1.12; }
 /* The service's running date, under the time. Same mono/bold family as the
    time (inherited), just a step smaller; the thin space inside the date
-   handles the gap. The row hover's amber tint reaches it too. */
+   handles the gap. No hover colour change — the click affordance is the
+   underlined stations. */
 .hist-date { margin-top: 2px; font-size: .95rem; }
 .hist-route { font-family: var(--sans); font-weight: 600; font-size: 1rem;
   min-width: 0; overflow-wrap: break-word; }
+/* The origin and destination carry the row's click affordance: the same
+   GDS-style underline as the station-name links on the boards, amber on
+   hover. The whole row is one link, so these are spans, not nested anchors. */
+.hist-origin,
+.hist-dest {
+  color: var(--fg);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  text-decoration-thickness: from-font;
+}
+.hist-link:hover .hist-origin,
+.hist-link:hover .hist-dest { color: var(--amber); }
 .hist-arrow { color: var(--fg-mute); margin: 0 2px; }
 .hist-meta { display: block; color: var(--fg-mute); font-size: .8rem; margin-top: 2px; }
 /* Delete button: icon-only, separated by a left rule; accessible name carries
