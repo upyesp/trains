@@ -50,7 +50,9 @@ const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'S
 function fmtServiceDate(iso: string): string {
   const m = iso.slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!m) return '';
-  return `${Number(m[3])} ${MONTHS_SHORT[Number(m[2]) - 1]}`;
+  // Thin space (U+2009) between day and month: the mono font's full-width
+  // space reads as a wide gap next to a short day number.
+  return `${Number(m[3])}\u2009${MONTHS_SHORT[Number(m[2]) - 1]}`;
 }
 
 /** "10:00 London King's Cross to Edinburgh, 3 Aug" — the row's identity, used

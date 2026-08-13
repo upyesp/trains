@@ -323,11 +323,10 @@ header.site {
   font-weight: 600; font-size: 1.1rem; flex: 0 0 auto;
   display: inline-flex; flex-direction: column; align-items: flex-start;
   line-height: 1.12; }
-/* The service's running date, under the time. It inherits the time's full
-   mono/bold styling (no font/weight/size overrides) so the pair reads as one
-   consistent line of departure information — the row hover's amber tint
-   reaches it too. */
-.hist-date { margin-top: 2px; }
+/* The service's running date, under the time. Same mono/bold family as the
+   time (inherited), just a step smaller; the thin space inside the date
+   handles the gap. The row hover's amber tint reaches it too. */
+.hist-date { margin-top: 2px; font-size: .95rem; }
 .hist-route { font-family: var(--sans); font-weight: 600; font-size: 1rem;
   min-width: 0; overflow-wrap: break-word; }
 .hist-arrow { color: var(--fg-mute); margin: 0 2px; }
