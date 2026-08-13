@@ -43,11 +43,24 @@ function fmtWhen(epochMs: number): string {
   return `${date}, ${time}`;
 }
 
-/** "10:00 London King's Cross to Edinburgh" — the row's identity, used for the
- *  Delete button's accessible name and the confirmation dialog. Raw names (no
- *  CRS codes) keep it concise for speech. */
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** "3 Aug" — the service's running date, sliced verbatim from the naive
+ *  UK-local ISO (the same no-timezone-shift rule as fmtTime). */
+function fmtServiceDate(iso: string): string {
+  const m = iso.slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return '';
+  return `${Number(m[3])} ${MONTHS_SHORT[Number(m[2]) - 1]}`;
+}
+
+/** "10:00 London King's Cross to Edinburgh, 3 Aug" — the row's identity, used
+ *  for the Delete button's accessible name and the confirmation dialog. The
+ *  date is included because the same time+route recurs daily — without it the
+ *  list could hold indistinguishable entries. Raw names (no CRS codes) keep it
+ *  concise for speech. */
 function describe(e: HistoryEntry): string {
-  return `${fmtTime(e.originTime)} ${e.origin} to ${e.destination}`;
+  const date = fmtServiceDate(e.originTime);
+  return `${fmtTime(e.originTime)} ${e.origin} to ${e.destination}${date ? `, ${date}` : ''}`;
 }
 
 export function initHistory(root: HTMLElement): void {
@@ -96,10 +109,10 @@ export function initHistory(root: HTMLElement): void {
       <li class="hist-item" data-id="${esc(e.id)}">
         <a class="hist-link" href="${esc(e.url)}">
           <span class="hist-top">
-            <span class="hist-time">${esc(time)}</span>
+            <span class="hist-time">${esc(time)}<span class="hist-date">${esc(fmtServiceDate(e.originTime))}</span></span>
             <span class="hist-route">${esc(stationLabel(e.origin))} <span class="hist-arrow" aria-hidden="true">&rarr;</span> ${esc(stationLabel(e.destination))}</span>
           </span>
-          <span class="hist-meta">${esc(e.operator)} &middot; Visited ${esc(fmtWhen(e.visitedAt))}</span>
+          <span class="hist-meta">${esc(e.operator)} &middot; Last visited ${esc(fmtWhen(e.visitedAt))}</span>
         </a>
         <button type="button" class="hist-delete" data-id="${esc(e.id)}" aria-label="Delete ${esc(desc)} from history">
           ${TRASH_SVG}

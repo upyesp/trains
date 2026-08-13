@@ -320,7 +320,13 @@ header.site {
 .hist-link:hover .hist-time { color: var(--amber); }
 .hist-top { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
 .hist-time { font-family: var(--mono); font-variant-numeric: tabular-nums;
-  font-weight: 600; font-size: 1.1rem; flex: 0 0 auto; }
+  font-weight: 600; font-size: 1.1rem; flex: 0 0 auto;
+  display: inline-flex; flex-direction: column; align-items: flex-start;
+  line-height: 1.12; }
+/* The service's running date, under the time. Metadata: sans, small, muted
+   (stays muted on row hover, unlike the time itself which turns amber). */
+.hist-date { font-family: var(--sans); font-weight: 500; font-size: .72rem;
+  color: var(--fg-mute); margin-top: 2px; letter-spacing: .02em; }
 .hist-route { font-family: var(--sans); font-weight: 600; font-size: 1rem;
   min-width: 0; overflow-wrap: break-word; }
 .hist-arrow { color: var(--fg-mute); margin: 0 2px; }
