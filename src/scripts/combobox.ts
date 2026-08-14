@@ -76,6 +76,10 @@ export function initCombobox(combo: HTMLElement, opts: ComboboxOptions = {}): vo
   let savedBodyMinHeight = '';
   let bodyRoomAdded = false;
   let statusEl: HTMLElement | null = null;
+  /** The user's latest open/close intent. The station list loads async, so a
+   *  paint() that runs when the fetch lands must respect it: re-open only if
+   *  the field was left open (never pop the popup open after a blur). */
+  let openWanted = false;
 
   /** The combobox's polite live region (created once, next to the widget):
       announces loading / no-match / error states. Kept OUTSIDE the listbox,
@@ -166,6 +170,7 @@ export function initCombobox(combo: HTMLElement, opts: ComboboxOptions = {}): vo
   }
 
   function open(): void {
+    openWanted = true;
     // aria-expanded belongs on the element with role=combobox (the input) —
     // that's what screen readers announce; the wrapper div carries no role.
     input.setAttribute('aria-expanded', 'true');
@@ -173,6 +178,7 @@ export function initCombobox(combo: HTMLElement, opts: ComboboxOptions = {}): vo
     clampListHeight();
   }
   function close(): void {
+    openWanted = false;
     input.setAttribute('aria-expanded', 'false');
     list.hidden = true;
     list.style.maxHeight = ''; // restore the CSS default
@@ -190,7 +196,9 @@ export function initCombobox(combo: HTMLElement, opts: ComboboxOptions = {}): vo
     active = -1;
     if (!data) {
       status('Loading stations…');
-      close();
+      // Keep the popup open (empty): the listbox may only contain options, so
+      // while loading there is nothing to render — but the open box is the
+      // visible "something happened", and options appear the moment data lands.
       return;
     }
     matches = searchStations(data, input.value, 100);
@@ -210,6 +218,11 @@ export function initCombobox(combo: HTMLElement, opts: ComboboxOptions = {}): vo
       )
       .join('');
     input.setAttribute('aria-activedescendant', '');
+    // Re-open when the user left the field open: the typical race is focus
+    // before stations.json resolves — open() ran, the loading paint left the
+    // box open, and this paint fills it. Guarded by openWanted so a stale
+    // async paint after blur can't reopen the popup uninvited.
+    if (openWanted) open();
   }
 
   function openAndPaint(): void {
