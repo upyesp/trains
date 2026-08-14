@@ -31,7 +31,7 @@ const { label = 'Change station', initialStation = null } = Astro.props;
   </div>
 </div>
 
-<script>
+<script define:vars={{ initialStation }}>
   import { initCombobox } from '../scripts/combobox';
   const combo = document.getElementById('combo');
   if (combo instanceof HTMLElement) {
