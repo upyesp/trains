@@ -11,7 +11,7 @@ interface Props {
 const { label = 'Change station', initialStation = null } = Astro.props;
 ---
 
-<div class="search">
+<div class="search" data-initial-crs={initialStation?.crs ?? ''} data-initial-name={initialStation?.name ?? ''}>
   <label for="station-input">{label}</label>
   <div class="combo" id="combo">
     <input
@@ -31,7 +31,7 @@ const { label = 'Change station', initialStation = null } = Astro.props;
   </div>
 </div>
 
-<script define:vars={{ initialStation }}>
+<script>
   import { initCombobox } from '../scripts/combobox';
   const combo = document.getElementById('combo');
   if (combo instanceof HTMLElement) {
@@ -46,6 +46,13 @@ const { label = 'Change station', initialStation = null } = Astro.props;
       const qs = params.toString();
       history.replaceState(null, '', qs ? `/?${qs}` : '/');
     }
+    // The station being viewed travels as data attributes on the .search
+    // wrapper (server-rendered) rather than define:vars, whose IIFE wrapper
+    // breaks the hoisted import.
+    const wrap = combo.parentElement;
+    const crs = wrap?.dataset.initialCrs ?? '';
+    const name = wrap?.dataset.initialName ?? '';
+    const initialStation = crs && name ? { crs, name } : null;
     initCombobox(combo, initialName ? { initialName } : initialStation ? { initialStation } : {});
   }
 </script>
