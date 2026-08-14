@@ -148,9 +148,6 @@ header.site {
   margin-bottom: 28px;
 }
 .brand-wrap { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
-/* The brand title is an h1 wrapping a link: strip the heading defaults
-   (the anchor carries the type size), keep the header compact. */
-.brand-h { margin: 0; font: inherit; line-height: 1.2; }
 .brand {
   font-family: var(--display);
   font-weight: 700; font-size: 1.35rem;
