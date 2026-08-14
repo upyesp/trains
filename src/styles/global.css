@@ -147,13 +147,15 @@ header.site {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   margin-bottom: 28px;
 }
-.brand-wrap { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand-wrap { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+/* The brand title is an h1 wrapping a link: strip the heading defaults
+   (the anchor carries the type size), keep the header compact. */
+.brand-h { margin: 0; font: inherit; line-height: 1.2; }
 .brand {
-  display: inline-flex; align-items: center;
-  text-decoration: none; color: var(--fg);
-}
-.brand-logo {
-  display: block; height: 2rem; width: auto;
+  font-family: var(--display);
+  font-weight: 700; font-size: 1.35rem;
+  letter-spacing: -0.02em; color: var(--fg);
+  text-decoration: none;
 }
 .brand-tag { color: var(--fg-mute); font-size: .8rem; }
 
@@ -682,8 +684,6 @@ h1.station {
 @media (min-width: 561px) {
   .svc-plat .plat { width: 5.5rem; height: 3.6rem; }
   .stop-plat .plat { height: 5.4rem; }
-  /* The brand logo scales up on desktop; phones keep the compact 2rem. */
-  .brand-logo { height: 2.6rem; }
 }
 
 .chip {
