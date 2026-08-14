@@ -163,6 +163,24 @@ export function initHistory(root: HTMLElement): void {
   let dialogOnConfirm: (() => void) | null = null;
   let dialogFocusables: HTMLButtonElement[] = [];
 
+  /** Make everything except the dialog inert while it is open (best effort:
+     aria-modal is advisory; inert makes the containment real for browsers
+     that support it). No-op where inert is unavailable. */
+  function setBackgroundInert(on: boolean): void {
+    const targets: Element[] = [];
+    const header = document.querySelector('header.site');
+    const footer = document.querySelector('footer.site');
+    const main = document.getElementById('main');
+    if (header) targets.push(header);
+    if (footer) targets.push(footer);
+    if (main) {
+      for (const child of Array.from(main.children)) {
+        if (child !== els.dialog) targets.push(child);
+      }
+    }
+    for (const t of targets) t.toggleAttribute('inert', on);
+  }
+
   function openDialog(opts: {
     title: string;
     body: string;
@@ -176,6 +194,7 @@ export function initHistory(root: HTMLElement): void {
     dialogTrigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     els.dialog.hidden = false;
     document.body.style.overflow = 'hidden';
+    setBackgroundInert(true);
     dialogFocusables = [els.dialogCancel, els.dialogConfirm];
     document.addEventListener('keydown', onDialogKey);
     els.dialog.addEventListener('click', onBackdropClick);
@@ -188,6 +207,7 @@ export function initHistory(root: HTMLElement): void {
   function closeDialog(): void {
     els.dialog.hidden = true;
     document.body.style.overflow = '';
+    setBackgroundInert(false);
     document.removeEventListener('keydown', onDialogKey);
     els.dialog.removeEventListener('click', onBackdropClick);
     els.dialogConfirm.removeEventListener('click', onConfirmClick);

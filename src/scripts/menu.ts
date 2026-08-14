@@ -44,6 +44,19 @@ export function initMenu(root: ParentNode): void {
   const themeButtons = Array.from(
     panel.querySelectorAll<HTMLButtonElement>('[data-theme-set]'),
   );
+  // Mark the menu link for the CURRENT page (aria-current="page") so
+  // screen-reader users know where they are — the site-nav equivalent of a
+  // bolded tab. Works for "/" (home) and trailing-slash variants alike.
+  const here = window.location.pathname.replace(/\/+$/, '') || '/';
+  for (const link of Array.from(panel.querySelectorAll<HTMLAnchorElement>('.menu-link'))) {
+    let target = '/';
+    try {
+      target = new URL(link.href).pathname.replace(/\/+$/, '') || '/';
+    } catch {
+      /* leave "/" — malformed href can't be current */
+    }
+    if (target === here) link.setAttribute('aria-current', 'page');
+  }
   // normalise: sync the control + storage with whatever the head script set
   applyTheme(currentTheme(), themeButtons);
 

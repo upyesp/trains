@@ -17,6 +17,11 @@
 
 :root {
   /* ---- Raw palette values ---- */
+  /* Focus-ring colour. The default (dark) theme uses the bright amber, which
+     clears 3:1 against every dark surface (WCAG 1.4.11 non-text contrast).
+     The light theme overrides it below: amber on white/paper is <2:1, so it
+     uses the dark amber instead. */
+  --focus-ring: #f0b429;
   /* Board palette (dark) */
   --ink: #0d1117;
   --panel: #151b23;
@@ -69,6 +74,9 @@
 
 [data-theme="light"] {
   color-scheme: light;
+  /* Focus ring: bright amber fails 1.4.11 on the light chrome — use the dark
+     amber (~7:1 on white) instead. */
+  --focus-ring: #92400e;
   /* chrome (light concourse) */
   --bg: var(--paper);
   --surface: #ffffff;
@@ -116,7 +124,7 @@ body {
   white-space: nowrap; border: 0;
 }
 :focus-visible {
-  outline: 2px solid var(--amber);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
   border-radius: 3px;
 }
@@ -207,6 +215,9 @@ header.site {
   min-height: 40px;
 }
 .menu-link:hover { background: var(--surface-2); }
+/* The current page's menu link (aria-current="page" is announced by AT;
+   sighted users get weight + colour, never colour alone). */
+.menu-link[aria-current="page"] { color: var(--fg); font-weight: 600; }
 
 /* ---------- Contact page ---------- */
 .page-title {
@@ -476,7 +487,7 @@ h1.station {
   color: var(--fg);
 }
 .combo input::placeholder { color: var(--fg-mute); }
-.combo[aria-expanded="true"] input,
+.combo input[aria-expanded="true"],
 .combo input:focus-visible { border-color: var(--fg); }
 .combo-list {
   position: absolute; left: 0; right: 0; top: calc(100% + 6px);
@@ -485,7 +496,6 @@ h1.station {
   border-radius: 10px; box-shadow: var(--shadow);
   max-height: 280px; overflow-y: auto; z-index: 20;
 }
-.combo-list .empty { padding: 10px 12px; color: var(--fg-mute); font-size: .9rem; }
 .combo-list .opt {
   display: flex; justify-content: space-between; gap: 12px;
   padding: 9px 12px; border-radius: 7px; cursor: pointer;
@@ -495,7 +505,7 @@ h1.station {
   font-family: var(--mono); font-size: .8rem; color: var(--fg-mute);
 }
 .combo-list .opt[aria-selected="true"] {
-  background: var(--surface-2); outline: 2px solid var(--amber); outline-offset: -2px;
+  background: var(--surface-2); outline: 2px solid var(--focus-ring); outline-offset: -2px;
 }
 
 /* ---------- Tabs: Departures / Arrivals ---------- */

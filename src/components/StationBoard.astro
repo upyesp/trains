@@ -55,6 +55,7 @@ const mock = import.meta.env.PUBLIC_MOCK === 'true';
         type="text"
         role="combobox"
         aria-expanded="false"
+        aria-haspopup="listbox"
         aria-controls="calls-list"
         aria-autocomplete="list"
         aria-activedescendant=""
@@ -91,7 +92,7 @@ const mock = import.meta.env.PUBLIC_MOCK === 'true';
     <span class="col-status">Status</span>
   </div>
   <ol class="board" id="board-body" aria-label={`Live departures from ${stationName}`}>
-    <li class="board-msg">Loading live board…</li>
+    <li class="board-msg">This live board needs JavaScript — enable it to see today’s services.</li>
   </ol>
 </section>
 

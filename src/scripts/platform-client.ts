@@ -26,6 +26,7 @@ const CRS_RE = /^[A-Za-z]{3}$/;
 const PLATFORM_RE = /^[A-Za-z0-9]{1,4}$/;
 
 const EMPTY_ROW = '<li class="board-msg">No services at this platform in the next two hours.</li>';
+const LOADING_ROW = '<li class="board-msg">Loading platform…</li>';
 const ERROR_ROW = '<li class="board-msg error">Couldn\u2019t load the live board. We\u2019ll keep trying.</li>';
 
 /** A service uses this platform when its platform number matches (case-insensitive). */
@@ -183,7 +184,7 @@ export function initPlatform(root: HTMLElement): void {
         if (k === state.kind) return;
         state.kind = k;
         state.prev = null; // don't diff across kinds
-        els.body.innerHTML = '<li class="board-msg">Loading platform…</li>';
+        els.body.innerHTML = LOADING_ROW;
         syncTabUi();
         void refresh();
       });
@@ -250,6 +251,8 @@ export function initPlatform(root: HTMLElement): void {
 
   setupTabs();
   syncTabUi();
+  // Replace the static no-JS notice (JS is clearly running by this point).
+  els.body.innerHTML = LOADING_ROW;
   void refresh();
   start();
 }

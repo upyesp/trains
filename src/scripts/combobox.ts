@@ -75,6 +75,26 @@ export function initCombobox(combo: HTMLElement, opts: ComboboxOptions = {}): vo
   let selected: Station | null = null;
   let savedBodyMinHeight = '';
   let bodyRoomAdded = false;
+  let statusEl: HTMLElement | null = null;
+
+  /** The combobox's polite live region (created once, next to the widget):
+      announces loading / no-match / error states. Kept OUTSIDE the listbox,
+      whose only children may be options (WAI-ARIA listbox semantics). */
+  function status(message: string): void {
+    if (!statusEl) {
+      statusEl = document.createElement('span');
+      statusEl.className = 'visually-hidden';
+      statusEl.setAttribute('role', 'status'); // implies aria-live=polite
+      combo.insertAdjacentElement('afterend', statusEl);
+    }
+    statusEl.textContent = '';
+    if (message) {
+      // Clear-then-write on the next frame so a repeated message re-announces.
+      requestAnimationFrame(() => {
+        if (statusEl) statusEl.textContent = message;
+      });
+    }
+  }
 
   /** Mobile: scroll so the input sits near the top of the visible area, leaving
    *  the soft keyboard room only below the dropdown that opens beneath it.
@@ -146,12 +166,14 @@ export function initCombobox(combo: HTMLElement, opts: ComboboxOptions = {}): vo
   }
 
   function open(): void {
-    combo.setAttribute('aria-expanded', 'true');
+    // aria-expanded belongs on the element with role=combobox (the input) —
+    // that's what screen readers announce; the wrapper div carries no role.
+    input.setAttribute('aria-expanded', 'true');
     list.hidden = false;
     clampListHeight();
   }
   function close(): void {
-    combo.setAttribute('aria-expanded', 'false');
+    input.setAttribute('aria-expanded', 'false');
     list.hidden = true;
     list.style.maxHeight = ''; // restore the CSS default
     input.setAttribute('aria-activedescendant', '');
@@ -167,20 +189,24 @@ export function initCombobox(combo: HTMLElement, opts: ComboboxOptions = {}): vo
     // Reset highlight on every render: predictable, and ArrowDown re-establishes it.
     active = -1;
     if (!data) {
-      list.innerHTML = `<li class="empty" role="status">Loading stations…</li>`;
-      input.setAttribute('aria-activedescendant', '');
+      status('Loading stations…');
+      close();
       return;
     }
     matches = searchStations(data, input.value, 100);
     if (matches.length === 0) {
-      list.innerHTML = `<li class="empty" role="status">No stations match “${esc(input.value)}”.</li>`;
-      input.setAttribute('aria-activedescendant', '');
+      status(`No stations match “${input.value}”.`);
+      close();
       return;
     }
+    status('');
+    // Option ids are namespaced by the listbox's own id: a station page runs
+    // TWO comboboxes (change station + calling-at filter), and bare opt-N ids
+    // would collide, breaking aria-activedescendant resolution.
     list.innerHTML = matches
       .map(
         (st, i) =>
-          `<li id="opt-${i}" class="opt" role="option" aria-selected="false" data-i="${i}"><span>${esc(st.name)}</span><code>${esc(st.crs)}</code></li>`,
+          `<li id="${list.id}-opt-${i}" class="opt" role="option" aria-selected="false" data-i="${i}"><span>${esc(st.name)}</span><code>${esc(st.crs)}</code></li>`,
       )
       .join('');
     input.setAttribute('aria-activedescendant', '');
@@ -192,12 +218,12 @@ export function initCombobox(combo: HTMLElement, opts: ComboboxOptions = {}): vo
       paint();
       return;
     }
-    paint(); // shows the loading row
+    paint(); // announces "Loading stations…" via the status region
     ensureLoaded()
       .then(() => paint())
       .catch(() => {
-        list.innerHTML = `<li class="empty" role="alert">Couldn\u2019t load the station list.</li>`;
-        input.setAttribute('aria-activedescendant', '');
+        status('Couldn\u2019t load the station list.');
+        close();
       });
   }
 
@@ -211,7 +237,7 @@ export function initCombobox(combo: HTMLElement, opts: ComboboxOptions = {}): vo
         li.setAttribute('aria-selected', idx === active ? 'true' : 'false');
       }
     }
-    input.setAttribute('aria-activedescendant', `opt-${active}`);
+    input.setAttribute('aria-activedescendant', `${list.id}-opt-${active}`);
     const el = list.children[active];
     if (el instanceof HTMLElement) el.scrollIntoView({ block: 'nearest' });
   }
@@ -249,10 +275,12 @@ export function initCombobox(combo: HTMLElement, opts: ComboboxOptions = {}): vo
         break;
       case 'Home':
         e.preventDefault();
+        if (list.hidden) openAndPaint();
         setActive(0);
         break;
       case 'End':
         e.preventDefault();
+        if (list.hidden) openAndPaint();
         setActive(matches.length - 1);
         break;
       case 'Escape':
