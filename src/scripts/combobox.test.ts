@@ -53,7 +53,8 @@ function pendingFetch(): { mock: ReturnType<typeof vi.fn>; resolve: (stations: S
 
 beforeEach(() => {
   document.body.innerHTML = '';
-  // jsdom lacks matchMedia and requestAnimationFrame; the combobox probes both.
+  // jsdom lacks matchMedia, requestAnimationFrame and scrollIntoView; the
+  // combobox probes the first two and uses the last when an option is active.
   window.matchMedia = ((query: string) => ({
     matches: false,
     media: query,
@@ -68,6 +69,7 @@ beforeEach(() => {
     cb(0);
     return 0;
   }) as unknown as typeof window.requestAnimationFrame;
+  Element.prototype.scrollIntoView = () => {};
 });
 
 afterEach(() => {
@@ -92,6 +94,12 @@ describe('combobox open/close flow', () => {
     expect(list.hidden).toBe(false);
     expect(list.querySelector('#station-list-opt-0')?.textContent).toContain('Leeds');
     expect(input.getAttribute('aria-expanded')).toBe('true');
+    // No option is highlighted yet: activedescendant must be ABSENT.
+    expect(input.hasAttribute('aria-activedescendant')).toBe(false);
+
+    // ArrowDown highlights the first option and publishes its id.
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    expect(input.getAttribute('aria-activedescendant')).toBe('station-list-opt-0');
   });
 
   it('does not reopen the popup when the load lands after the user has moved on', async () => {

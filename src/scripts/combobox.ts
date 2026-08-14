@@ -182,7 +182,7 @@ export function initCombobox(combo: HTMLElement, opts: ComboboxOptions = {}): vo
     input.setAttribute('aria-expanded', 'false');
     list.hidden = true;
     list.style.maxHeight = ''; // restore the CSS default
-    input.setAttribute('aria-activedescendant', '');
+    input.removeAttribute('aria-activedescendant');
     active = -1;
     if (bodyRoomAdded) {
       document.body.style.minHeight = savedBodyMinHeight;
@@ -217,7 +217,9 @@ export function initCombobox(combo: HTMLElement, opts: ComboboxOptions = {}): vo
           `<li id="${list.id}-opt-${i}" class="opt" role="option" aria-selected="false" data-i="${i}"><span>${esc(st.name)}</span><code>${esc(st.crs)}</code></li>`,
       )
       .join('');
-    input.setAttribute('aria-activedescendant', '');
+    // No option is highlighted after a fresh render; aria-activedescendant
+    // should be ABSENT (not empty) until ArrowDown picks one.
+    input.removeAttribute('aria-activedescendant');
     // Re-open when the user left the field open: the typical race is focus
     // before stations.json resolves — open() ran, the loading paint left the
     // box open, and this paint fills it. Guarded by openWanted so a stale

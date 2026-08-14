@@ -173,6 +173,10 @@ export function initPlatform(root: HTMLElement): void {
       t.setAttribute('aria-selected', on ? 'true' : 'false');
       t.tabIndex = on ? 0 : -1;
     }
+    // The tabpanel's accessible name must follow the ACTIVE tab, not the
+    // tab that happens to be first in the markup.
+    const activeTab = els.tabs.find((t) => t.dataset.kind === state.kind) ?? els.tabs[0];
+    if (activeTab) root.setAttribute('aria-labelledby', activeTab.id);
     updateBoardLabel();
   }
 

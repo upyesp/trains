@@ -324,7 +324,8 @@ export function initServiceDetail(root: HTMLElement): void {
   });
 
   if (!id) {
-    els.head.innerHTML = '';
+    // Keep the page's h1: the error state must not leave a headingless page.
+    els.head.innerHTML = '<h1 class="service-title">Service details</h1>';
     els.body.innerHTML = `<p class="board-msg">${NO_ID}</p>`;
     return;
   }
@@ -371,7 +372,8 @@ export function initServiceDetail(root: HTMLElement): void {
     if (notFound) {
       // A 404 is definitive for this id — it won't recover, so stop refreshing.
       stop();
-      els.head.innerHTML = '';
+      // Keep the page's h1: the error state must not leave a headingless page.
+      els.head.innerHTML = '<h1 class="service-title">Service details</h1>';
       els.body.innerHTML = `<p class="board-msg error">${NOT_FOUND}</p>`;
       els.staleNote.textContent = '';
       return;
