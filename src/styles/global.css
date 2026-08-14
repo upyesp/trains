@@ -386,6 +386,27 @@ header.site {
 .privacy p { margin: 0 0 12px; color: var(--fg); }
 .privacy ul { margin: 0 0 12px; padding-left: 1.25rem; display: grid; gap: 6px; }
 .privacy li { color: var(--fg); }
+/* What/Why table: a real <table> (two labelled columns is genuine tabular
+   data, unlike the boards). Header styled like the site's field labels;
+   cells top-aligned so paired rows read across. */
+.privacy table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0 0 12px;
+  font-size: .95rem;
+}
+.privacy th,
+.privacy td {
+  border: 1px solid var(--border);
+  padding: 10px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+.privacy thead th {
+  font-size: .78rem; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--fg-mute); font-weight: 600;
+}
+.privacy td strong { color: var(--fg); }
 .privacy a,
 .privacy-note a {
   color: var(--fg);
