@@ -24,7 +24,7 @@ const mock = import.meta.env.PUBLIC_MOCK === 'true';
     <span class="clock" id="clock" aria-label="Current time">--:--:--</span>
   </div>
 
-  <StationSearch />
+  <StationSearch initialStation={{ crs, name: stationName }} />
 </section>
 
 <div class="tabs" role="tablist" aria-label="Board type" id="tablist">

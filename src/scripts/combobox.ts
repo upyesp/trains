@@ -33,6 +33,10 @@ export interface ComboboxOptions {
    *  exact match it lists that station's departures; otherwise the dropdown
    *  opens with the closest matches for the user to pick. */
   initialName?: string | null;
+  /** Committed station to show in the input (navigate mode): the board page's
+   *  "change station" box prefills with the station being viewed and restores
+   *  it on blur/Escape, mirroring the "calling at" filter's remembered pick. */
+  initialStation?: { crs: string; name: string } | null;
 }
 
 const ESC: Record<string, string> = {
@@ -133,10 +137,18 @@ export function initCombobox(combo: HTMLElement, opts: ComboboxOptions = {}): vo
     window.location.href = `${siteBase()}/stations/${st.crs.toLowerCase()}`;
   }
 
-  /** Reflect the current selection into the input + clear button (filter mode). */
+  /** Reflect the committed selection into the input (+ clear button in filter
+   *  mode). Also runs for the board's change-station box, whose committed
+   *  value is the station being viewed. */
   function applySelected(): void {
-    if (!selectable) return;
-    input.value = selected ? selected.name : '';
+    if (!selected) {
+      if (selectable) {
+        input.value = '';
+        if (clearBtn) clearBtn.hidden = true;
+      }
+      return;
+    }
+    input.value = selected.name;
     if (clearBtn) clearBtn.hidden = !selected;
   }
 
@@ -272,8 +284,8 @@ export function initCombobox(combo: HTMLElement, opts: ComboboxOptions = {}): vo
     pinInputToTop();
     if (isTouch) requestAnimationFrame(pinInputToTop); // win the race with iOS's own scroll-into-view
     if (list.hidden) openAndPaint();
-    // In filter mode, select-all so typing a new query replaces the current pick.
-    if (selectable && selected) input.select();
+    // Select-all so typing a new query replaces the current pick.
+    if (selected) input.select();
   });
   input.addEventListener('click', openAndPaint);
 
@@ -300,7 +312,7 @@ export function initCombobox(combo: HTMLElement, opts: ComboboxOptions = {}): vo
         break;
       case 'Escape':
         close();
-        if (selectable) applySelected(); // abandon an un-committed query
+        applySelected(); // abandon an un-committed query
         break;
       case 'Enter': {
         // No highlighted option yet (the common type-ahead flow: type
@@ -349,7 +361,7 @@ export function initCombobox(combo: HTMLElement, opts: ComboboxOptions = {}): vo
   document.addEventListener('focusin', (e) => {
     if (!(e.target instanceof Node) || !combo.contains(e.target)) {
       close();
-      if (selectable) applySelected(); // restore the committed selection on blur
+      applySelected(); // restore the committed selection on blur
     }
   });
 
@@ -367,6 +379,19 @@ export function initCombobox(combo: HTMLElement, opts: ComboboxOptions = {}): vo
   // Preload + resolve an initial selection (filter mode restored from the URL).
   if (selectable && opts.initialCrs) {
     void ensureLoaded().catch(() => {});
+  }
+
+  // Prefill + commit the station being viewed (board's "change station" box):
+  // shown in the input and restored on blur/Escape like the filter's pick.
+  if (opts.initialStation) {
+    selected = {
+      crs: opts.initialStation.crs,
+      name: opts.initialStation.name,
+      country: '',
+      lat: null,
+      long: null,
+    };
+    applySelected();
   }
 
   // Prefill + auto-choose from a station name (arriving from calling points).

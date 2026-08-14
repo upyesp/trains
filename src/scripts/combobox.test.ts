@@ -181,4 +181,25 @@ describe('combobox open/close flow', () => {
     expect(onChoose).toHaveBeenCalledTimes(1);
     expect(onChoose.mock.calls[0]?.[0]?.crs).toBe('LDS');
   });
+
+  it('prefills with the committed station and restores it on blur and Escape (change-station box)', async () => {
+    const { combo, input } = makeCombo();
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(STATIONS) })));
+    initCombobox(combo, { initialStation: { crs: 'LBG', name: 'London Bridge' } });
+
+    // The station being viewed is shown without any interaction.
+    expect(input.value).toBe('London Bridge');
+
+    // Typing over it, then leaving the field, restores the committed station.
+    input.focus();
+    input.value = 'York';
+    document.body.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    expect(input.value).toBe('London Bridge');
+
+    // Escape also abandons the un-committed query.
+    input.focus();
+    input.value = 'York';
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(input.value).toBe('London Bridge');
+  });
 });

@@ -4,8 +4,11 @@
 // pre-rendered shell.
 interface Props {
   label?: string;
+  /** The station currently being viewed (board page): shown in the input and
+   *  restored on blur/Escape, mirroring the "calling at" filter's pick. */
+  initialStation?: { crs: string; name: string } | null;
 }
-const { label = 'Change station' } = Astro.props;
+const { label = 'Change station', initialStation = null } = Astro.props;
 ---
 
 <div class="search">
@@ -43,6 +46,6 @@ const { label = 'Change station' } = Astro.props;
       const qs = params.toString();
       history.replaceState(null, '', qs ? `/?${qs}` : '/');
     }
-    initCombobox(combo, initialName ? { initialName } : {});
+    initCombobox(combo, initialName ? { initialName } : initialStation ? { initialStation } : {});
   }
 </script>
