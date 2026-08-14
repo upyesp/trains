@@ -132,4 +132,45 @@ describe('combobox open/close flow', () => {
     expect(input.getAttribute('aria-expanded')).toBe('false');
     void combo;
   });
+
+  it('chooses the top match on Enter without a highlighted option (type-ahead flow)', async () => {
+    const { combo, input, list } = makeCombo();
+    const onChoose = vi.fn();
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(STATIONS) })));
+    initCombobox(combo, { onChoose });
+
+    input.focus();
+    // Wait for the station list to land (the empty query renders options).
+    await vi.waitFor(() => expect(list.children.length).toBeGreaterThan(0));
+
+    // Type a query that ranks Leeds first, then Enter without arrowing down.
+    input.value = 'le';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+
+    expect(onChoose).toHaveBeenCalledTimes(1);
+    expect(onChoose.mock.calls[0]?.[0]?.crs).toBe('LDS');
+  });
+
+  it('selects an option on click even when the input blurs first (mousedown keeps focus)', async () => {
+    const { combo, input, list } = makeCombo();
+    const onChoose = vi.fn();
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(STATIONS) })));
+    initCombobox(combo, { onChoose });
+
+    input.focus();
+    input.value = 'le';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await vi.waitFor(() => expect(list.children.length).toBeGreaterThan(0));
+
+    // Simulate the hostile browser sequence: press on the option blurs the
+    // input (focusin elsewhere closes the popup), then the click lands.
+    const opt = list.querySelector('.opt') as HTMLElement;
+    opt.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+    document.body.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    opt.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    expect(onChoose).toHaveBeenCalledTimes(1);
+    expect(onChoose.mock.calls[0]?.[0]?.crs).toBe('LDS');
+  });
 });

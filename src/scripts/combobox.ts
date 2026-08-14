@@ -301,13 +301,25 @@ export function initCombobox(combo: HTMLElement, opts: ComboboxOptions = {}): vo
         if (selectable) applySelected(); // abandon an un-committed query
         break;
       case 'Enter': {
-        const sel = active >= 0 ? matches[active] : undefined;
+        // No highlighted option yet (the common type-ahead flow: type
+        // "Wat", press Enter) — choose the TOP match, not nothing.
+        const sel = active >= 0 ? matches[active] : matches[0];
         if (sel) {
           e.preventDefault();
           choose(sel);
         }
         break;
       }
+    }
+  });
+
+  // Keep focus in the input while the pointer presses an option (the APG
+  // combobox pattern): without this, some browsers blur the input on tap and
+  // the document-level close hides the listbox before the click event lands —
+  // the click then hits a hidden list and the selection silently does nothing.
+  list.addEventListener('mousedown', (e) => {
+    if (e.target instanceof Element && e.target.closest('.opt')) {
+      e.preventDefault();
     }
   });
 
