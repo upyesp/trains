@@ -20,7 +20,7 @@ RTT_API_BASE = "https://data.rtt.io"
 RTT_API_VERSION = "2026-07-25"
 # Comma-separated CORS allowlist (ADR-0003). Reflected from the request Origin;
 # defaults to the production site if unset.
-CORS_ORIGIN = "https://www.viptrains.org"
+CORS_ORIGIN = "https://www.viptrains.org.uk,https://viptrains.org.uk,https://www.viptrains.org"
 
 # Contact form (see worker/entry.ts). The Resend API key AND the destination
 # inbox are SECRETS (the destination is a personal address, kept out of this

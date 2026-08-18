@@ -355,7 +355,7 @@ export function initServiceDetail(root: HTMLElement): void {
     els.head.innerHTML = headerHtml(d);
     els.body.innerHTML = d.points.length === 0 ? `<p class="board-msg">${EMPTY}</p>` : stopsHtml(d);
     const titleEl = document.getElementById('service-title');
-    if (titleEl?.textContent) document.title = `${titleEl.textContent} — VIPTrains.org`;
+    if (titleEl?.textContent) document.title = `${titleEl.textContent} — VIPTrains.org.uk`;
   }
 
   function setAsAt(epochMs: number, stale: boolean): void {

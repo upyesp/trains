@@ -11,7 +11,7 @@ import {
 import type { FetchRtt, FetchService } from './core';
 import type { Board, ServiceDetail } from '../lib/types';
 
-const ORIGIN = 'https://www.viptrains.org';
+const ORIGIN = 'https://www.viptrains.org.uk';
 
 function board(): Board {
   return {

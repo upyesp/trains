@@ -229,7 +229,7 @@ export function initPlatform(root: HTMLElement): void {
       lede.textContent = `All departures and arrivals from platform ${state.platform} at ${labelled}, including the preceding hour where available.`;
     if (back)
       back.innerHTML = `<a class="back-link" href="/stations/${state.crs.toLowerCase()}/">← Back to ${labelled} board</a>`;
-    document.title = `Platform ${state.platform} — ${labelled} — VIPTrains.org`;
+    document.title = `Platform ${state.platform} — ${labelled} — VIPTrains.org.uk`;
     updateBoardLabel();
   });
 
