@@ -145,6 +145,17 @@ describe('isValidEntry', () => {
     expect(isValidEntry({ ...good, visitedAt: NaN })).toBe(false);
     expect(isValidEntry({ ...good, origin: undefined })).toBe(false);
   });
+  it('accepts the optional board-station fields (newer entries)', () => {
+    expect(
+      isValidEntry({ ...good, boardStation: 'Andover', boardTime: '2026-08-11T09:21:00' }),
+    ).toBe(true);
+    // Older entries without the fields still validate (rendered from origin).
+    expect(isValidEntry({ ...good, boardStation: undefined, boardTime: undefined })).toBe(true);
+  });
+  it('rejects wrongly-typed board fields', () => {
+    expect(isValidEntry({ ...good, boardStation: 5 })).toBe(false);
+    expect(isValidEntry({ ...good, boardTime: 7 })).toBe(false);
+  });
 });
 
 describe('MAX_AGE_MS', () => {

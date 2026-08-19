@@ -48,12 +48,16 @@ function timeCell(s: Service): string {
   return `<div class="svc-time"><span class="time">${esc(exp)}</span></div>`;
 }
 
-function destCell(s: Service): string {
+function destCell(s: Service, crs: string | null): string {
   const journey = s.journeyMins != null ? fmtDurationMin(s.journeyMins) : '';
   const coaches = s.coaches != null ? `${s.coaches} ${s.coaches === 1 ? 'coach' : 'coaches'}` : '';
   const meta = [journey, coaches].filter(Boolean).map(esc).join(' · ');
   const metaHtml = meta ? `<span class="coaches">${meta}</span>` : '';
-  const href = `/service/?${new URLSearchParams({ id: s.id }).toString()}`;
+  // `from` tells the service page which station the user was viewing, so its
+  // header and calling-points list can anchor on that station (not the origin).
+  const params: Record<string, string> = { id: s.id };
+  if (crs) params.from = crs;
+  const href = `/service/?${new URLSearchParams(params).toString()}`;
   return `<div class="svc-dest"><span class="dest"><a class="svc-link" href="${href}"><span class="dest-name">${esc(s.destination)}</span> <span class="visually-hidden">view calling points for this service</span></a><span class="toc">${esc(s.operator)}</span>${metaHtml}</span></div>`;
 }
 
@@ -75,7 +79,7 @@ function rowHtml(s: Service, crs: string | null, showPlatform = true): string {
   // Only the station name is a link — not the whole row — so it's obvious
   // and hard to trigger accidentally (same pattern as calling-point stops).
   const plat = showPlatform ? platformCell(s.platform, crs) : '';
-  return `<li class="svc-item"><div class="${cls}">${timeCell(s)}${destCell(s)}${statusCell(s)}${plat}</div></li>`;
+  return `<li class="svc-item"><div class="${cls}">${timeCell(s)}${destCell(s, crs)}${statusCell(s)}${plat}</div></li>`;
 }
 
 /** All rows of a board as HTML, in the given order. `crs` (when given) makes

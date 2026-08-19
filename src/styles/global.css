@@ -750,6 +750,21 @@ h2.stops-title {
 .share-btn svg { display: block; }
 .share-status { font-size: .82rem; color: var(--board-mute); line-height: 1.2; }
 
+/* "See earlier calling points" disclosure (service page): a quiet outline
+   button above the collapsed earlier stops, in the same visual language as
+   the share button. [hidden] removes the collapsed list from both the layout
+   and the accessibility tree. */
+.earlier-btn {
+  appearance: none; cursor: pointer;
+  font: 600 .9rem var(--sans); color: var(--board-fg);
+  padding: 8px 14px; min-height: 40px;
+  border: 1px solid var(--board-line); border-radius: 10px;
+  background: transparent;
+  margin: 0 0 10px;
+}
+.earlier-btn:hover { background: var(--board-chip-bg); }
+.earlier-stops { margin-bottom: 12px; border-bottom: 1px solid var(--board-line); }
+
 /* Calling points are an <ol> of stop cards that share the station board's
    visual language (.time / .dest / .plat) so the two lists read as one design.
    Desktop: a four-column row (time | station | expected | platform); phones

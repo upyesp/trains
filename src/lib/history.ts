@@ -30,6 +30,13 @@ export interface HistoryEntry {
   /** ISO scheduled departure at the origin — the service's running date, used
    *  for the RTT two-week expiry. Naive UK-local ISO, sliced/compared loosely. */
   originTime: string;
+  /** Optional: the station the user searched from (the board link's `from`
+   *  CRS, resolved to its calling point) — the page header and history anchor
+   *  on this station rather than the origin. Newer entries have it; older
+   *  entries (recorded before this field existed) render from the origin. */
+  boardStation?: string;
+  /** ISO timetable time at `boardStation` (paired with it). */
+  boardTime?: string;
   /** The calling-points page URL (/service/?id=…), stored so the list links
    *  straight back to it. */
   url: string;
@@ -87,6 +94,8 @@ export function isValidEntry(e: unknown): e is HistoryEntry {
     typeof o.destination === 'string' &&
     typeof o.operator === 'string' &&
     typeof o.originTime === 'string' &&
+    (o.boardStation === undefined || typeof o.boardStation === 'string') &&
+    (o.boardTime === undefined || typeof o.boardTime === 'string') &&
     typeof o.url === 'string' &&
     typeof o.visitedAt === 'number' &&
     Number.isFinite(o.visitedAt)
@@ -126,8 +135,14 @@ export function saveHistory(entries: HistoryEntry[]): void {
 }
 
 /** Record a visit to a service's calling-points page (called from the service
- *  page once its detail has loaded). No-ops on storage errors. */
-export function recordServiceVisit(d: ServiceDetail): void {
+ *  page once its detail has loaded). `board` describes the station the user
+ *  searched from (name, its timetable time, and the CRS for the link back) —
+ *  when present the entry and its link anchor on that station. No-ops on
+ *  storage errors. */
+export function recordServiceVisit(
+  d: ServiceDetail,
+  board?: { station?: string; time?: string; crs?: string | null },
+): void {
   if (!d.id || !d.origin) return;
   const entry: HistoryEntry = {
     id: d.id,
@@ -135,7 +150,8 @@ export function recordServiceVisit(d: ServiceDetail): void {
     destination: d.destination,
     operator: d.operator,
     originTime: d.points[0]?.scheduledTime ?? '',
-    url: `/service/?id=${encodeURIComponent(d.id)}`,
+    ...(board?.station ? { boardStation: board.station, boardTime: board.time ?? '' } : {}),
+    url: `/service/?${new URLSearchParams({ id: d.id, ...(board?.crs ? { from: board.crs } : {}) }).toString()}`,
     visitedAt: Date.now(),
   };
   saveHistory(recordVisit(loadHistory(), entry, Date.now()));

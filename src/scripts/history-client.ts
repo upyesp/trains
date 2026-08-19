@@ -55,14 +55,18 @@ function fmtServiceDate(iso: string): string {
   return `${Number(m[3])}\u2009${MONTHS_SHORT[Number(m[2]) - 1]}`;
 }
 
-/** "10:00 London King's Cross to Edinburgh, 3 Aug" — the row's identity, used
+/** "10:00 Andover to Salisbury, 3 Aug" — the row's identity, used
  *  for the Delete button's accessible name and the confirmation dialog. The
- *  date is included because the same time+route recurs daily — without it the
+ *  time and station anchor on the station the user searched from when the
+ *  entry has one (boardStation/boardTime), else on the origin. The date is
+ *  included because the same time+route recurs daily — without it the
  *  list could hold indistinguishable entries. Raw names (no CRS codes) keep it
  *  concise for speech. */
 function describe(e: HistoryEntry): string {
+  const time = e.boardTime ?? e.originTime;
+  const from = e.boardStation ?? e.origin;
   const date = fmtServiceDate(e.originTime);
-  return `${fmtTime(e.originTime)} ${e.origin} to ${e.destination}${date ? `, ${date}` : ''}`;
+  return `${fmtTime(time)} ${from} to ${e.destination}${date ? `, ${date}` : ''}`;
 }
 
 export function initHistory(root: HTMLElement): void {
@@ -105,14 +109,17 @@ export function initHistory(root: HTMLElement): void {
   let entries: HistoryEntry[] = loadHistory();
 
   function rowHtml(e: HistoryEntry): string {
-    const time = fmtTime(e.originTime);
+    // The leading time + station is the station the user searched from
+    // (boardStation/boardTime on newer entries), else the origin.
+    const time = fmtTime(e.boardTime ?? e.originTime);
+    const fromName = e.boardStation ?? e.origin;
     const desc = describe(e);
     return `
       <li class="hist-item" data-id="${esc(e.id)}">
         <a class="hist-link" href="${esc(e.url)}">
           <span class="hist-top">
-            <span class="hist-time">${esc(time)}<span class="hist-date">${esc(fmtServiceDate(e.originTime))}</span></span>
-            <span class="hist-route">${esc(stationLabel(e.origin))} <span class="hist-arrow" aria-hidden="true">&rarr;</span> ${esc(stationLabel(e.destination))}</span>
+            <span class="hist-time">${esc(time)}<span class="hist-date">${esc(fmtServiceDate(e.boardTime ?? e.originTime))}</span></span>
+            <span class="hist-route">${esc(stationLabel(fromName))} <span class="hist-arrow" aria-hidden="true">&rarr;</span> ${esc(stationLabel(e.destination))}</span>
           </span>
           <span class="hist-meta">${esc(e.operator)} &middot; Last visited ${esc(fmtWhen(e.visitedAt))}</span>
         </a>

@@ -6,6 +6,11 @@
 // timetable time, expected time ("On time" when unchanged, else the expected
 // time; "Cancelled" for cancelled stops) and platform. Refreshes every 30s
 // (paused while the tab is hidden) to keep expected times live.
+//
+// The link from a station board carries ?from=<CRS> (the station the user was
+// viewing). The header then shows THAT station's time and name instead of the
+// origin's, and the calling-points list starts there: earlier stops are
+// collapsed behind a "See earlier calling points" disclosure button.
 
 import { fmtClock, fmtDurationMin, fmtTime } from '../lib/format';
 import { recordServiceVisit } from '../lib/history';
@@ -59,6 +64,20 @@ function delayMinutesAt(p: CallingPoint): number {
   const exp = Date.parse(p.actualArrival ?? p.expectedTime);
   if (Number.isNaN(sched) || Number.isNaN(exp)) return 0;
   return Math.round((exp - sched) / 60_000);
+}
+
+/** Index of the calling point the user searched from: the first stop whose
+ *  station matches the `from` CRS (resolved via the station-codes list, which
+ *  may not be loaded on the first render — then this falls back to the origin
+ *  and the list re-renders once the codes arrive). Falls back to 0 when `from`
+ *  is absent or matches nothing, keeping the origin-centred behaviour. */
+function boardPointIndex(d: ServiceDetail, from: string | null): number {
+  if (!from) return 0;
+  for (let i = 0; i < d.points.length; i++) {
+    const p = d.points[i]!;
+    if (stationCrs(p.station)?.toUpperCase() === from) return i;
+  }
+  return 0;
 }
 
 // ---- Pure HTML builders (escaped; safe against RTT-provided strings) ----
@@ -138,13 +157,26 @@ function stopCard(p: CallingPoint, isLast: boolean): string {
   return `<li class="stop-item"><div class="stop">${timeHtml}${stationHtml}${expHtml}${stopPlatform(p.platform, p.station)}</div></li>`;
 }
 
-function stopsHtml(d: ServiceDetail): string {
+function stopsHtml(d: ServiceDetail, boardIdx: number, earlierOpen: boolean): string {
   // A real <ol> (the route is an ordered sequence) of stop cards, mirroring the
   // station board's .svc rows so the two lists share a visual language. The
   // visible "Calling Points" heading (in the header) is the list's accessible
   // name (aria-labelledby); each value also carries a visually-hidden field
   // label for screen readers.
-  return `<ol class="stops" aria-labelledby="stops-title">${d.points.map((p, i) => stopCard(p, i === d.points.length - 1)).join('')}</ol>`;
+  //
+  // When the user came from a mid-journey station, the list STARTS at that
+  // station; earlier stops sit in a separate list collapsed behind a
+  // disclosure button (APG pattern: aria-expanded + aria-controls, the hidden
+  // attribute removes the collapsed stops from the accessibility tree).
+  const earlier = d.points.slice(0, boardIdx);
+  const rest = d.points.slice(boardIdx);
+  const main = rest
+    .map((p, i) => stopCard(p, i === rest.length - 1))
+    .join('');
+  if (boardIdx === 0) return `<ol class="stops" aria-labelledby="stops-title">${main}</ol>`;
+  const btn = `<button type="button" class="earlier-btn" id="earlier-btn" aria-expanded="${earlierOpen}" aria-controls="earlier-stops">${earlierOpen ? 'Hide' : 'See'} earlier calling points</button>`;
+  const earlierList = `<ol class="stops earlier-stops" id="earlier-stops" aria-label="Earlier calling points"${earlierOpen ? '' : ' hidden'}>${earlier.map((p) => stopCard(p, false)).join('')}</ol>`;
+  return `${btn}${earlierList}<ol class="stops" aria-labelledby="stops-title">${main}</ol>`;
 }
 
 function statusChip(d: ServiceDetail): string {
@@ -179,24 +211,30 @@ function serviceStatus(d: ServiceDetail): string {
 }
 
 /** The first calling point whose scheduled time is still in the future,
- *  excluding the origin (which would just repeat the departure). A stop with a
- *  recorded actual is definitely passed (it may have run early), so it can never
- *  be "next". Returns the whole point so the caller can also read its expected
- *  time. Null when no future stop remains (journey completed) or the origin
- *  hasn't departed yet. */
-function nextStop(d: ServiceDetail): CallingPoint | null {
+ *  strictly AFTER the station the user searched from (a stop at or before the
+ *  board station — including the origin — is not "next" for someone standing
+ *  there). A stop with a recorded actual is definitely passed (it may have run
+ *  early), so it can never be "next". Returns the whole point so the caller
+ *  can also read its expected time. Null when no future stop remains (journey
+ *  completed). */
+function nextStop(d: ServiceDetail, boardIdx: number): CallingPoint | null {
   const now = Date.now();
-  for (let i = 0; i < d.points.length; i++) {
-    const p = d.points[i];
-    if (!p) continue;
+  for (let i = boardIdx + 1; i < d.points.length; i++) {
+    const p = d.points[i]!;
     if (p.actualArrival || p.actualDeparture) continue;
-    if (Date.parse(p.scheduledTime) > now) return i === 0 ? null : p;
+    if (Date.parse(p.scheduledTime) > now) return p;
   }
   return null;
 }
 
-function headerHtml(d: ServiceDetail): string {
-  const originTime = fmtTime(d.points[0]?.scheduledTime ?? '');
+function headerHtml(d: ServiceDetail, boardIdx: number): string {
+  // The header anchors on the station the user searched from: its timetable
+  // time (a departure where it has one — the only element RTT advertises at
+  // pass-through stops) and its name with the official code. Searching from
+  // the origin renders exactly the old header.
+  const board = d.points[boardIdx] ?? d.points[0];
+  const boardTime = board ? fmtTime(board.scheduledTime) : '';
+  const boardIsLast = board != null && boardIdx >= d.points.length - 1;
   // Journey summary after the operator: scheduled duration · number of stops
   // · coach count. "Stops" excludes the origin (you board there - it's not a
   // stop you travel to); each part drops out when its data is absent.
@@ -208,7 +246,7 @@ function headerHtml(d: ServiceDetail): string {
   const date = d.points[0] ? fmtDate(d.points[0].scheduledTime) : '';
   const chip = statusChip(d);
   const status = serviceStatus(d);
-  const next = nextStop(d);
+  const next = nextStop(d, boardIdx);
   const last = d.points[d.points.length - 1];
   const journeyCompleted =
     !next && last != null && (last.actualArrival != null || last.actualDeparture != null || Date.parse(last.scheduledTime) <= Date.now());
@@ -229,14 +267,24 @@ function headerHtml(d: ServiceDetail): string {
       completionSuffix = ' — no live data';
     }
   }
+  // The page's h1: the board station's time + name to the destination. When
+  // the board station IS the destination the service is arriving there, so the
+  // heading reads as an arrival instead of a dangling "X to X".
+  const boardName = stationLabel(board?.station ?? d.origin);
+  let title: string;
+  if (boardIsLast) {
+    title = boardTime ? `${boardTime} arrival at ${esc(boardName)}` : esc(boardName);
+  } else {
+    title = `${boardTime ? `${boardTime} ` : ''}${esc(boardName)} to ${esc(stationLabel(d.destination))}`;
+  }
   return `
-    <h1 class="service-title" id="service-title">${originTime ? `${originTime} ` : ''}${esc(stationLabel(d.origin))} to ${esc(stationLabel(d.destination))}</h1>
+    <h1 class="service-title" id="service-title">${title}</h1>
     <div class="stops-heading">
       <h2 class="stops-title" id="stops-title">Calling Points</h2>
       <button type="button" class="share-btn" aria-label="Share this list of calling points">${shareIconHtml()}</button>
       <span class="share-status" role="status" aria-live="polite"></span>
     </div>
-    ${status ? `<p class="service-sub">Status: ${status}${completionSuffix}</p>` : ''}
+    ${status ? `<p class="service-sub">Status${boardIdx > 0 ? ` (from ${esc(d.origin)})` : ''}: ${status}${completionSuffix}</p>` : ''}
     ${next ? `<p class="service-sub">Next stop: ${esc(stationLabel(next.station))}${next.noReport ? ' — no live data' : `, expected ${fmtTime(next.expectedTime)}`}</p>` : ''}
     ${sub ? `<p class="service-sub">${sub}</p>` : ''}
     ${date ? `<p class="service-date">${date}</p>` : ''}
@@ -257,6 +305,9 @@ interface State {
   prev: ServiceDetail | null;
   asAtMs: number | null;
   recorded: boolean;
+  /** Whether the earlier calling points are expanded. Survives the 30s
+   *  re-renders so a user's choice isn't undone by a refresh. */
+  earlierOpen: boolean;
 }
 
 interface Elements {
@@ -284,7 +335,7 @@ export function initServiceDetail(root: HTMLElement): void {
   if (!back || !head || !body || !asOf || !staleNote) return;
   const els: Elements = { back, head, body, asOf, staleNote };
 
-  const state: State = { id, from, apiBase, mock, prev: null, asAtMs: null, recorded: false };
+  const state: State = { id, from, apiBase, mock, prev: null, asAtMs: null, recorded: false, earlierOpen: false };
 
   els.back.innerHTML = backLinkHtml(state.from);
 
@@ -351,9 +402,25 @@ export function initServiceDetail(root: HTMLElement): void {
     }
   }
 
+  // "See/Hide earlier calling points" disclosure (delegated on the list
+  // container; the button itself is re-created on every refresh). APG
+  // disclosure: toggling flips aria-expanded and the hidden attribute, and the
+  // button's own label updates — screen readers announce the state change and
+  // the new name on the focused button.
+  els.body.addEventListener('click', (event: Event) => {
+    const btn = (event.target as Element | null)?.closest('.earlier-btn') as HTMLButtonElement | null;
+    if (!btn) return;
+    state.earlierOpen = !state.earlierOpen;
+    const list = document.getElementById('earlier-stops');
+    if (list) list.hidden = !state.earlierOpen;
+    btn.setAttribute('aria-expanded', String(state.earlierOpen));
+    btn.textContent = state.earlierOpen ? 'Hide earlier calling points' : 'See earlier calling points';
+  });
+
   function render(d: ServiceDetail): void {
-    els.head.innerHTML = headerHtml(d);
-    els.body.innerHTML = d.points.length === 0 ? `<p class="board-msg">${EMPTY}</p>` : stopsHtml(d);
+    const boardIdx = boardPointIndex(d, state.from);
+    els.head.innerHTML = headerHtml(d, boardIdx);
+    els.body.innerHTML = d.points.length === 0 ? `<p class="board-msg">${EMPTY}</p>` : stopsHtml(d, boardIdx, state.earlierOpen);
     const titleEl = document.getElementById('service-title');
     if (titleEl?.textContent) document.title = `${titleEl.textContent} — VIPTrains.org.uk`;
   }
@@ -384,9 +451,17 @@ export function initServiceDetail(root: HTMLElement): void {
       state.prev = resp.detail;
       // Record the visit to History once (the first successful load) — never
       // on the 30s refreshes, so visitedAt reflects when the page was opened.
+      // The entry anchors on the searched-from station when there is one, so
+      // History shows the same time + station as the page header.
       if (!state.recorded && resp.detail.id && resp.detail.origin) {
         state.recorded = true;
-        recordServiceVisit(resp.detail);
+        const boardIdx = boardPointIndex(resp.detail, state.from);
+        const boardPoint = boardIdx > 0 ? resp.detail.points[boardIdx] : undefined;
+        recordServiceVisit(resp.detail, {
+          station: boardPoint?.station,
+          time: boardPoint?.scheduledTime,
+          crs: state.from,
+        });
       }
     } else if (state.prev && state.asAtMs !== null) {
       // Worker unreachable but we have a prior detail — keep it, mark stale.

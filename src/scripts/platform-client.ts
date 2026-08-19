@@ -140,7 +140,7 @@ export function initPlatform(root: HTMLElement): void {
         syncTabUi();
       }
       els.body.innerHTML =
-        filtered.services.length === 0 ? EMPTY_ROW : boardRowsHtml(filtered.services, null, false);
+        filtered.services.length === 0 ? EMPTY_ROW : boardRowsHtml(filtered.services, state.crs, false);
       updateBoardLabel();
       state.prev = resp.board;
       state.asAtMs = resp.asAt;
