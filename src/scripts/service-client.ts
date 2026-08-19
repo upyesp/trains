@@ -236,10 +236,13 @@ function headerHtml(d: ServiceDetail, boardIdx: number): string {
   const boardTime = board ? fmtTime(board.scheduledTime) : '';
   const boardIsLast = board != null && boardIdx >= d.points.length - 1;
   // Journey summary after the operator: scheduled duration · number of stops
-  // · coach count. "Stops" excludes the origin (you board there - it's not a
-  // stop you travel to); each part drops out when its data is absent.
-  const journey = fmtDuration(d.points[0]?.scheduledTime ?? '', d.points[d.points.length - 1]?.scheduledTime ?? '');
-  const stopCount = Math.max(0, d.points.length - 1);
+  // · coach count. The journey runs from the station the user searched from
+  // (boardIdx) to the destination — "Stops" excludes that station (you board
+  // there - it's not a stop you travel to); each part drops out when its data
+  // is absent. Searching from the origin keeps the full-journey figures.
+  const lastScheduled = d.points[d.points.length - 1]?.scheduledTime ?? '';
+  const journey = fmtDuration(board?.scheduledTime ?? '', lastScheduled);
+  const stopCount = Math.max(0, d.points.length - boardIdx - 1);
   const stops = stopCount > 0 ? `${stopCount} ${stopCount === 1 ? 'stop' : 'stops'}` : '';
   const coaches = d.coaches ? `${d.coaches} ${d.coaches === 1 ? 'coach' : 'coaches'}` : '';
   const sub = [d.operator, journey, stops, coaches].filter(Boolean).map(esc).join(' · ');
