@@ -36,15 +36,32 @@ export function platformChip(p: Platform | null, href?: string): string {
   const label = '<span class="plat-label" aria-hidden="true">Platform</span>';
   if (!p) return `<span class="plat none" aria-hidden="true">${label}—</span>`;
   const n = esc(p.number);
-  const numberHtml = href
-    ? `<a class="plat-link" href="${href}">${n}<span class="visually-hidden"> — view this platform's departures and arrivals</span></a>`
-    : n;
+
+  // The status is spoken right after the number, BEFORE any link hint, so
+  // screen readers hear "Platform 3, confirmed" and only then what the link
+  // does — never "3, view this platform's departures…, confirmed".
+  const stateCls = p.state === 'at-platform' ? ' at-platform' : p.state === 'provisional' ? ' provisional' : '';
+  const spoken =
+    p.state === 'at-platform' ? ', at platform' : p.state === 'provisional' ? ', provisional' : ', confirmed';
+
+  if (href) {
+    // The visible status caption stays outside the link (identical look); the
+    // link's accessible name carries the status before the hint, and the
+    // caption is aria-hidden there so the status isn't spoken twice.
+    const visibleState =
+      p.state === 'at-platform'
+        ? '<span class="state" aria-hidden="true">At platform</span>'
+        : p.state === 'provisional'
+          ? '<span class="state" aria-hidden="true">provisional</span>'
+          : '';
+    return `<span class="plat${stateCls}">${label}<a class="plat-link" href="${href}">${n}<span class="visually-hidden">${spoken} — view this platform's departures and arrivals</span></a>${visibleState}</span>`;
+  }
+  // No link: the caption itself is the spoken status, already right after the number.
   if (p.state === 'at-platform') {
-    // Visible caption (also spoken) — the train is at this platform right now.
-    return `<span class="plat at-platform">${label}${numberHtml}<span class="state">At platform</span></span>`;
+    return `<span class="plat at-platform">${label}${n}<span class="state">At platform</span></span>`;
   }
   if (p.state === 'provisional') {
-    return `<span class="plat provisional">${label}${numberHtml}<span class="state">provisional</span></span>`;
+    return `<span class="plat provisional">${label}${n}<span class="state">provisional</span></span>`;
   }
-  return `<span class="plat">${label}${numberHtml}<span class="visually-hidden">, confirmed</span></span>`;
+  return `<span class="plat">${label}${n}<span class="visually-hidden">, confirmed</span></span>`;
 }
