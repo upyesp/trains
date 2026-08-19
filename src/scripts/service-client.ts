@@ -10,7 +10,7 @@
 // The link from a station board carries ?from=<CRS> (the station the user was
 // viewing). The header then shows THAT station's time and name instead of the
 // origin's, and the calling-points list starts there: earlier stops are
-// collapsed behind a "See earlier calling points" disclosure button.
+// collapsed behind a "Show earlier calling points" disclosure button.
 
 import { fmtClock, fmtDurationMin, fmtTime } from '../lib/format';
 import { recordServiceVisit } from '../lib/history';
@@ -174,7 +174,7 @@ function stopsHtml(d: ServiceDetail, boardIdx: number, earlierOpen: boolean): st
     .map((p, i) => stopCard(p, i === rest.length - 1))
     .join('');
   if (boardIdx === 0) return `<ol class="stops" aria-labelledby="stops-title">${main}</ol>`;
-  const btn = `<button type="button" class="earlier-btn" id="earlier-btn" aria-expanded="${earlierOpen}" aria-controls="earlier-stops">${earlierOpen ? 'Hide' : 'See'} earlier calling points</button>`;
+  const btn = `<button type="button" class="earlier-btn" id="earlier-btn" aria-expanded="${earlierOpen}" aria-controls="earlier-stops">${earlierOpen ? 'Hide' : 'Show'} earlier calling points</button>`;
   const earlierList = `<ol class="stops earlier-stops" id="earlier-stops" aria-label="Earlier calling points"${earlierOpen ? '' : ' hidden'}>${earlier.map((p) => stopCard(p, false)).join('')}</ol>`;
   return `${btn}${earlierList}<ol class="stops" aria-labelledby="stops-title">${main}</ol>`;
 }
@@ -402,7 +402,7 @@ export function initServiceDetail(root: HTMLElement): void {
     }
   }
 
-  // "See/Hide earlier calling points" disclosure (delegated on the list
+  // "Show/Hide earlier calling points" disclosure (delegated on the list
   // container; the button itself is re-created on every refresh). APG
   // disclosure: toggling flips aria-expanded and the hidden attribute, and the
   // button's own label updates — screen readers announce the state change and
@@ -414,7 +414,7 @@ export function initServiceDetail(root: HTMLElement): void {
     const list = document.getElementById('earlier-stops');
     if (list) list.hidden = !state.earlierOpen;
     btn.setAttribute('aria-expanded', String(state.earlierOpen));
-    btn.textContent = state.earlierOpen ? 'Hide earlier calling points' : 'See earlier calling points';
+    btn.textContent = state.earlierOpen ? 'Hide earlier calling points' : 'Show earlier calling points';
   });
 
   function render(d: ServiceDetail): void {
