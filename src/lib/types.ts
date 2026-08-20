@@ -33,6 +33,13 @@ export interface Service {
   platform: Platform | null;
   /** Final destination (departures) or origin (arrivals). */
   destination: string;
+  /** The train's true starting station (RTT origin[0]) — shown on the boards
+   *  page as the "from" of the total journey time. */
+  origin: string;
+  /** The train's true final destination (RTT destination[last]) — shown on
+   *  the boards page as the "to" of the total journey time (on arrivals boards
+   *  the row's main label is the origin; this is the far end). */
+  finalDestination: string;
   /** The Train Operating Company running this service. */
   operator: string;
   /** Number of passenger vehicles (coaches) on the train, or null when unknown (RTT numberOfVehicles). */

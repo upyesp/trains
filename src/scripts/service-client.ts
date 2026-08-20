@@ -210,16 +210,15 @@ function serviceStatus(d: ServiceDetail): string {
   return `Scheduled ${fmtTime(sched)}`;
 }
 
-/** The first calling point whose scheduled time is still in the future,
- *  strictly AFTER the station the user searched from (a stop at or before the
- *  board station — including the origin — is not "next" for someone standing
- *  there). A stop with a recorded actual is definitely passed (it may have run
- *  early), so it can never be "next". Returns the whole point so the caller
- *  can also read its expected time. Null when no future stop remains (journey
- *  completed). */
-function nextStop(d: ServiceDetail, boardIdx: number): CallingPoint | null {
+/** The next station the train is due to call at — the first calling point
+ *  with no recorded actual whose scheduled time is still in the future (a stop
+ *  with an actual is definitely passed, even if it ran early). This is the
+ *  train's real next call wherever it currently is, so the user can see where
+ *  the train is heading right now — independent of the station they searched
+ *  from. Null when no future stop remains (journey completed). */
+function nextStop(d: ServiceDetail): CallingPoint | null {
   const now = Date.now();
-  for (let i = boardIdx + 1; i < d.points.length; i++) {
+  for (let i = 0; i < d.points.length; i++) {
     const p = d.points[i]!;
     if (p.actualArrival || p.actualDeparture) continue;
     if (Date.parse(p.scheduledTime) > now) return p;
@@ -249,7 +248,7 @@ function headerHtml(d: ServiceDetail, boardIdx: number): string {
   const date = d.points[0] ? fmtDate(d.points[0].scheduledTime) : '';
   const chip = statusChip(d);
   const status = serviceStatus(d);
-  const next = nextStop(d, boardIdx);
+  const next = nextStop(d);
   const last = d.points[d.points.length - 1];
   const journeyCompleted =
     !next && last != null && (last.actualArrival != null || last.actualDeparture != null || Date.parse(last.scheduledTime) <= Date.now());

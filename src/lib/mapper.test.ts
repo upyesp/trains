@@ -56,6 +56,8 @@ describe('mapLocationLineUp', () => {
             expectedTime: '2026-07-27T08:08:00+01:00',
             platform: { number: '3', state: 'confirmed' },
             destination: 'Weymouth',
+            origin: 'London Waterloo',
+            finalDestination: 'Weymouth',
             operator: 'South Western Railway',
             coaches: null,
             journeyMins: null,
@@ -285,6 +287,19 @@ describe('mapLocationLineUp', () => {
       // The DTO field is named `destination`; for an arrivals board it holds the origin.
       expect(dep.services).toEqual([expect.objectContaining({ destination: 'Weymouth' })]);
       expect(arr.services).toEqual([expect.objectContaining({ destination: 'London Waterloo' })]);
+    });
+
+    it('carries the true origin and final destination on both board kinds', () => {
+      const dep = mapLocationLineUp({ services: [services[0]!] }, 'WAT', 'departures');
+      const arr = mapLocationLineUp({ services: [services[0]!] }, 'WAT', 'arrivals');
+      // origin = the train's start (origin[0]); finalDestination = its far end
+      // (destination[last]) — independent of which end the row labels.
+      expect(dep.services).toEqual([
+        expect.objectContaining({ origin: 'London Waterloo', finalDestination: 'Weymouth' }),
+      ]);
+      expect(arr.services).toEqual([
+        expect.objectContaining({ origin: 'London Waterloo', finalDestination: 'Weymouth' }),
+      ]);
     });
   });
 

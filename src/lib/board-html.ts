@@ -10,6 +10,7 @@
 
 import { fmtDurationMin, fmtTime } from './format';
 import { esc, platformChip } from './html';
+import { stationLabel } from './station-codes';
 import type { Board, MeaningfulChange, Platform, Service } from './types';
 
 function delayMinutes(s: Service): number {
@@ -50,8 +51,15 @@ function timeCell(s: Service): string {
 
 function destCell(s: Service, crs: string | null): string {
   const journey = s.journeyMins != null ? fmtDurationMin(s.journeyMins) : '';
+  // The board's journey time is the train's FULL origin→destination run.
+  // Say so explicitly ("from … to …", with the official codes) so it can't be
+  // mistaken for the remaining journey from this station.
+  const route =
+    journey && s.origin && s.finalDestination
+      ? ` from ${esc(stationLabel(s.origin))} to ${esc(stationLabel(s.finalDestination))}`
+      : '';
   const coaches = s.coaches != null ? `${s.coaches} ${s.coaches === 1 ? 'coach' : 'coaches'}` : '';
-  const meta = [journey, coaches].filter(Boolean).map(esc).join(' · ');
+  const meta = [journey + route, coaches].filter(Boolean).map(esc).join(' · ');
   const metaHtml = meta ? `<span class="coaches">${meta}</span>` : '';
   // `from` tells the service page which station the user was viewing, so its
   // header and calling-points list can anchor on that station (not the origin).

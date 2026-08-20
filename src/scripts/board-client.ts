@@ -62,10 +62,10 @@ function mockBoardResponse(crs: string, kind: BoardKind): BoardResponse {
   const t = (h: number, m: number) =>
     `${today}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
   const services: Service[] = [
-    { id: 'M1', scheduledTime: t(10, 38), expectedTime: t(10, 38), platform: { number: '3', state: 'confirmed' }, destination: 'Leeds', operator: 'LNER', coaches: 9, journeyMins: 45, cancelled: false },
-    { id: 'M2', scheduledTime: t(10, 42), expectedTime: t(10, 48), platform: { number: '9', state: 'confirmed' }, destination: 'Newcastle', operator: 'LNER', coaches: 9, journeyMins: 90, cancelled: false },
-    { id: 'M3', scheduledTime: t(10, 45), expectedTime: t(10, 45), platform: { number: '1', state: 'provisional' }, destination: 'Edinburgh', operator: 'LNER', coaches: 10, journeyMins: 230, cancelled: false },
-    { id: 'M4', scheduledTime: t(10, 50), expectedTime: t(10, 50), platform: null, destination: 'York', operator: 'LNER', coaches: null, journeyMins: null, cancelled: true },
+    { id: 'M1', scheduledTime: t(10, 38), expectedTime: t(10, 38), platform: { number: '3', state: 'confirmed' }, destination: 'Leeds', origin: 'London King’s Cross', finalDestination: 'Leeds', operator: 'LNER', coaches: 9, journeyMins: 45, cancelled: false },
+    { id: 'M2', scheduledTime: t(10, 42), expectedTime: t(10, 48), platform: { number: '9', state: 'confirmed' }, destination: 'Newcastle', origin: 'London King’s Cross', finalDestination: 'Newcastle', operator: 'LNER', coaches: 9, journeyMins: 90, cancelled: false },
+    { id: 'M3', scheduledTime: t(10, 45), expectedTime: t(10, 45), platform: { number: '1', state: 'provisional' }, destination: 'Edinburgh', origin: 'London King’s Cross', finalDestination: 'Edinburgh', operator: 'LNER', coaches: 10, journeyMins: 230, cancelled: false },
+    { id: 'M4', scheduledTime: t(10, 50), expectedTime: t(10, 50), platform: null, destination: 'York', origin: 'London King’s Cross', finalDestination: 'York', operator: 'LNER', coaches: null, journeyMins: null, cancelled: true },
   ];
   return { board: { station: crs, kind, services }, asAt: Date.now(), stale: false };
 }

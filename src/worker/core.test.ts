@@ -24,6 +24,8 @@ function board(): Board {
         expectedTime: '2026-07-27T08:05:00+01:00',
         platform: null,
         destination: 'Weymouth',
+        origin: 'London Waterloo',
+        finalDestination: 'Weymouth',
         operator: 'SWR',
         coaches: null,
         journeyMins: null,

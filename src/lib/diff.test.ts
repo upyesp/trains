@@ -9,6 +9,8 @@ function service(overrides: Partial<Service> = {}): Service {
     expectedTime: '2025-01-01T10:00:00Z',
     platform: { number: '3', state: 'provisional' },
     destination: 'Leeds',
+    origin: 'London King’s Cross',
+    finalDestination: 'Leeds',
     operator: 'LNER',
     coaches: null,
     journeyMins: null,

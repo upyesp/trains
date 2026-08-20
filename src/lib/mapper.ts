@@ -56,6 +56,8 @@ function mapService(service: RTTService, kind: BoardKind): Service | null {
     ...(temporal.realtimeNoReport === true ? { noReport: true } : {}),
     platform: platformFrom(service.locationMetadata?.platform, service.temporalData?.status === 'AT_PLATFORM'),
     destination: otherEnd(service, kind),
+    origin: endpointStart(service.origin),
+    finalDestination: endpointName(service.destination),
     operator: service.scheduleMetadata.operator.name,
     coaches: coachesFrom(service.locationMetadata?.numberOfVehicles),
     journeyMins: journeyMinutes(service),
@@ -153,6 +155,11 @@ function callingPointFrom(item: RTTServiceLocationItem): CallingPoint {
  * several; the last is the advertised end). */
 function endpointName(pairs: RTTLocationPair[] | undefined): string {
   return pairs?.[pairs.length - 1]?.location.description ?? '';
+}
+
+/** The first entry of a pair array — the train's true starting point. */
+function endpointStart(pairs: RTTLocationPair[] | undefined): string {
+  return pairs?.[0]?.location.description ?? '';
 }
 
 /**
