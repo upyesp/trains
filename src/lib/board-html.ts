@@ -66,7 +66,7 @@ function destCell(s: Service, crs: string | null): string {
   const params: Record<string, string> = { id: s.id };
   if (crs) params.from = crs;
   const href = `/service/?${new URLSearchParams(params).toString()}`;
-  return `<div class="svc-dest"><span class="dest"><a class="svc-link" href="${href}"><span class="dest-name">${esc(s.destination)}</span> <span class="visually-hidden">view calling points for this service</span></a><span class="toc">${esc(s.operator)}</span>${metaHtml}</span></div>`;
+  return `<div class="svc-dest"><span class="dest"><a class="svc-link" href="${href}"><span class="dest-name">${esc(s.destination)}</span> <span class="visually-hidden">view calling points for this service</span></a>${metaHtml}<span class="toc">${esc(s.operator)}</span></span></div>`;
 }
 
 function statusCell(s: Service): string {
