@@ -242,10 +242,17 @@ function headerHtml(d: ServiceDetail, boardIdx: number): string {
   // is absent. Searching from the origin keeps the full-journey figures.
   const lastScheduled = d.points[d.points.length - 1]?.scheduledTime ?? '';
   const journey = fmtDuration(board?.scheduledTime ?? '', lastScheduled);
+  // When the user searched a mid-journey station, the journey time runs from
+  // THERE to the destination — label it so it can't be mistaken for the
+  // origin's full run (mirrors the boards page "from … to …" treatment).
+  const route =
+    journey && boardIdx > 0 && board
+      ? ` From ${esc(stationLabel(board.station))} to ${esc(stationLabel(d.destination))}`
+      : '';
   const stopCount = Math.max(0, d.points.length - boardIdx - 1);
   const stops = stopCount > 0 ? `${stopCount} ${stopCount === 1 ? 'stop' : 'stops'}` : '';
   const coaches = d.coaches ? `${d.coaches} ${d.coaches === 1 ? 'coach' : 'coaches'}` : '';
-  const sub = [d.operator, journey, stops, coaches].filter(Boolean).map(esc).join(' · ');
+  const sub = [d.operator, journey + route, stops, coaches].filter(Boolean).map(esc).join(' · ');
   const date = d.points[0] ? fmtDate(d.points[0].scheduledTime) : '';
   const chip = statusChip(d);
   const status = serviceStatus(d);
