@@ -211,14 +211,15 @@ function serviceStatus(d: ServiceDetail): string {
 }
 
 /** The next station the train is due to call at — the first calling point
- *  with no recorded actual whose scheduled time is still in the future (a stop
- *  with an actual is definitely passed, even if it ran early). This is the
- *  train's real next call wherever it currently is, so the user can see where
- *  the train is heading right now — independent of the station they searched
- *  from. Null when no future stop remains (journey completed). */
+ *  AFTER the origin with no recorded actual whose scheduled time is still in
+ *  the future (a stop with an actual is definitely passed, even if it ran
+ *  early). The origin itself is skipped: while the train still sits there the
+ *  header already shows its departure, so repeating it as "Next stop" wastes
+ *  space — the stop after the origin is the useful next call. Null when no
+ *  future stop remains (journey completed). */
 function nextStop(d: ServiceDetail): CallingPoint | null {
   const now = Date.now();
-  for (let i = 0; i < d.points.length; i++) {
+  for (let i = 1; i < d.points.length; i++) {
     const p = d.points[i]!;
     if (p.actualArrival || p.actualDeparture) continue;
     if (Date.parse(p.scheduledTime) > now) return p;
