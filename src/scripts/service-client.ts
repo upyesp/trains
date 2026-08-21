@@ -211,18 +211,27 @@ function serviceStatus(d: ServiceDetail): string {
 }
 
 /** The next station the train is due to call at — the first calling point
- *  AFTER the origin with no recorded actual whose scheduled time is still in
- *  the future (a stop with an actual is definitely passed, even if it ran
- *  early). The origin itself is skipped: while the train still sits there the
- *  header already shows its departure, so repeating it as "Next stop" wastes
- *  space — the stop after the origin is the useful next call. Null when no
- *  future stop remains (journey completed). */
-function nextStop(d: ServiceDetail): CallingPoint | null {
+ *  AFTER the origin that the train hasn't passed yet. A stop counts as passed
+ *  when it has a recorded actual (arrival or departure — a stop with an actual
+ *  is definitely behind the train, even if it ran early), or, with no live
+ *  report at all, once its SCHEDULED time has passed (mirrors the stop card's
+ *  "Departed — no live data" heuristic). Any other stop is still to come even
+ *  when its scheduled time has passed — the train may be running late, and the
+ *  stop card shows its "Expected" time, so the header must agree with the
+ *  list below it. The origin itself is skipped: while the train still sits
+ *  there the header already shows its departure, so repeating it as "Next
+ *  stop" wastes space — the stop after the origin is the useful next call.
+ *  Null when no stop remains (journey completed). */
+export function nextStop(d: ServiceDetail): CallingPoint | null {
   const now = Date.now();
   for (let i = 1; i < d.points.length; i++) {
     const p = d.points[i]!;
     if (p.actualArrival || p.actualDeparture) continue;
-    if (Date.parse(p.scheduledTime) > now) return p;
+    if (p.noReport) {
+      const ms = Date.parse(p.scheduledTime);
+      if (Number.isFinite(ms) && ms < now) continue;
+    }
+    return p;
   }
   return null;
 }
