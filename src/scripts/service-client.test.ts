@@ -7,7 +7,7 @@
 // next stop while the list still showed Winchester un-arrived.
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { nextStop } from './service-client';
+import { nextStop, stopCard } from './service-client';
 import type { CallingPoint, ServiceDetail } from '../lib/types';
 
 /** 2026-08-20 HH:MM UTC, sliced verbatim style like the app's naive ISO. */
@@ -37,6 +37,32 @@ function service(extra: Partial<ServiceDetail> = {}): ServiceDetail {
 }
 
 afterEach(() => vi.useRealTimers());
+
+describe('stopCard', () => {
+  it('shows "Arrived" for a stop the train has reached but not yet left (arrival actual, no departure yet)', () => {
+    const html = stopCard(point('Basingstoke', 13, 50, { expectedTime: ISO(14, 2), actualArrival: ISO(14, 1), platform: { number: '4', state: 'at-platform' } }), false);
+    expect(html).toContain('Arrived 14:01');
+    expect(html).not.toContain('Expected');
+    expect(html).not.toContain('Departed');
+  });
+
+  it('shows "Departed" once the train has left, arrival and departure both recorded', () => {
+    const html = stopCard(point('Winchester', 13, 32, { actualArrival: ISO(13, 45), actualDeparture: ISO(13, 47) }), false);
+    expect(html).toContain('Departed 13:47');
+    expect(html).not.toContain('Arrived');
+  });
+
+  it('still shows "Completed" at the terminus', () => {
+    const html = stopCard(point('Bournemouth', 12, 45, { actualArrival: ISO(12, 45) }), true);
+    expect(html).toContain('Completed on time');
+    expect(html).not.toContain('Arrived');
+  });
+
+  it('shows "Expected" while the train is still en route (no actuals)', () => {
+    const html = stopCard(point('Reading', 14, 15, { expectedTime: ISO(14, 26) }), false);
+    expect(html).toContain('Expected 14:26');
+  });
+});
 
 describe('nextStop', () => {
   it('agrees with the stop list: a stop without an actual is the next stop even when its scheduled time has passed (late train)', () => {

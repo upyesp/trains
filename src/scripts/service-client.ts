@@ -102,7 +102,8 @@ function stopPlatform(p: Platform | null, station: string): string {
   return `<div class="stop-plat">${srLabel}${platformChip(p, href)}</div>`;
 }
 
-function stopCard(p: CallingPoint, isLast: boolean): string {
+/** One stop's card HTML — exported for the regression tests. */
+export function stopCard(p: CallingPoint, isLast: boolean): string {
   const sched = fmtTime(p.scheduledTime);
 
   // Top-left: timetable time (struck when this stop is cancelled).
@@ -121,6 +122,8 @@ function stopCard(p: CallingPoint, isLast: boolean): string {
   // DEPARTURE time where the stop has one (matching other train boards):
   //  - "Departed" (departure actual) — the train has LEFT, at the recorded
   //    departure, never the arrival;
+  //  - "Arrived" (arrival actual, no departure yet) — the train is sitting at
+  //    the platform waiting to go;
   //  - "Expected" — not gone yet: the expected departure (arrival forecast at
   //    the terminus, which has no departure);
   //  - "Completed" (final stop, arrival actual) — the train finishes here;
@@ -142,6 +145,12 @@ function stopCard(p: CallingPoint, isLast: boolean): string {
       // On-time judgement against the scheduled DEPARTURE (the same element).
       const onTime = depSched != null && dep === depSched;
       expHtml = `<div class="stop-exp ${onTime ? 'on-time' : 'delay'}">Departed ${onTime ? 'on time' : dep}</div>`;
+    } else if (arr) {
+      // Arrived but not yet departed — RTT records the arrival before the
+      // departure, so the train is sitting at the platform. Judged against
+      // the scheduled ARRIVAL (the same element the timetable shows).
+      const cls = arr === schedStr ? 'on-time' : 'delay';
+      expHtml = `<div class="stop-exp ${cls}">Arrived ${arr === schedStr ? 'on time' : arr}</div>`;
     } else if (p.noReport) {
       const pointMs = Date.parse(p.scheduledTime);
       const isPast = Number.isFinite(pointMs) && pointMs < Date.now();
