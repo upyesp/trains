@@ -554,9 +554,9 @@ h1.station {
   position: relative;
   transition: background-color .18s ease, border-color .18s ease;
 }
-.board-panel::before { /* signal accent bar - bright amber in both themes */
+.board-panel::before { /* signal accent bar - the icon's amber in both themes */
   content: ""; display: block; height: 3px;
-  background: linear-gradient(90deg, var(--amber), #d98324 60%, transparent);
+  background: linear-gradient(90deg, var(--amber), transparent);
 }
 .as-of {
   display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline;
