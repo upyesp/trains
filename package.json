@@ -10,13 +10,17 @@
     "typecheck": "astro sync && tsc -p tsconfig.json && tsc -p worker/tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
+    "audit:a11y": "node scripts/axe-audit.mjs",
+    "audit:contrast": "node scripts/contrast-audit.mjs",
     "worker:dev": "wrangler dev",
     "worker:deploy": "wrangler deploy"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260727.1",
     "astro": "^7.1.4",
+    "axe-core": "^4.13.0",
     "jsdom": "^30.0.1",
+    "puppeteer": "^25.9.0",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10",
     "wrangler": "^4.114.0"
