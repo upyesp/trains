@@ -70,7 +70,8 @@
   --board-cancel-border: rgba(229,72,77,.55);
   /* Journey track (Calling Points) — the logo bar's amber reads on the dark board */
   --track: var(--amber);
-  --train-v: var(--amber);   /* the V rides the amber line; same hue keeps it one object */
+  --train-v: var(--amber);        /* the V rides the amber line; same hue keeps it one object */
+  --train-v-outline: #071f4d;     /* ring in the favicon's other colour (navy) */
 }
 
 [data-theme="dark"] { color-scheme: dark; }   /* explicit; same as :root default */
@@ -100,8 +101,9 @@
   --board-delay-border: rgba(146,64,14,.42);
   --board-cancel: #9b1c1c;          /* ~8.1:1 on white (AAA) */
   --board-cancel-border: rgba(155,28,28,.42);
-  --track: #92400e;                 /* the dark amber keeps the track visible on white */
-  --train-v: #071f4d;               /* the favicon's navy V, as on the logo tile */
+  --track: #071f4d;                 /* brand navy, as on the favicon — not brown */
+  --train-v: #071f4d;               /* the favicon's navy V */
+  --train-v-outline: #f0b429;       /* ring in the favicon's other colour (amber) */
 }
 
 * { box-sizing: border-box; }
@@ -825,9 +827,10 @@ h2.stops-title {
    ring while it rests there, and every stop gets a ring. All of it is
    decorative — the markup is aria-hidden and the header's "Next stop" line
    carries the same facts for screen readers, so the spoken flow is unchanged.
-   The line uses the theme's amber (bright on dark, dark on white); the V is
-   amber on the dark board and the favicon's navy on the light one, so it
-   reads clearly in both. */
+   Colours are the favicon's two: dark theme draws line and V in amber with a
+   navy ring; light theme draws them in the favicon navy with an amber ring
+   (brown was off-brand). The V is outsized (the glyph alone is ~22×33px) and
+   ringed so it's easy to spot on both themes. */
 .track-wrap { position: relative; }
 .track {
   position: absolute; left: 8px; width: 4px; border-radius: 2px;
@@ -836,9 +839,16 @@ h2.stops-title {
 .track-done { background: repeating-linear-gradient(180deg, var(--track) 0 7px, transparent 7px 12px); }
 .track-todo { background: var(--track); }
 .train-v {
-  position: absolute; left: -1px; width: 22px; height: 22px;
+  position: absolute; left: -6.5px; width: 33px; height: 33px;  /* box centre = track centre (x 10) */
   transform: translateY(-50%); color: var(--train-v);
   transition: top .9s ease; pointer-events: none;
+}
+.train-v svg path {
+  /* Thin ring in the favicon's other colour (see --train-v-outline):
+     paint-order stroke keeps the fill crisp on top of the stroke. Width is
+     in the glyph's user units (~1.3px visible at this size). */
+  stroke: var(--train-v-outline); stroke-width: 48;
+  paint-order: stroke; stroke-linejoin: round;
 }
 .train-v svg { display: block; width: 100%; height: 100%; }
 .track-wrap.no-anim .track,
