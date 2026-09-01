@@ -887,7 +887,9 @@ h2.stops-title {
   .board-cols { display: none; }
   .svc {
     /* minmax(0,1fr) + min-width:0 on the items lets a very long single-word
-       destination wrap instead of forcing the platform off-screen. */
+       destination wrap instead of forcing the platform off-screen. Vertical
+       padding/gaps kept tight so board rows and calling-point cards match on
+       phones. */
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
       "time   status"
@@ -895,8 +897,8 @@ h2.stops-title {
       "plat   plat";
     align-items: center;
     column-gap: 14px;
-    row-gap: 6px;
-    padding: 14px 16px;
+    row-gap: 4px;
+    padding: 8px 16px;
   }
   /* Platform page on phones: no platform row, so the card is just time +
      status on the top line and destination full-width below it. */
@@ -917,12 +919,15 @@ h2.stops-title {
     font-family: var(--sans); font-weight: 500;
     font-size: .62rem; letter-spacing: .08em; text-transform: uppercase;
     color: var(--board-mute);
-    margin-bottom: 2px;
+    margin-bottom: 1px;
   }
   /* Full-width platform bar on its own row: the chip stretches to the row
      width and its caption / number / state centre within it (the chip is a
-     centred column flex). Desktop keeps its fluid min-width. */
-  .plat { width: 100%; }
+     centred column flex). Desktop keeps its fluid min-width. Padding is
+     trimmed so the chip is shorter than on desktop, matching the tighter
+     cards. */
+  .plat { width: 100%; padding: 4px 10px; }
+  .plat .state { margin-top: 1px; }
   /* Stack a delayed time (scheduled over expected) so its column can't force
      the platform off-screen - a horizontal nowrap '08:05 -> 08:11' (~135px)
      made the first track too wide on narrow phones; stacked it's ~61px. The
@@ -936,8 +941,10 @@ h2.stops-title {
   .brand-tag { display: none; }   /* keep the header tidy on narrow phones */
   /* Same stack as a .svc board row: time + expected on the top line, station
      full-width, then the platform chip on its own line below - so a long station
-     name wraps instead of being squeezed beside the platform. */
+     name wraps instead of being squeezed beside the platform. Compact padding
+     (like the board rows) so the card stays short on phones. */
   .stop {
+    --stop-gutter: 28px;   /* left gutter hosts the journey track; the mobile ring anchors to it */
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
       "time   exp"
@@ -945,13 +952,29 @@ h2.stops-title {
       "plat   plat";
     align-items: center;
     column-gap: 14px;
-    row-gap: 6px;
-    padding: 14px 16px 14px 28px; /* left gutter hosts the journey track */
+    row-gap: 4px;
+    padding: 8px 16px 8px var(--stop-gutter);
   }
   .stop-time    { grid-area: time; min-width: 0; }
   .stop-exp     { grid-area: exp; }
   .stop-station { grid-area: station; min-width: 0; }
   .stop-plat    { grid-area: plat; justify-self: stretch; }
+  /* On phones the station name sits on its own middle row, so the card's
+     vertical centre is NOT the station's centre — the ring must anchor to
+     the station row itself or it floats between the name and the platform
+     chip. The station cell spans the full card width, so the ring's x is
+     the card's gutter inset (content left minus the gutter). The desktop
+     ring (on .stop-item) is suppressed here to avoid double rings. */
+  .stop-item::before { display: none; }
+  .stop-station { position: relative; }
+  .stop-station::before {
+    content: ""; position: absolute; left: calc(4px - var(--stop-gutter)); top: 50%;
+    transform: translateY(-50%);
+    width: 7px; height: 7px; border: 2.5px solid var(--track); border-radius: 50%;
+    background: var(--board-bg); z-index: 1;
+  }
+  .stop-item.train-here .stop-station::before { display: none; }   /* the V takes the ring's place */
+  .track-wrap.no-track .stop-station::before { display: none; }    /* cancelled run: no rings */
 }
 
 /* ---------- Reduced motion ---------- */
