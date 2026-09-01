@@ -561,6 +561,12 @@ export function initServiceDetail(root: HTMLElement): void {
       return;
     }
     const pos = trainPosition(d);
+    // The V's RENDERED progress along a section never comes closer than 20%
+    // to a station: approaching, it holds at 80% until the train actually
+    // arrives (then it sits on the ring), and on departure it reappears at
+    // 20% and holds there until real progress catches up. Display only —
+    // trainPosition still reports the true fraction.
+    const f = pos.frac == null ? null : Math.min(0.8, Math.max(0.2, pos.frac));
     // Track ends meet the first/last station rings exactly — no stubs beyond
     // them (the line starts neatly at the origin ring and terminates at the
     // destination ring).
@@ -605,19 +611,19 @@ export function initServiceDetail(root: HTMLElement): void {
         mainSplit = gMain.ys[i]!;
         mainHere = i;
       } else if (i > 0) {
-        mainSplit = gMain.ys[i - 1]! + pos.frac * (gMain.ys[i]! - gMain.ys[i - 1]!);
+        mainSplit = gMain.ys[i - 1]! + f! * (gMain.ys[i]! - gMain.ys[i - 1]!);
       } else {
         // i === 0 with a fraction and the earlier list open: the train is on
         // the bridged section between the last earlier stop and the first
         // visible one — interpolate along the bridge.
-        mainSplit = gMain.top + pos.frac * (gMain.ys[0]! - gMain.top);
+        mainSplit = gMain.top + f! * (gMain.ys[0]! - gMain.top);
       }
     } else if (gEarlier) {
       if (pos.frac == null) {
         earlierSplit = gEarlier.ys[pos.idx]!;
         earlierHere = pos.idx;
       } else {
-        earlierSplit = gEarlier.ys[pos.idx - 1]! + pos.frac * (gEarlier.ys[pos.idx]! - gEarlier.ys[pos.idx - 1]!);
+        earlierSplit = gEarlier.ys[pos.idx - 1]! + f! * (gEarlier.ys[pos.idx]! - gEarlier.ys[pos.idx - 1]!);
       }
     }
 
