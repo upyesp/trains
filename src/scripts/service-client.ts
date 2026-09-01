@@ -29,6 +29,12 @@ const SHARE_ANDROID = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 2
  *  icon on iOS and macOS. */
 const SHARE_APPLE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>`;
 
+/** The logo's "V with the vertical bar through it" — the brand mark used as
+ *  the live train on the journey track. Same artwork, colours and rounded tile
+ *  as the favicon (amber #f0b429 ground, navy #071f4d glyph): the V path is
+ *  extracted verbatim from the favicon, re-centred in a square viewBox. */
+const TRAIN_V_SVG = `<svg viewBox="-33 91 923 923" aria-hidden="true" focusable="false"><rect x="-33" y="91" width="923" height="923" rx="202" fill="#f0b429"/><path fill="#071f4d" d="M387 111L387 582C387 588.22 387.607 594.74 386 600.73C377.273 577.64 366.787 555.17 357.309 532.42C335.9 481.05 314.67 429.58 293.309 378.18C282.938 353.22 272.702 328.2 262.309 303.26C257.632 292.03 254.17 277.54 247 268L247 425.55L247 474.03C247 481.65 245.736 490.89 247.637 498.27C250.075 507.73 255.766 517.03 259.753 525.81L282.753 576.49C307.463 630.94 332.54 685.11 357.247 739.55L376.247 781.42C379.604 788.82 384.309 796.58 386.363 804.56C388.426 812.57 387 822.72 387 831L387 839L387 994L470 994L470 831C470 822.72 468.574 812.57 470.637 804.56C472.691 796.58 477.396 788.82 480.753 781.42L499.753 739.55C524.46 685.11 549.537 630.94 574.247 576.49L597.247 525.81C601.234 517.03 606.925 507.73 609.363 498.27C611.264 490.89 610 481.65 610 474.03L610 425.55L610 268C602.83 277.54 599.368 292.03 594.691 303.26C584.298 328.2 574.062 353.22 563.691 378.18C542.33 429.58 521.1 481.05 499.691 532.42C490.213 555.17 479.727 577.64 471 600.73C469.393 594.74 470 588.22 470 582L470 548.95L470 440.98L470 111L387 111zM721 268L721 831L804 831L804 268L721 268zM915 268L915 831L998 831L998 643L1185.5 643C1289.05 643 1373 559.05 1373 455.5C1373 351.95 1289.05 268 1185.5 268L998 268L915 268z"/></svg>`;
+
 /** Pick the OS-appropriate share icon.  Apple users (iOS / macOS) get the
  *  box-with-arrow glyph that matches Safari's share button; everyone else
  *  gets the three-linked-circles glyph standard on Android and the web. */
@@ -177,15 +183,33 @@ function stopsHtml(d: ServiceDetail, boardIdx: number, earlierOpen: boolean): st
   // station; earlier stops sit in a separate list collapsed behind a
   // disclosure button (APG pattern: aria-expanded + aria-controls, the hidden
   // attribute removes the collapsed stops from the accessibility tree).
+  //
+  // Each list lives in a track-wrap div hosting the decorative journey track
+  // and the V marker (both aria-hidden — see trackWrap). The earlier wrapper
+  // carries the collapsed state too, so its track disappears with its stops.
   const earlier = d.points.slice(0, boardIdx);
   const rest = d.points.slice(boardIdx);
   const main = rest
     .map((p, i) => stopCard(p, i === rest.length - 1))
     .join('');
-  if (boardIdx === 0) return `<ol class="stops" aria-labelledby="stops-title">${main}</ol>`;
+  if (boardIdx === 0) return trackWrap('main', `<ol class="stops" aria-labelledby="stops-title">${main}</ol>`);
   const btn = `<button type="button" class="earlier-btn" id="earlier-btn" aria-expanded="${earlierOpen}" aria-controls="earlier-stops">${earlierOpen ? 'Hide' : 'Show'} earlier calling points</button>`;
-  const earlierList = `<ol class="stops earlier-stops" id="earlier-stops" aria-label="Earlier calling points"${earlierOpen ? '' : ' hidden'}>${earlier.map((p) => stopCard(p, false)).join('')}</ol>`;
-  return `${btn}${earlierList}<ol class="stops" aria-labelledby="stops-title">${main}</ol>`;
+  const earlierList = `<ol class="stops earlier-stops" id="earlier-stops" aria-label="Earlier calling points">${earlier.map((p) => stopCard(p, false)).join('')}</ol>`;
+  return `${btn}${trackWrap('earlier', earlierList, !earlierOpen)}${trackWrap('main', `<ol class="stops" aria-labelledby="stops-title">${main}</ol>`)}`;
+}
+
+/** Decorative wrapper hosting one list plus the journey track: the logo's
+ *  vertical bar (broken where the train has passed, solid ahead) and the
+ *  logo's V riding it as the train. Everything here is aria-hidden — the
+ *  header's "Next stop" line and the stop cards' own statuses already tell
+ *  screen-reader users where the train is, so the graphics stay silent and
+ *  the spoken flow is exactly as before. Geometry (split point, V position)
+ *  is applied by layTrack after render. */
+function trackWrap(cls: string, inner: string, hidden = false): string {
+  return `<div class="track-wrap ${cls}"${hidden ? ' hidden' : ''}>`
+    + `<div class="track track-done" aria-hidden="true"></div>`
+    + `<div class="track track-todo" aria-hidden="true"></div>${inner}`
+    + `<div class="train-v" aria-hidden="true">${TRAIN_V_SVG}</div></div>`;
 }
 
 function statusChip(d: ServiceDetail): string {
@@ -243,6 +267,52 @@ export function nextStop(d: ServiceDetail): CallingPoint | null {
     return p;
   }
   return null;
+}
+
+/** Where the train is now, for the journey track's V marker — derived from the
+ *  SAME passed/not-passed rules as the header's "Next stop" (nextStop above).
+ *  Returns the anchor stop's index plus, when the train is between stations, a
+ *  clamped 0..1 progress fraction from the previous stop towards it (judged on
+ *  the recorded/expected times, so a late train slides realistically). Null
+ *  when the train rests AT the anchor: origin not yet departed, arrived at a
+ *  stop (its ring is then replaced by the V), or the journey complete. */
+export function trainPosition(d: ServiceDetail): { idx: number; frac: number | null } {
+  const pts = d.points;
+  if (pts.length === 0) return { idx: 0, frac: null };
+  const now = Date.now();
+  // Resting at the origin: no recorded departure and the timetable still says
+  // future — the stop card's own heuristic (past-due with no report is gone).
+  const origin = pts[0]!;
+  if (!origin.actualDeparture && Date.parse(origin.scheduledTime) > now) return { idx: 0, frac: null };
+  // Resting at a stop: arrival recorded, departure not yet (includes the terminus).
+  for (let i = 1; i < pts.length; i++) {
+    const p = pts[i]!;
+    if (p.actualArrival && !p.actualDeparture) return { idx: i, frac: null };
+  }
+  // En route: slide along the section between the last passed station and the
+  // next one, in proportion to the elapsed/total time.
+  const next = nextStop(d);
+  if (!next) return { idx: pts.length - 1, frac: null }; // complete (no-report terminus)
+  const nextIdx = pts.indexOf(next);
+  let fromIdx = -1;
+  for (let i = nextIdx - 1; i >= 0; i--) {
+    const p = pts[i]!;
+    // The origin always anchors the section: reaching the en-route branch at
+    // all means it has gone (actual recorded, or past-due per the same
+    // heuristic the stop card and header status use).
+    if (p.actualDeparture || p.actualArrival || i === 0) {
+      fromIdx = i;
+      break;
+    }
+  }
+  const from = fromIdx >= 0 ? pts[fromIdx] : undefined;
+  const fromT = from ? Date.parse(from.actualDeparture ?? from.actualArrival ?? from.expectedTime) : NaN;
+  const toT = Date.parse(next.expectedTime);
+  if (Number.isFinite(fromT) && Number.isFinite(toT) && toT > fromT) {
+    const frac = (now - fromT) / (toT - fromT);
+    return { idx: nextIdx, frac: Math.min(0.92, Math.max(0.08, frac)) };
+  }
+  return { idx: nextIdx, frac: null };
 }
 
 function headerHtml(d: ServiceDetail, boardIdx: number): string {
@@ -366,6 +436,14 @@ export function initServiceDetail(root: HTMLElement): void {
 
   const state: State = { id, from, apiBase, mock, prev: null, asAtMs: null, recorded: false, earlierOpen: false };
 
+  // Journey track state: the current detail + board index (re-layout on
+  // resize/font swap) and the last split positions, so on a refresh the V
+  // glides from where it was instead of teleporting.
+  let current: ServiceDetail | null = null;
+  let curBoardIdx = 0;
+  let splitMain: number | null = null;
+  let splitEarlier: number | null = null;
+
   els.back.innerHTML = backLinkHtml(state.from);
 
   async function shareService(): Promise<void> {
@@ -444,12 +522,124 @@ export function initServiceDetail(root: HTMLElement): void {
     if (list) list.hidden = !state.earlierOpen;
     btn.setAttribute('aria-expanded', String(state.earlierOpen));
     btn.textContent = state.earlierOpen ? 'Hide earlier calling points' : 'Show earlier calling points';
+    // The wrapper carries hidden as well as the list, so the journey track
+    // inside it appears/disappears together with the stops.
+    if (list) list.closest('.track-wrap')?.toggleAttribute('hidden', !state.earlierOpen);
+    if (current) layTrack(current, curBoardIdx, null, null);
   });
+
+  // Re-measure the journey track when the layout shifts under it (viewport
+  // changes, late font swap). No glide on these — the train hasn't moved.
+  window.addEventListener('resize', () => {
+    if (current) layTrack(current, curBoardIdx, null, null);
+  });
+  void document.fonts?.ready.then(() => {
+    if (current) layTrack(current, curBoardIdx, null, null);
+  });
+
+  /** Position the journey track's break (broken behind the train, solid ahead)
+   *  and the V marker. Decorative only — every element is aria-hidden, the
+   *  header's "Next stop" line stays the spoken source of truth. prevMain/
+   *  prevEarlier are the split positions from before the list was rebuilt:
+   *  painting them first (transitions off) then the new values makes the V
+   *  glide station-to-station on refresh instead of teleporting. */
+  function layTrack(d: ServiceDetail, boardIdx: number, prevMain: number | null, prevEarlier: number | null): void {
+    const main = els.body.querySelector<HTMLElement>('.track-wrap.main');
+    if (!main) return;
+    const earlier = els.body.querySelector<HTMLElement>('.track-wrap.earlier');
+    if (d.cancelled) {
+      // A cancelled run never started: no track, no train.
+      for (const w of [main, earlier]) w?.classList.add('no-track');
+      return;
+    }
+    const pos = trainPosition(d);
+    const geo = (wrap: HTMLElement) => {
+      const lis = Array.from(wrap.querySelectorAll<HTMLElement>('.stop-item'));
+      const ys = lis.map((li) => li.offsetTop + li.offsetHeight / 2);
+      return { lis, ys, top: ys[0]! - 16, bottom: ys[ys.length - 1]! + 16 };
+    };
+    const gMain = geo(main);
+    const gEarlier = earlier != null && state.earlierOpen ? geo(earlier) : null;
+
+    let role: 'main' | 'earlier' = pos.idx >= boardIdx ? 'main' : 'earlier';
+    if (role === 'earlier' && !gEarlier) role = 'main'; // window closed → pin above it
+
+    // Defaults: the main window's track is all ahead of the train; an open
+    // earlier window's is all behind it.
+    let mainSplit = gMain.top;
+    let earlierSplit = gEarlier ? gEarlier.bottom : null;
+    let mainHere = -1;
+    let earlierHere = -1;
+    if (role === 'main') {
+      const i = pos.idx - boardIdx;
+      if (pos.frac == null) {
+        mainSplit = gMain.ys[i]!;
+        mainHere = i;
+      } else if (i > 0) {
+        mainSplit = gMain.ys[i - 1]! + pos.frac * (gMain.ys[i]! - gMain.ys[i - 1]!);
+      }
+      // i === 0 with a fraction: the train is still short of the first visible
+      // stop, so the V rests on the track's top stub.
+    } else if (gEarlier) {
+      if (pos.frac == null) {
+        earlierSplit = gEarlier.ys[pos.idx]!;
+        earlierHere = pos.idx;
+      } else {
+        earlierSplit = gEarlier.ys[pos.idx - 1]! + pos.frac * (gEarlier.ys[pos.idx]! - gEarlier.ys[pos.idx - 1]!);
+      }
+    }
+
+    const apply = (
+      wrap: HTMLElement,
+      g: { top: number; bottom: number },
+      split: number,
+      prev: number | null,
+      showV: boolean,
+    ): number => {
+      const done = wrap.querySelector<HTMLElement>('.track-done');
+      const todo = wrap.querySelector<HTMLElement>('.track-todo');
+      const v = wrap.querySelector<HTMLElement>('.train-v');
+      if (!done || !todo || !v) return split;
+      const s = Math.min(g.bottom, Math.max(g.top, split));
+      const paint = (t: number) => {
+        done.style.top = `${g.top}px`;
+        done.style.height = `${Math.max(0, t - g.top)}px`;
+        todo.style.top = `${t}px`;
+        todo.style.height = `${Math.max(0, g.bottom - t)}px`;
+        v.style.top = `${t}px`;
+      };
+      v.style.visibility = showV ? 'visible' : 'hidden';
+      if (prev != null) {
+        wrap.classList.add('no-anim');
+        paint(prev);
+        void wrap.offsetWidth; // reflow so the old position is committed
+        wrap.classList.remove('no-anim');
+      }
+      paint(s);
+      return s;
+    };
+
+    splitMain = apply(main, gMain, mainSplit, prevMain, role !== 'earlier');
+    if (earlier && gEarlier) {
+      splitEarlier = apply(earlier, gEarlier, earlierSplit!, role === 'earlier' ? prevEarlier : null, role === 'earlier');
+    }
+
+    // While the V rests AT a station, that station's ring yields to the V.
+    gMain.lis.forEach((li, i) => li.classList.toggle('train-here', i === mainHere));
+    if (gEarlier) gEarlier.lis.forEach((li, i) => li.classList.toggle('train-here', i === earlierHere));
+  }
 
   function render(d: ServiceDetail): void {
     const boardIdx = boardPointIndex(d, state.from);
     els.head.innerHTML = headerHtml(d, boardIdx);
+    const prevMain = splitMain;
+    const prevEarlier = splitEarlier;
+    splitMain = null;
+    splitEarlier = null;
     els.body.innerHTML = d.points.length === 0 ? `<p class="board-msg">${EMPTY}</p>` : stopsHtml(d, boardIdx, state.earlierOpen);
+    layTrack(d, boardIdx, prevMain, prevEarlier);
+    current = d;
+    curBoardIdx = boardIdx;
     const titleEl = document.getElementById('service-title');
     if (titleEl?.textContent) document.title = `${titleEl.textContent} — VIPTrains.org.uk`;
   }

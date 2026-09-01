@@ -68,6 +68,8 @@
   --board-delay-border: rgba(240,180,41,.5);
   --board-cancel: var(--red-bright);  /* ~7.5:1 on ink (AAA) */
   --board-cancel-border: rgba(229,72,77,.55);
+  /* Journey track (Calling Points) — the logo bar's amber reads on the dark board */
+  --track: var(--amber);
 }
 
 [data-theme="dark"] { color-scheme: dark; }   /* explicit; same as :root default */
@@ -97,6 +99,7 @@
   --board-delay-border: rgba(146,64,14,.42);
   --board-cancel: #9b1c1c;          /* ~8.1:1 on white (AAA) */
   --board-cancel-border: rgba(155,28,28,.42);
+  --track: #92400e;                 /* the dark amber keeps the track visible on white */
 }
 
 * { box-sizing: border-box; }
@@ -781,7 +784,7 @@ h2.stops-title {
   grid-template-columns: 7.5rem minmax(0, 1fr) 7rem 6.5rem;
   align-items: center;
   column-gap: 16px;
-  padding: 14px 20px;
+  padding: 14px 20px 14px 30px;   /* left gutter hosts the journey track */
 }
 .stops > :last-child { border-bottom: 0; }
 /* Station-name link inside a stop card. Always underlined (GDS-style) so
@@ -810,6 +813,46 @@ h2.stops-title {
 /* On the board the "Platform" caption is mobile-only (desktop has a column
    header); the detail page has no header, so show it at every breakpoint. */
 .stops .plat-label { display: block; margin-bottom: 2px; }
+
+/* ---------- Journey track (Calling Points) ---------- */
+/* The logo's vertical bar becomes the train track down the list's left edge:
+   BROKEN where the train has already passed, SOLID where it hasn't reached.
+   The logo's V rides the line as the train (replacing a station's ring while
+   it rests there), and every stop gets a ring. All of it is decorative — the
+   markup is aria-hidden and the header's "Next stop" line carries the same
+   facts for screen readers, so the spoken flow is unchanged. The V tile is
+   the favicon's scheme (amber ground, navy glyph) and reads on both themes;
+   the line itself uses the theme's amber (bright on dark, dark on white). */
+.track-wrap { position: relative; }
+.track {
+  position: absolute; left: 8px; width: 4px; border-radius: 2px;
+  transition: top .9s ease, height .9s ease; pointer-events: none;
+}
+.track-done { background: repeating-linear-gradient(180deg, var(--track) 0 7px, transparent 7px 12px); }
+.track-todo { background: var(--track); }
+.train-v {
+  position: absolute; left: -1px; width: 22px; height: 22px;
+  transform: translateY(-50%); border-radius: 5px;
+  box-shadow: 0 0 0 3px var(--board-bg);   /* halo: the line passes behind the V */
+  transition: top .9s ease; pointer-events: none;
+}
+.train-v svg { display: block; width: 100%; height: 100%; }
+.track-wrap.no-anim .track,
+.track-wrap.no-anim .train-v { transition: none !important; }
+.track-wrap.no-track .track,
+.track-wrap.no-track .train-v,
+.track-wrap.no-track .stop-item::before { display: none; }   /* cancelled run: no track, no train, no rings */
+/* Station rings — the track's stations; the ring yields while the V rests there. */
+.stop-item { position: relative; }
+.stop-item::before {
+  content: ""; position: absolute; left: 4px; top: 50%; transform: translateY(-50%);
+  width: 7px; height: 7px; border: 2.5px solid var(--track); border-radius: 50%;
+  background: var(--board-bg);
+}
+.stop-item.train-here::before { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .track, .train-v { transition: none !important; }
+}
 
 /* ---------- Responsive ---------- */
 @media (max-width: 560px) {
@@ -885,7 +928,7 @@ h2.stops-title {
     align-items: center;
     column-gap: 14px;
     row-gap: 6px;
-    padding: 14px 16px;
+    padding: 14px 16px 14px 28px; /* left gutter hosts the journey track */
   }
   .stop-time    { grid-area: time; min-width: 0; }
   .stop-exp     { grid-area: exp; }
