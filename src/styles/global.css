@@ -857,12 +857,15 @@ h2.stops-title {
 .track-wrap.no-track .track,
 .track-wrap.no-track .train-v,
 .track-wrap.no-track .stop-item::before { display: none; }   /* cancelled run: no track, no train, no rings */
-/* Station rings — the track's stations; the ring yields while the V rests there. */
+/* Station rings — the track's stations; the ring yields while the V rests there.
+   z-index lifts them above BOTH windows' track segments: without it, the main
+   list's bridged line (which starts at the last earlier ring's centre) paints
+   over that ring, leaving track visible in its lower inner half. */
 .stop-item { position: relative; }
 .stop-item::before {
   content: ""; position: absolute; left: 4px; top: 50%; transform: translateY(-50%);
   width: 7px; height: 7px; border: 2.5px solid var(--track); border-radius: 50%;
-  background: var(--board-bg);
+  background: var(--board-bg); z-index: 1;
 }
 .stop-item.train-here::before { display: none; }
 @media (prefers-reduced-motion: reduce) {
