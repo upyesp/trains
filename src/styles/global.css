@@ -71,7 +71,6 @@
   /* Journey track (Calling Points) — the logo bar's amber reads on the dark board */
   --track: var(--amber);
   --train-v: var(--amber);        /* the V rides the amber line; same hue keeps it one object */
-  --train-v-outline: #071f4d;     /* ring in the favicon's other colour (navy) */
 }
 
 [data-theme="dark"] { color-scheme: dark; }   /* explicit; same as :root default */
@@ -103,7 +102,6 @@
   --board-cancel-border: rgba(155,28,28,.42);
   --track: #071f4d;                 /* brand navy, as on the favicon — not brown */
   --train-v: #071f4d;               /* the favicon's navy V */
-  --train-v-outline: #f0b429;       /* ring in the favicon's other colour (amber) */
 }
 
 * { box-sizing: border-box; }
@@ -827,10 +825,12 @@ h2.stops-title {
    ring while it rests there, and every stop gets a ring. All of it is
    decorative — the markup is aria-hidden and the header's "Next stop" line
    carries the same facts for screen readers, so the spoken flow is unchanged.
-   Colours are the favicon's two: dark theme draws line and V in amber with a
-   navy ring; light theme draws them in the favicon navy with an amber ring
-   (brown was off-brand). The V is outsized (the glyph alone is ~22×33px) and
-   ringed so it's easy to spot on both themes. */
+   Colours are the favicon's two per theme: dark theme draws line and V in
+   amber, light theme in the favicon navy (brown was off-brand). The V is
+   outsized (glyph ~22×33px) and haloed in the board background so it stands
+   off the line and is easy to spot in both themes; the V only appears when
+   the train is within the visible calling points (expanding the earlier
+   list reveals it further back). */
 .track-wrap { position: relative; }
 .track {
   position: absolute; left: 8px; width: 4px; border-radius: 2px;
@@ -844,10 +844,11 @@ h2.stops-title {
   transition: top .9s ease; pointer-events: none;
 }
 .train-v svg path {
-  /* Thin ring in the favicon's other colour (see --train-v-outline):
-     paint-order stroke keeps the fill crisp on top of the stroke. Width is
-     in the glyph's user units (~1.3px visible at this size). */
-  stroke: var(--train-v-outline); stroke-width: 48;
+  /* Halo in the board background: cuts the line at the marker's edge so the
+     V reads as an object sitting on the track. paint-order: stroke keeps the
+     fill crisp on top of the stroke; width is in the glyph's user units
+     (~1.3px visible at this size). */
+  stroke: var(--board-bg); stroke-width: 48;
   paint-order: stroke; stroke-linejoin: round;
 }
 .train-v svg { display: block; width: 100%; height: 100%; }

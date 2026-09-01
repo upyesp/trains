@@ -588,13 +588,19 @@ export function initServiceDetail(root: HTMLElement): void {
     let earlierSplit = gEarlier ? gEarlier.bottom : null;
     let mainHere = -1;
     let earlierHere = -1;
+    let mainShowV = true;
     if (role === 'main') {
       const i = pos.idx - boardIdx;
       if (i < 0 || (i === 0 && pos.frac != null && !gEarlier)) {
-        // The train's section lies inside the closed earlier list (or just
-        // above the first visible stop with no bridge to show it on): pin the
-        // V to the track's top.
+        // The train's section lies inside the closed earlier list (or the
+        // train is still short of the first visible stop): with no stub to
+        // rest on, pinning the V to the track's top would put it ON the
+        // first ring — falsely claiming the train is at that station. Keep
+        // the V hidden; the all-solid visible track and the header's "Next
+        // stop" line tell the story. Expanding the earlier list reveals the
+        // V at its true spot.
         mainSplit = gMain.top;
+        mainShowV = false;
       } else if (pos.frac == null) {
         mainSplit = gMain.ys[i]!;
         mainHere = i;
@@ -645,7 +651,7 @@ export function initServiceDetail(root: HTMLElement): void {
       return s;
     };
 
-    splitMain = apply(main, gMain, mainSplit, prevMain, role !== 'earlier');
+    splitMain = apply(main, gMain, mainSplit, prevMain, role !== 'earlier' && mainShowV);
     if (earlier && gEarlier) {
       splitEarlier = apply(earlier, gEarlier, earlierSplit!, role === 'earlier' ? prevEarlier : null, role === 'earlier');
     }
