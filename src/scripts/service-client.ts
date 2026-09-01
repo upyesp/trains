@@ -569,10 +569,19 @@ export function initServiceDetail(root: HTMLElement): void {
     const f = pos.frac == null ? null : Math.min(0.8, Math.max(0.2, pos.frac));
     // Track ends meet the first/last station rings exactly — no stubs beyond
     // them (the line starts neatly at the origin ring and terminates at the
-    // destination ring).
+    // destination ring). Ring centres are measured from the STATION cell, not
+    // the card: on phones the card is a three-row stack (time / station /
+    // chip) whose centre lies below the station name, so card centres would
+    // gap the origin ring, tail past the destination ring and park the V
+    // below the name. On desktop the station cell sits centred in the single
+    // row, so its centre equals the card centre and the measurement is
+    // unchanged.
     const geo = (wrap: HTMLElement) => {
       const lis = Array.from(wrap.querySelectorAll<HTMLElement>('.stop-item'));
-      const ys = lis.map((li) => li.offsetTop + li.offsetHeight / 2);
+      const ys = lis.map((li) => {
+        const st = li.querySelector<HTMLElement>('.stop-station');
+        return st ? li.offsetTop + st.offsetTop + st.offsetHeight / 2 : li.offsetTop + li.offsetHeight / 2;
+      });
       return { lis, ys, top: ys[0]!, bottom: ys[ys.length - 1]! };
     };
     const gMain = geo(main);
