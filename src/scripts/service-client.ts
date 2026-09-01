@@ -33,7 +33,15 @@ const SHARE_APPLE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
  *  the live train on the journey track. Same artwork, colours and rounded tile
  *  as the favicon (amber #f0b429 ground, navy #071f4d glyph): the V path is
  *  extracted verbatim from the favicon, re-centred in a square viewBox. */
-const TRAIN_V_SVG = `<svg viewBox="-33 91 923 923" aria-hidden="true" focusable="false"><rect x="-33" y="91" width="923" height="923" rx="202" fill="#f0b429"/><path fill="#071f4d" d="M387 111L387 582C387 588.22 387.607 594.74 386 600.73C377.273 577.64 366.787 555.17 357.309 532.42C335.9 481.05 314.67 429.58 293.309 378.18C282.938 353.22 272.702 328.2 262.309 303.26C257.632 292.03 254.17 277.54 247 268L247 425.55L247 474.03C247 481.65 245.736 490.89 247.637 498.27C250.075 507.73 255.766 517.03 259.753 525.81L282.753 576.49C307.463 630.94 332.54 685.11 357.247 739.55L376.247 781.42C379.604 788.82 384.309 796.58 386.363 804.56C388.426 812.57 387 822.72 387 831L387 839L387 994L470 994L470 831C470 822.72 468.574 812.57 470.637 804.56C472.691 796.58 477.396 788.82 480.753 781.42L499.753 739.55C524.46 685.11 549.537 630.94 574.247 576.49L597.247 525.81C601.234 517.03 606.925 507.73 609.363 498.27C611.264 490.89 610 481.65 610 474.03L610 425.55L610 268C602.83 277.54 599.368 292.03 594.691 303.26C584.298 328.2 574.062 353.22 563.691 378.18C542.33 429.58 521.1 481.05 499.691 532.42C490.213 555.17 479.727 577.64 471 600.73C469.393 594.74 470 588.22 470 582L470 548.95L470 440.98L470 111L387 111zM721 268L721 831L804 831L804 268L721 268zM915 268L915 831L998 831L998 643L1185.5 643C1289.05 643 1373 559.05 1373 455.5C1373 351.95 1289.05 268 1185.5 268L998 268L915 268z"/></svg>`;
+// The train marker: just the favicon's "V" — the "I" bar that strikes
+// through it on the logo is removed, and there is no tile (transparent
+// background, the track line passes right through it). The outer edges are
+// the favicon glyph's own; the bar's excursions are replaced by a flat
+// vertex and the inner edges extended to their natural meeting point. The
+// viewBox centres the glyph's bounding box (x 247–610, y 268–831) so the V
+// sits exactly on the track's centreline. Filled with currentColor — see
+// --train-v in the theme blocks.
+const TRAIN_V_SVG = `<svg viewBox="227 248 403 603" aria-hidden="true" focusable="false"><path fill="currentColor" d="M247 268L247 425.55L247 474.03C247 481.65 245.736 490.89 247.637 498.27C250.075 507.73 255.766 517.03 259.753 525.81L282.753 576.49C307.463 630.94 332.54 685.11 357.247 739.55L376.247 781.42C379.604 788.82 384.309 796.58 386.363 804.56C388.426 812.57 387 822.72 387 831L470 831C470 822.72 468.574 812.57 470.637 804.56C472.691 796.58 477.396 788.82 480.753 781.42L499.753 739.55C524.46 685.11 549.537 630.94 574.247 576.49L597.247 525.81C601.234 517.03 606.925 507.73 609.363 498.27C611.264 490.89 610 481.65 610 474.03L610 425.55L610 268C602.83 277.54 599.368 292.03 594.691 303.26C584.298 328.2 574.062 353.22 563.691 378.18C542.33 429.58 521.1 481.05 499.691 532.42C490.213 555.17 479.727 577.64 471 600.73L428 701L386 600.73C377.273 577.64 366.787 555.17 357.309 532.42C335.9 481.05 314.67 429.58 293.309 378.18C282.938 353.22 272.702 328.2 262.309 303.26C257.632 292.03 254.17 277.54 247 268Z"/></svg>`;
 
 /** Pick the OS-appropriate share icon.  Apple users (iOS / macOS) get the
  *  box-with-arrow glyph that matches Safari's share button; everyone else
@@ -553,13 +561,23 @@ export function initServiceDetail(root: HTMLElement): void {
       return;
     }
     const pos = trainPosition(d);
+    // Track ends meet the first/last station rings exactly — no stubs beyond
+    // them (the line starts neatly at the origin ring and terminates at the
+    // destination ring).
     const geo = (wrap: HTMLElement) => {
       const lis = Array.from(wrap.querySelectorAll<HTMLElement>('.stop-item'));
       const ys = lis.map((li) => li.offsetTop + li.offsetHeight / 2);
-      return { lis, ys, top: ys[0]! - 16, bottom: ys[ys.length - 1]! + 16 };
+      return { lis, ys, top: ys[0]!, bottom: ys[ys.length - 1]! };
     };
     const gMain = geo(main);
     const gEarlier = earlier != null && state.earlierOpen ? geo(earlier) : null;
+    if (gEarlier) {
+      // Bridge the button row: the main window's track extends up through the
+      // "Show earlier" button to the last earlier ring, so the line is
+      // continuous from the origin ring to the destination ring with no
+      // missing stretch between the two lists.
+      gMain.top = earlier!.offsetTop + gEarlier.bottom - main.offsetTop;
+    }
 
     let role: 'main' | 'earlier' = pos.idx >= boardIdx ? 'main' : 'earlier';
     if (role === 'earlier' && !gEarlier) role = 'main'; // window closed → pin above it
@@ -572,14 +590,22 @@ export function initServiceDetail(root: HTMLElement): void {
     let earlierHere = -1;
     if (role === 'main') {
       const i = pos.idx - boardIdx;
-      if (pos.frac == null) {
+      if (i < 0 || (i === 0 && pos.frac != null && !gEarlier)) {
+        // The train's section lies inside the closed earlier list (or just
+        // above the first visible stop with no bridge to show it on): pin the
+        // V to the track's top.
+        mainSplit = gMain.top;
+      } else if (pos.frac == null) {
         mainSplit = gMain.ys[i]!;
         mainHere = i;
       } else if (i > 0) {
         mainSplit = gMain.ys[i - 1]! + pos.frac * (gMain.ys[i]! - gMain.ys[i - 1]!);
+      } else {
+        // i === 0 with a fraction and the earlier list open: the train is on
+        // the bridged section between the last earlier stop and the first
+        // visible one — interpolate along the bridge.
+        mainSplit = gMain.top + pos.frac * (gMain.ys[0]! - gMain.top);
       }
-      // i === 0 with a fraction: the train is still short of the first visible
-      // stop, so the V rests on the track's top stub.
     } else if (gEarlier) {
       if (pos.frac == null) {
         earlierSplit = gEarlier.ys[pos.idx]!;

@@ -147,14 +147,15 @@ describe('journey track render (mock pipeline)', () => {
     for (const sel of ['.track-done', '.track-todo', '.train-v']) {
       expect(mainWrap.querySelector(sel)?.getAttribute('aria-hidden')).toBe('true');
     }
-    // Geometry applied: jsdom has no layout (all offsets 0), so the split must
-    // clamp inside the stub track's [-16, +16] — the point is that the inline
+    // Geometry applied: jsdom has no layout (all offsets 0), so the track's
+    // ends meet the first/last rings exactly (top 0, no stub) and the split
+    // clamps to the single ring position — the point is that the inline
     // positions were computed and written at all.
     const done = mainWrap.querySelector<HTMLElement>('.track-done')!;
     const todo = mainWrap.querySelector<HTMLElement>('.track-todo')!;
     const v = mainWrap.querySelector<HTMLElement>('.train-v')!;
-    expect(done.style.top).toBe('-16px');
-    expect(parseFloat(todo.style.top)).toBeGreaterThanOrEqual(-16);
+    expect(done.style.top).toBe('0px');
+    expect(parseFloat(todo.style.top)).toBeGreaterThanOrEqual(0);
     expect(parseFloat(todo.style.top)).toBeLessThanOrEqual(16);
     expect(v.style.top).toBe(todo.style.top);
     expect(['visible', 'hidden']).toContain(v.style.visibility);

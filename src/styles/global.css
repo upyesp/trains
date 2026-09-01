@@ -70,6 +70,7 @@
   --board-cancel-border: rgba(229,72,77,.55);
   /* Journey track (Calling Points) — the logo bar's amber reads on the dark board */
   --track: var(--amber);
+  --train-v: var(--amber);   /* the V rides the amber line; same hue keeps it one object */
 }
 
 [data-theme="dark"] { color-scheme: dark; }   /* explicit; same as :root default */
@@ -100,6 +101,7 @@
   --board-cancel: #9b1c1c;          /* ~8.1:1 on white (AAA) */
   --board-cancel-border: rgba(155,28,28,.42);
   --track: #92400e;                 /* the dark amber keeps the track visible on white */
+  --train-v: #071f4d;               /* the favicon's navy V, as on the logo tile */
 }
 
 * { box-sizing: border-box; }
@@ -817,12 +819,15 @@ h2.stops-title {
 /* ---------- Journey track (Calling Points) ---------- */
 /* The logo's vertical bar becomes the train track down the list's left edge:
    BROKEN where the train has already passed, SOLID where it hasn't reached.
-   The logo's V rides the line as the train (replacing a station's ring while
-   it rests there), and every stop gets a ring. All of it is decorative — the
-   markup is aria-hidden and the header's "Next stop" line carries the same
-   facts for screen readers, so the spoken flow is unchanged. The V tile is
-   the favicon's scheme (amber ground, navy glyph) and reads on both themes;
-   the line itself uses the theme's amber (bright on dark, dark on white). */
+   The logo's V rides the line as the train — just the V, no tile: the marker's
+   background is transparent, so the line runs visibly through it (the track
+   colour at that spot IS the "bar through the V"). It replaces a station's
+   ring while it rests there, and every stop gets a ring. All of it is
+   decorative — the markup is aria-hidden and the header's "Next stop" line
+   carries the same facts for screen readers, so the spoken flow is unchanged.
+   The line uses the theme's amber (bright on dark, dark on white); the V is
+   amber on the dark board and the favicon's navy on the light one, so it
+   reads clearly in both. */
 .track-wrap { position: relative; }
 .track {
   position: absolute; left: 8px; width: 4px; border-radius: 2px;
@@ -832,8 +837,7 @@ h2.stops-title {
 .track-todo { background: var(--track); }
 .train-v {
   position: absolute; left: -1px; width: 22px; height: 22px;
-  transform: translateY(-50%); border-radius: 5px;
-  box-shadow: 0 0 0 3px var(--board-bg);   /* halo: the line passes behind the V */
+  transform: translateY(-50%); color: var(--train-v);
   transition: top .9s ease; pointer-events: none;
 }
 .train-v svg { display: block; width: 100%; height: 100%; }
