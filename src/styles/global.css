@@ -770,6 +770,47 @@ h2.stops-title {
 .earlier-btn:hover { background: var(--board-chip-bg); }
 .earlier-stops { margin-bottom: 12px; border-bottom: 1px solid var(--board-line); }
 
+/* Animated disclosure of the earlier stops (the toggle handler in
+   service-client.ts). The list's HEIGHT opens/closed on a springy ease while
+   each card slides up into place (open — staggered top-down so a card climbs
+   just as the reveal reaches it) or sinks out (close — bottom-up, the cards
+   nearest the collapsing edge leave first). The wrapper clips its track +
+   cards to the animating height (its overflow establishes a BFC, so the ol's
+   bottom margin stays inside it — the settled layout is identical either
+   way), and the list's bottom border is hidden so it doesn't sweep across
+   the revealed cards. The ring/line/V live in the wrapper too, so they are
+   clipped and revealed with the cards; the JS re-lays them every frame from
+   live rects (with .no-anim) so the line stays glued to the moving rings.
+   Every class here is transient — added for the motion and removed when it
+   settles; prefers-reduced-motion skips the animation entirely (instant
+   toggle, as before). */
+.track-wrap.earlier-anim { overflow: hidden; }
+.track-wrap.earlier-anim .earlier-stops {
+  border-bottom-color: transparent;
+  transition: height 430ms cubic-bezier(.22, 1, .36, 1);
+}
+/* How far each card slides: modest on the wide desktop rows, a touch more
+   on the taller phone cards. */
+.track-wrap.earlier-anim .stop-item { --rise: 16px; }
+@media (max-width: 560px) {
+  .track-wrap.earlier-anim .stop-item { --rise: 22px; }
+}
+/* The one-frame start state: cards displaced DOWN by one --rise with no
+   transition — it only fixes the value the .open transition animates from.
+   (The state classes live on the ol, so the selectors go through
+   .earlier-stops.) */
+.track-wrap.earlier-anim .earlier-stops.opening .stop-item { transform: translateY(var(--rise)); }
+.track-wrap.earlier-anim .earlier-stops.open .stop-item {
+  transform: none;
+  transition: transform 300ms cubic-bezier(.22, 1, .36, 1);
+  transition-delay: calc(var(--i, 0) * 16ms);
+}
+.track-wrap.earlier-anim .earlier-stops.closing .stop-item {
+  transform: translateY(var(--rise));
+  transition: transform 300ms cubic-bezier(.22, 1, .36, 1);
+  transition-delay: calc((var(--count, 0) - var(--i, 0)) * 14ms);
+}
+
 /* Calling points are an <ol> of stop cards that share the station board's
    visual language (.time / .dest / .plat) so the two lists read as one design.
    Desktop: a four-column row (time | station | expected | platform); phones

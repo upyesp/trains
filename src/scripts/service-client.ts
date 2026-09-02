@@ -202,7 +202,12 @@ function stopsHtml(d: ServiceDetail, boardIdx: number, earlierOpen: boolean): st
     .join('');
   if (boardIdx === 0) return trackWrap('main', `<ol class="stops" aria-labelledby="stops-title">${main}</ol>`);
   const btn = `<button type="button" class="earlier-btn" id="earlier-btn" aria-expanded="${earlierOpen}" aria-controls="earlier-stops">${earlierOpen ? 'Hide' : 'Show'} earlier calling points</button>`;
-  const earlierList = `<ol class="stops earlier-stops" id="earlier-stops" aria-label="Earlier calling points">${earlier.map((p) => stopCard(p, false)).join('')}</ol>`;
+  // Each earlier card carries its index as --i, the CSS stagger variable the
+  // animated disclosure uses (see .earlier-anim in global.css): opening
+  // rises top-down, closing sinks bottom-up.
+  const earlierList = `<ol class="stops earlier-stops" id="earlier-stops" aria-label="Earlier calling points">${earlier
+    .map((p, i) => stopCard(p, false).replace('<li class="stop-item">', `<li class="stop-item" style="--i:${i}">`))
+    .join('')}</ol>`;
   return `${btn}${trackWrap('earlier', earlierList, !earlierOpen)}${trackWrap('main', `<ol class="stops" aria-labelledby="stops-title">${main}</ol>`)}`;
 }
 
@@ -452,6 +457,16 @@ export function initServiceDetail(root: HTMLElement): void {
   let splitMain: number | null = null;
   let splitEarlier: number | null = null;
 
+  // Earlier-list disclosure animation state: a token invalidating any
+  // in-flight motion (every re-click and every 30s re-render bumps it), the
+  // rAF loop id, the direction of the running animation ('idle' when
+  // none — see animateEarlier), and the list's full open height (measured on
+  // a fresh start, reused when a reverse needs the target).
+  let animToken = 0;
+  let animRaf = 0;
+  let animPhase: 'idle' | 'open' | 'close' = 'idle';
+  let animFull = 0;
+
   els.back.innerHTML = backLinkHtml(state.from);
 
   async function shareService(): Promise<void> {
@@ -519,21 +534,17 @@ export function initServiceDetail(root: HTMLElement): void {
 
   // "Show/Hide earlier calling points" disclosure (delegated on the list
   // container; the button itself is re-created on every refresh). APG
-  // disclosure: toggling flips aria-expanded and the hidden attribute, and the
-  // button's own label updates — screen readers announce the state change and
-  // the new name on the focused button.
+  // disclosure: toggling flips aria-expanded and the button's own label, so
+  // screen readers hear the state change and the new name on the focused
+  // button. The list then animates open/closed (animateEarlier); with
+  // prefers-reduced-motion the toggle is instant, as it always was.
   els.body.addEventListener('click', (event: Event) => {
     const btn = (event.target as Element | null)?.closest('.earlier-btn') as HTMLButtonElement | null;
     if (!btn) return;
     state.earlierOpen = !state.earlierOpen;
-    const list = document.getElementById('earlier-stops');
-    if (list) list.hidden = !state.earlierOpen;
     btn.setAttribute('aria-expanded', String(state.earlierOpen));
     btn.textContent = state.earlierOpen ? 'Hide earlier calling points' : 'Show earlier calling points';
-    // The wrapper carries hidden as well as the list, so the journey track
-    // inside it appears/disappears together with the stops.
-    if (list) list.closest('.track-wrap')?.toggleAttribute('hidden', !state.earlierOpen);
-    if (current) layTrack(current, curBoardIdx, null, null);
+    animateEarlier(state.earlierOpen);
   });
 
   // Re-measure the journey track when the layout shifts under it (viewport
@@ -545,13 +556,61 @@ export function initServiceDetail(root: HTMLElement): void {
     if (current) layTrack(current, curBoardIdx, null, null);
   });
 
-  /** Position the journey track's break (broken behind the train, solid ahead)
-   *  and the V marker. Decorative only — every element is aria-hidden, the
-   *  header's "Next stop" line stays the spoken source of truth. prevMain/
-   *  prevEarlier are the split positions from before the list was rebuilt:
-   *  painting them first (transitions off) then the new values makes the V
-   *  glide station-to-station on refresh instead of teleporting. */
-  function layTrack(d: ServiceDetail, boardIdx: number, prevMain: number | null, prevEarlier: number | null): void {
+  /** Ring centres (the track's stations) inside a wrapper, plus the wrapper's
+   *  own top in a shared frame so the bridge between the two windows lines up.
+   *  The ring anchors to the STATION cell, not the card: on phones the card
+   *  stacks time / station / chip, so its centre lies below the station name
+   *  (card centres would gap the origin ring, tail past the destination ring
+   *  and park the V below the name). The station cell spans the full card
+   *  width on phones and sits centred in the single desktop row, so its
+   *  centre matches the drawn ring at every breakpoint. `live` measures
+   *  rendered rects instead of layout offsets — rects follow the cards'
+   *  slide transforms — so the same layout can run per frame while the
+   *  earlier-list disclosure animates.
+   */
+  interface RingGeo { lis: HTMLElement[]; ys: number[]; top: number; bottom: number }
+  type Measure = (wrap: HTMLElement) => { top: number; g: RingGeo };
+  const geoStatic = (wrap: HTMLElement): RingGeo => {
+    const lis = Array.from(wrap.querySelectorAll<HTMLElement>('.stop-item'));
+    const ys = lis.map((li) => {
+      const st = li.querySelector<HTMLElement>('.stop-station');
+      return st ? li.offsetTop + st.offsetTop + st.offsetHeight / 2 : li.offsetTop + li.offsetHeight / 2;
+    });
+    return { lis, ys, top: ys[0]!, bottom: ys[ys.length - 1]! };
+  };
+  const geoLive = (wrap: HTMLElement): RingGeo => {
+    const lis = Array.from(wrap.querySelectorAll<HTMLElement>('.stop-item'));
+    const wrapTop = wrap.getBoundingClientRect().top;
+    const ys = lis.map((li) => {
+      const el = li.querySelector<HTMLElement>('.stop-station') ?? li;
+      const r = el.getBoundingClientRect();
+      return r.top - wrapTop + r.height / 2;
+    });
+    return { lis, ys, top: ys[0]!, bottom: ys[ys.length - 1]! };
+  };
+  // Both wrappers measured in the same frame: layout offsets (ordinary
+  // renders) or viewport rects (the disclosure animation).
+  const measureStatic: Measure = (wrap) => ({ top: wrap.offsetTop, g: geoStatic(wrap) });
+  const measureLive: Measure = (wrap) => ({ top: wrap.getBoundingClientRect().top, g: geoLive(wrap) });
+
+  /** Position the journey track's break (broken behind the train, solid
+   *  ahead) and the V marker, from measured ring geometry. Decorative only —
+   *  every element is aria-hidden, the header's "Next stop" line stays the
+   *  spoken source of truth. prevMain/prevEarlier are the split positions
+   *  from before the list was rebuilt: painting them first (transitions off)
+   *  then the new values makes the V glide station-to-station on refresh
+   *  instead of teleporting. `measure` is injectable so the same layout can
+   *  run per frame while the earlier-list disclosure animates; earlierVisible
+   *  says whether the earlier list is on screen (during a collapse it still
+   *  is, though state.earlierOpen has already flipped). */
+  function layout(
+    d: ServiceDetail,
+    boardIdx: number,
+    prevMain: number | null,
+    prevEarlier: number | null,
+    measure: Measure,
+    earlierVisible: boolean,
+  ): void {
     const main = els.body.querySelector<HTMLElement>('.track-wrap.main');
     if (!main) return;
     const earlier = els.body.querySelector<HTMLElement>('.track-wrap.earlier');
@@ -567,31 +626,16 @@ export function initServiceDetail(root: HTMLElement): void {
     // 20% and holds there until real progress catches up. Display only —
     // trainPosition still reports the true fraction.
     const f = pos.frac == null ? null : Math.min(0.8, Math.max(0.2, pos.frac));
-    // Track ends meet the first/last station rings exactly — no stubs beyond
-    // them (the line starts neatly at the origin ring and terminates at the
-    // destination ring). Ring centres are measured from the STATION cell, not
-    // the card: on phones the card is a three-row stack (time / station /
-    // chip) whose centre lies below the station name, so card centres would
-    // gap the origin ring, tail past the destination ring and park the V
-    // below the name. On desktop the station cell sits centred in the single
-    // row, so its centre equals the card centre and the measurement is
-    // unchanged.
-    const geo = (wrap: HTMLElement) => {
-      const lis = Array.from(wrap.querySelectorAll<HTMLElement>('.stop-item'));
-      const ys = lis.map((li) => {
-        const st = li.querySelector<HTMLElement>('.stop-station');
-        return st ? li.offsetTop + st.offsetTop + st.offsetHeight / 2 : li.offsetTop + li.offsetHeight / 2;
-      });
-      return { lis, ys, top: ys[0]!, bottom: ys[ys.length - 1]! };
-    };
-    const gMain = geo(main);
-    const gEarlier = earlier != null && state.earlierOpen ? geo(earlier) : null;
+    const mMain = measure(main);
+    const gMain = mMain.g;
+    const mEarlier = earlier != null && earlierVisible ? measure(earlier) : null;
+    const gEarlier = mEarlier?.g ?? null;
     if (gEarlier) {
       // Bridge the button row: the main window's track extends up through the
       // "Show earlier" button to the last earlier ring, so the line is
       // continuous from the origin ring to the destination ring with no
       // missing stretch between the two lists.
-      gMain.top = earlier!.offsetTop + gEarlier.bottom - main.offsetTop;
+      gMain.top = mEarlier!.top + gEarlier.bottom - mMain.top;
     }
 
     let role: 'main' | 'earlier' = pos.idx >= boardIdx ? 'main' : 'earlier';
@@ -676,7 +720,162 @@ export function initServiceDetail(root: HTMLElement): void {
     if (gEarlier) gEarlier.lis.forEach((li, i) => li.classList.toggle('train-here', i === earlierHere));
   }
 
+  /** Ordinary renders: layout-offset geometry and the disclosure state from
+   *  State (the 30s refresh, the initial render, resize/font re-layouts). */
+  function layTrack(d: ServiceDetail, boardIdx: number, prevMain: number | null, prevEarlier: number | null): void {
+    layout(d, boardIdx, prevMain, prevEarlier, measureStatic, state.earlierOpen);
+  }
+
+  // ---- Animated "Show/Hide earlier calling points" disclosure ------------
+  // The list's height opens/closed (see .track-wrap.earlier-anim in
+  // global.css) while each card slides up into place (open — staggered
+  // top-down so each card climbs just as the reveal reaches it) or sinks out
+  // (close — bottom-up, the cards nearest the collapsing edge leave first),
+  // and the track + V are re-laid every frame from live rects so the line
+  // stays glued to the moving rings. All classes/inline styles are transient;
+  // prefers-reduced-motion skips straight to the instant toggle.
+
+  /** Invalidate any in-flight disclosure animation (re-click or re-render). */
+  function cancelAnim(): void {
+    animToken += 1;
+    if (animRaf !== 0 && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(animRaf);
+    animRaf = 0;
+    animPhase = 'idle';
+  }
+
+  /** Settle the disclosure to its final state with no leftover styles.
+   *  `open` = the list ends visible. */
+  function finishAnim(open: boolean): void {
+    const wrap = els.body.querySelector<HTMLElement>('.track-wrap.earlier');
+    const list = wrap?.querySelector<HTMLElement>('.earlier-stops');
+    if (!wrap || !list) return;
+    list.classList.remove('opening', 'open', 'closing');
+    list.style.height = '';
+    list.style.removeProperty('--count');
+    list.inert = false;
+    list.hidden = !open;
+    wrap.hidden = !open;
+    wrap.classList.remove('earlier-anim');
+    for (const w of els.body.querySelectorAll<HTMLElement>('.track-wrap')) w.classList.remove('no-anim');
+    animPhase = 'idle';
+  }
+
+  /** Show (open) or hide (close) the earlier calling points. */
+  function animateEarlier(open: boolean): void {
+    const wrap = els.body.querySelector<HTMLElement>('.track-wrap.earlier');
+    const list = wrap?.querySelector<HTMLElement>('.earlier-stops');
+    if (!wrap || !list) return;
+    const wasRunning = animPhase !== 'idle';
+    cancelAnim();
+    const token = animToken;
+    animPhase = open ? 'open' : 'close';
+    const reduced =
+      typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const canAnimate =
+      !reduced && typeof requestAnimationFrame === 'function' && typeof cancelAnimationFrame === 'function';
+
+    // The list must be visible to be measured; finishAnim re-hides it when
+    // closing. Collapsing content leaves the tab order and the accessibility
+    // tree right away (inert), not only when the motion ends.
+    wrap.hidden = false;
+    list.hidden = false;
+    list.inert = !open;
+
+    if (!canAnimate) {
+      finishAnim(open);
+      if (current) layTrack(current, curBoardIdx, null, null);
+      return;
+    }
+
+    if (!wasRunning) {
+      // Fresh start: drop any leftover styles and settle at the natural
+      // (auto) height so the measurement below is exact.
+      list.classList.remove('opening', 'open', 'closing');
+      list.style.height = '';
+      void list.offsetHeight;
+      const full = list.offsetHeight;
+      if (full <= 0) {
+        // Nothing to measure (no layout — e.g. jsdom): toggle instantly.
+        finishAnim(open);
+        if (current) layTrack(current, curBoardIdx, null, null);
+        return;
+      }
+      animFull = full;
+    }
+    const full = animFull;
+    const n = list.children.length;
+    list.style.setProperty('--count', String(n));
+    wrap.classList.add('earlier-anim');
+
+    // Drive the height and card transitions from their CURRENT rendered state
+    // to the target. A fresh start commits its start values with a forced
+    // recalc first (a transition from `auto` would never run); a reverse just
+    // retargets the in-flight transitions, which the engine picks up from the
+    // current interpolated values.
+    if (open) {
+      if (wasRunning) {
+        // Reverse of a collapse: the list reopens from wherever it is and the
+        // cards rise back from wherever they are.
+        list.classList.remove('closing');
+        list.classList.add('open');
+        list.style.height = `${full}px`;
+      } else {
+        // Opening fresh: start fully closed with the cards displaced down one
+        // --rise. The .opening frame has no transition — it only fixes the
+        // value the .open transition starts from.
+        list.classList.add('opening');
+        list.style.height = '0px';
+        void list.offsetHeight; // commit the start frame
+        list.classList.remove('opening');
+        list.classList.add('open');
+        list.style.height = `${full}px`;
+      }
+    } else {
+      if (wasRunning) {
+        // Reverse of an opening: the list closes from wherever it is; the
+        // cards sink out, bottom-first.
+        list.classList.remove('open');
+        list.classList.add('closing');
+        list.style.height = '0px';
+      } else {
+        // Closing fresh: freeze at the open height (same value — no motion)
+        // and commit it, then collapse; the cards sink out, bottom-first.
+        list.classList.add('closing');
+        list.style.height = `${full}px`;
+        void list.offsetHeight;
+        list.style.height = '0px';
+      }
+    }
+
+    // While the geometry animates, keep the journey track glued to the rings:
+    // re-lay every frame from live rects with the track's CSS transitions
+    // off. The final layTrack after cleanup paints the same settled values.
+    for (const w of els.body.querySelectorAll<HTMLElement>('.track-wrap')) w.classList.add('no-anim');
+    const step = (): void => {
+      if (token !== animToken) return;
+      if (current) layout(current, curBoardIdx, null, null, measureLive, true);
+      animRaf = requestAnimationFrame(step);
+    };
+    animRaf = requestAnimationFrame(step);
+
+    // Clean up once the slowest motion has finished: the height transition
+    // (430ms) vs the last card's slide (stagger delay + 300ms).
+    const lastCard = Math.max(0, n - 1);
+    const slideMs = (open ? lastCard * 16 : lastCard * 14) + 300;
+    window.setTimeout(() => {
+      if (token !== animToken) return;
+      if (animRaf !== 0 && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(animRaf);
+      animRaf = 0;
+      finishAnim(open);
+      if (current) layTrack(current, curBoardIdx, null, null);
+    }, Math.max(430, slideMs) + 100);
+  }
+
   function render(d: ServiceDetail): void {
+    // A re-render replaces the list DOM wholesale, so any in-flight disclosure
+    // animation must stop (its cleanup is token-guarded and would otherwise
+    // touch the fresh nodes).
+    cancelAnim();
     const boardIdx = boardPointIndex(d, state.from);
     els.head.innerHTML = headerHtml(d, boardIdx);
     const prevMain = splitMain;

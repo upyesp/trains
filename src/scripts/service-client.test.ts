@@ -6,7 +6,7 @@
 // alone, so a delayed train short of Winchester reported Basingstoke as the
 // next stop while the list still showed Winchester un-arrived.
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { initServiceDetail, nextStop, stopCard, trainPosition } from './service-client';
 import type { CallingPoint, ServiceDetail } from '../lib/types';
 
@@ -37,6 +37,13 @@ function service(extra: Partial<ServiceDetail> = {}): ServiceDetail {
 }
 
 afterEach(() => vi.useRealTimers());
+
+// The station-codes loader (station-codes.ts) caches its fetch at module
+// level, so the codes list must be served from the very first call: the
+// disclosure test below searches from York and needs crsByStation populated.
+beforeAll(() => {
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => [{ name: 'York', crs: 'YRK' }] })));
+});
 
 describe('stopCard', () => {
   it('shows "Arrived" for a stop the train has reached but not yet left (arrival actual, no departure yet)', () => {
@@ -159,6 +166,52 @@ describe('journey track render (mock pipeline)', () => {
     expect(parseFloat(todo.style.top)).toBeLessThanOrEqual(16);
     expect(v.style.top).toBe(todo.style.top);
     expect(['visible', 'hidden']).toContain(v.style.visibility);
+  });
+});
+
+describe('earlier calling points disclosure', () => {
+  it('toggles the earlier list open/closed with the button (instant path in jsdom)', async () => {
+    document.body.innerHTML = `
+      <p id="svc-back"></p>
+      <section id="svc-head"><h1 class="service-title">Service details</h1></section>
+      <section id="service-detail" data-mock="true" data-api="https://example.test">
+        <p class="as-of"><span id="as-of"></span><span id="stale-note" role="status"></span></p>
+        <div id="svc-body"></div>
+      </section>`;
+    // Searched from York (mock route: KGX -> PBO -> York -> Newcastle ->
+    // Edinburgh), so the stops before York form the earlier list. (The
+    // codes list itself is stubbed file-wide in beforeAll.)
+    history.pushState({}, '', '/service/?id=gb-nr:T12345:2026-08-20&from=YRK');
+    const root = document.getElementById('service-detail');
+    if (!(root instanceof HTMLElement)) throw new Error('missing root');
+    initServiceDetail(root);
+    // Let the mock refresh settle, then the codes fetch + re-render.
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+
+    const btn = document.querySelector<HTMLButtonElement>('#earlier-btn');
+    const wrap = document.querySelector<HTMLElement>('.track-wrap.earlier');
+    const list = document.getElementById('earlier-stops');
+    if (!btn || !wrap || !list) throw new Error('earlier disclosure missing');
+    expect(btn.getAttribute('aria-expanded')).toBe('false');
+    expect(wrap.hidden).toBe(true); // the wrapper hides the collapsed list
+    expect(wrap.querySelectorAll('.stop-item').length).toBe(2); // KGX + PBO before York
+
+    btn.click();
+    expect(btn.getAttribute('aria-expanded')).toBe('true');
+    expect(btn.textContent).toBe('Hide earlier calling points');
+    expect(wrap.hidden).toBe(false);
+    expect(list.hidden).toBe(false);
+    // No leftover animation styles in the instant path.
+    expect(wrap.classList.contains('earlier-anim')).toBe(false);
+    expect(list.classList.contains('open')).toBe(false);
+    expect(list.getAttribute('style')).toBeNull();
+
+    btn.click();
+    expect(btn.getAttribute('aria-expanded')).toBe('false');
+    expect(btn.textContent).toBe('Show earlier calling points');
+    expect(wrap.hidden).toBe(true);
+    expect(list.hidden).toBe(true);
   });
 });
 
