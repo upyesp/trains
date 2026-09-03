@@ -902,9 +902,9 @@ export function initServiceDetail(root: HTMLElement): void {
     animRaf = requestAnimationFrame(step);
 
     // Clean up once the slowest motion has finished: the height transition
-    // (1433ms) vs the last card's slide (stagger delay + 1000ms).
+    // (7165ms) vs the last card's slide (stagger delay + 5000ms).
     const lastCard = Math.max(0, n - 1);
-    const slideMs = (open ? lastCard * 53 : lastCard * 47) + 1000;
+    const slideMs = (open ? lastCard * 265 : lastCard * 235) + 5000;
     window.setTimeout(() => {
       if (token !== animToken) return;
       if (animRaf !== 0 && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(animRaf);
@@ -913,7 +913,7 @@ export function initServiceDetail(root: HTMLElement): void {
       if (current) layTrack(current, curBoardIdx, null, null);
       compensate(); // last frame — settle any final drift, then let go
       pin = null;
-    }, Math.max(1433, slideMs) + 100);
+    }, Math.max(7165, slideMs) + 100);
   }
 
   function render(d: ServiceDetail): void {
