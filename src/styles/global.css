@@ -785,6 +785,12 @@ h2.stops-title {
    settles; prefers-reduced-motion skips the animation entirely (instant
    toggle, as before). */
 .track-wrap.earlier-anim { overflow: hidden; }
+/* The wrapper's height animates while the disclosure opens, and the JS keeps
+   the user's station pinned by scrolling in sync. Exclude the moving list
+   from the browser's native scroll anchoring so it can't pick an anchor
+   inside the animating cards and fight the pinning; anything below the list
+   (the pinned station, the main list) stays a fine anchor and agrees. */
+.track-wrap.earlier-anim { overflow-anchor: none; }
 .track-wrap.earlier-anim .earlier-stops {
   border-bottom-color: transparent;
   transition: height 1433ms cubic-bezier(.22, 1, .36, 1);

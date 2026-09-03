@@ -765,6 +765,46 @@ export function initServiceDetail(root: HTMLElement): void {
     const wrap = els.body.querySelector<HTMLElement>('.track-wrap.earlier');
     const list = wrap?.querySelector<HTMLElement>('.earlier-stops');
     if (!wrap || !list) return;
+
+    // Scroll pinning (opening only). When the user arrived from a
+    // mid-journey station, that station is the first card of the main list,
+    // right below the button — and the earlier stops unfold ABOVE it, so an
+    // open pushes it down off the bottom of the screen. While the list opens
+    // we therefore scroll in sync, keeping the station pinned where it is on
+    // screen (the earlier cards then appear to stream past just above it).
+    // Collapsing never scrolls — hiding behaves exactly as before. The pin
+    // is rect-based (each frame we scroll by however far the card has
+    // drifted from its start position), so it composes with the browser's
+    // own scroll anchoring; and if the user scrolls mid-flight the pin
+    // yields — their scroll intent wins.
+    let pin: { el: HTMLElement; top0: number; y: number | null } | null = null;
+    if (open) {
+      try {
+        const anchor = els.body.querySelector<HTMLElement>('.track-wrap.main .stop-item');
+        const r = anchor?.getBoundingClientRect();
+        if (
+          anchor && r &&
+          r.top < window.innerHeight && r.bottom > 0 && // only pin a station that is on screen
+          typeof window.scrollTo === 'function' && typeof window.scrollY === 'number'
+        ) {
+          pin = { el: anchor, top0: r.top, y: null };
+        }
+      } catch {
+        pin = null; // no scrollable window (e.g. jsdom) — nothing to pin
+      }
+    }
+    const compensate = (): void => {
+      if (!pin) return;
+      const y = window.scrollY;
+      if (pin.y !== null && Math.abs(y - pin.y) > 4) {
+        pin = null; // the user took over the scroll — stop pinning
+        return;
+      }
+      const d = pin.el.getBoundingClientRect().top - pin.top0;
+      pin.y = Math.abs(d) < 0.5 ? y : y + d;
+      if (Math.abs(d) >= 0.5) window.scrollTo(window.scrollX, pin.y);
+    };
+
     const wasRunning = animPhase !== 'idle';
     cancelAnim();
     const token = animToken;
@@ -784,6 +824,7 @@ export function initServiceDetail(root: HTMLElement): void {
     if (!canAnimate) {
       finishAnim(open);
       if (current) layTrack(current, curBoardIdx, null, null);
+      compensate();
       return;
     }
 
@@ -798,6 +839,7 @@ export function initServiceDetail(root: HTMLElement): void {
         // Nothing to measure (no layout — e.g. jsdom): toggle instantly.
         finishAnim(open);
         if (current) layTrack(current, curBoardIdx, null, null);
+        compensate();
         return;
       }
       animFull = full;
@@ -853,6 +895,7 @@ export function initServiceDetail(root: HTMLElement): void {
     for (const w of els.body.querySelectorAll<HTMLElement>('.track-wrap')) w.classList.add('no-anim');
     const step = (): void => {
       if (token !== animToken) return;
+      compensate();
       if (current) layout(current, curBoardIdx, null, null, measureLive, true);
       animRaf = requestAnimationFrame(step);
     };
@@ -868,6 +911,8 @@ export function initServiceDetail(root: HTMLElement): void {
       animRaf = 0;
       finishAnim(open);
       if (current) layTrack(current, curBoardIdx, null, null);
+      compensate(); // last frame — settle any final drift, then let go
+      pin = null;
     }, Math.max(1433, slideMs) + 100);
   }
 
