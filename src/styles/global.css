@@ -793,7 +793,7 @@ h2.stops-title {
 .track-wrap.earlier-anim { overflow-anchor: none; }
 .track-wrap.earlier-anim .earlier-stops {
   border-bottom-color: transparent;
-  transition: height 7165ms cubic-bezier(.22, 1, .36, 1);
+  transition: height 3580ms cubic-bezier(.22, 1, .36, 1);
 }
 /* How far each card slides: modest on the wide desktop rows, a touch more
    on the taller phone cards. */
@@ -808,13 +808,13 @@ h2.stops-title {
 .track-wrap.earlier-anim .earlier-stops.opening .stop-item { transform: translateY(var(--rise)); }
 .track-wrap.earlier-anim .earlier-stops.open .stop-item {
   transform: none;
-  transition: transform 5000ms cubic-bezier(.22, 1, .36, 1);
-  transition-delay: calc(var(--i, 0) * 265ms);
+  transition: transform 2500ms cubic-bezier(.22, 1, .36, 1);
+  transition-delay: calc(var(--i, 0) * 130ms);
 }
 .track-wrap.earlier-anim .earlier-stops.closing .stop-item {
   transform: translateY(var(--rise));
-  transition: transform 5000ms cubic-bezier(.22, 1, .36, 1);
-  transition-delay: calc((var(--count, 0) - var(--i, 0)) * 235ms);
+  transition: transform 2500ms cubic-bezier(.22, 1, .36, 1);
+  transition-delay: calc((var(--count, 0) - var(--i, 0)) * 115ms);
 }
 
 /* Calling points are an <ol> of stop cards that share the station board's
