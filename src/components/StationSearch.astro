@@ -1,0 +1,58 @@
+---
+// Accessible station-search combobox. Used once per page (home + each station
+// page as the "change station" control). Selecting a station deep-links to its
+// pre-rendered shell.
+interface Props {
+  label?: string;
+  /** The station currently being viewed (board page): shown in the input and
+   *  restored on blur/Escape, mirroring the "calling at" filter's pick. */
+  initialStation?: { crs: string; name: string } | null;
+}
+const { label = 'Change station', initialStation = null } = Astro.props;
+---
+
+<div class="search" data-initial-crs={initialStation?.crs ?? ''} data-initial-name={initialStation?.name ?? ''}>
+  <label for="station-input">{label}</label>
+  <div class="combo" id="combo">
+    <input
+      id="station-input"
+      type="text"
+      role="combobox"
+      aria-expanded="false"
+      aria-haspopup="listbox"
+      aria-controls="station-list"
+      aria-autocomplete="list"
+      placeholder="Search by station or code, e.g. Leeds or LDS"
+      autocomplete="off"
+      autocapitalize="off"
+      spellcheck="false"
+    />
+    <ul id="station-list" class="combo-list" role="listbox" aria-label="Stations" hidden></ul>
+  </div>
+</div>
+
+<script>
+  import { initCombobox } from '../scripts/combobox';
+  const combo = document.getElementById('combo');
+  if (combo instanceof HTMLElement) {
+    // Arriving from a service's calling points, the URL carries
+    // ?station=<name>; prefill the search with it and auto-choose (which lists
+    // that station's departures). Consume the param first so the browser Back
+    // button returns to a clean home rather than re-triggering the auto-choose.
+    const params = new URLSearchParams(window.location.search);
+    const initialName = params.get('station');
+    if (initialName) {
+      params.delete('station');
+      const qs = params.toString();
+      history.replaceState(null, '', qs ? `/?${qs}` : '/');
+    }
+    // The station being viewed travels as data attributes on the .search
+    // wrapper (server-rendered) rather than define:vars, whose IIFE wrapper
+    // breaks the hoisted import.
+    const wrap = combo.parentElement;
+    const crs = wrap?.dataset.initialCrs ?? '';
+    const name = wrap?.dataset.initialName ?? '';
+    const initialStation = crs && name ? { crs, name } : null;
+    initCombobox(combo, initialName ? { initialName } : initialStation ? { initialStation } : {});
+  }
+</script>

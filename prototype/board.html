@@ -1,0 +1,643 @@
+<!doctype html>
+<html lang="en">
+<!--
+  DESIGN PROTOTYPE — UK rail live departure board.
+  Throwaway: explores the visual + accessibility design before the Astro build.
+  - Mock data mirrors the DTO in src/lib/types.ts (Board / Service / Platform).
+  - Announcements mirror the output of src/lib/diff.ts diffBoards() (ADR-0002):
+    cancellation, platform-change, >=5min delay. Routine refreshes are silent.
+  - The Astro integration will import the real diffBoards(); here the transition
+    is scripted to demonstrate the a11y + diff story.
+  Open this file directly in a browser. Test with keyboard + a screen reader.
+-->
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>King's Cross departures — live board</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      /* Board surface ("the live screen") — tinted ink, not pure black */
+      --ink: #0d1117;
+      --panel: #151b23;
+      --line: #2a323d;
+      --line-strong: #3a4452;
+      /* Text on ink (all >= 7:1 → AAA) */
+      --chalk: #e6edf3;
+      --ash: #94a3b8;
+      /* Concourse (light chrome around the board) */
+      --paper: #f6f7f9;
+      --paper-2: #eceef2;
+      --slate: #1b232e;
+      --slate-mute: #5a6573;
+      /* Semantic signals */
+      --amber: #f0b429;   /* delay (>= 5 min) — ~9:1 on ink */
+      --red:   #e5484d;   /* cancellation — ~5.6:1 on ink */
+      --green: #3fb950;   /* live indicator — ~8:1 on ink */
+      --radius: 14px;
+      --mono: 'IBM Plex Mono', ui-monospace, monospace;
+      --sans: 'IBM Plex Sans', system-ui, sans-serif;
+      --display: 'Bricolage Grotesque', var(--sans);
+    }
+
+    * { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--slate);
+      font-family: var(--sans);
+      font-size: 16px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ---------- Accessibility primitives ---------- */
+    .visually-hidden {
+      position: absolute !important;
+      width: 1px; height: 1px;
+      padding: 0; margin: -1px;
+      overflow: hidden;
+      clip: rect(0,0,0,0);
+      white-space: nowrap; border: 0;
+    }
+    :focus-visible {
+      outline: 2px solid var(--amber);
+      outline-offset: 2px;
+      border-radius: 3px;
+    }
+    /* keep keyboard-focused rows clear of the sticky-ish header */
+    :focus { scroll-margin-top: 84px; }
+
+    .skip-link {
+      position: absolute; left: 0; top: -48px;
+      background: var(--slate); color: var(--paper);
+      padding: 12px 18px; z-index: 100;
+      text-decoration: none; font-weight: 500;
+      transition: top .15s ease;
+    }
+    .skip-link:focus { top: 0; }
+
+    /* ---------- Layout ---------- */
+    .shell { max-width: 760px; margin: 0 auto; padding: 28px 20px 64px; }
+
+    header.site {
+      display: flex; align-items: baseline; gap: 10px;
+      margin-bottom: 28px;
+    }
+    .brand {
+      font-family: var(--display);
+      font-weight: 700; font-size: 1.35rem;
+      letter-spacing: -0.02em; color: var(--slate);
+    }
+    .brand .mark { color: var(--amber); }
+    .brand-tag { color: var(--slate-mute); font-size: .8rem; }
+
+    /* ---------- Station header ---------- */
+    .station-head { margin-bottom: 18px; }
+    h1.station {
+      font-family: var(--display);
+      font-weight: 700;
+      font-size: clamp(2.4rem, 7vw, 3.4rem);
+      line-height: 1; letter-spacing: -0.03em;
+      margin: 0;
+    }
+    .station-crs {
+      margin: 6px 0 14px;
+      font-family: var(--mono);
+      font-size: .82rem; letter-spacing: .12em;
+      color: var(--slate-mute); text-transform: uppercase;
+    }
+    .station-crs code { color: var(--slate); font-weight: 600; }
+
+    .station-meta {
+      display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: center;
+      margin-bottom: 18px;
+    }
+    .live {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: .85rem; font-weight: 500; color: var(--slate);
+    }
+    .live .dot {
+      width: 9px; height: 9px; border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 0 0 rgba(63,185,80,.55);
+      animation: pulse 2.4s ease-out infinite;
+    }
+    @keyframes pulse {
+      0%   { box-shadow: 0 0 0 0 rgba(63,185,80,.55); }
+      70%  { box-shadow: 0 0 0 9px rgba(63,185,80,0); }
+      100% { box-shadow: 0 0 0 0 rgba(63,185,80,0); }
+    }
+    .clock {
+      font-family: var(--mono); font-size: .9rem;
+      font-variant-numeric: tabular-nums; color: var(--slate-mute);
+    }
+
+    /* ---------- Station search combobox ---------- */
+    .search { margin-bottom: 18px; }
+    .search > label {
+      display: block; margin-bottom: 6px;
+      font-size: .78rem; font-weight: 500;
+      letter-spacing: .04em; text-transform: uppercase;
+      color: var(--slate-mute);
+    }
+    .combo { position: relative; max-width: 420px; }
+    .combo input {
+      width: 100%;
+      font: 500 1rem var(--sans);
+      padding: 12px 14px;
+      border: 1px solid var(--paper-2);
+      border-radius: 10px;
+      background: #fff;
+      color: var(--slate);
+    }
+    .combo input::placeholder { color: #97a1ad; }
+    .combo[aria-expanded="true"] input,
+    .combo input:focus-visible { border-color: var(--slate); }
+    .combo-list {
+      position: absolute; left: 0; right: 0; top: calc(100% + 6px);
+      list-style: none; margin: 0; padding: 6px;
+      background: #fff; border: 1px solid var(--paper-2);
+      border-radius: 10px; box-shadow: 0 12px 30px rgba(20,30,45,.16);
+      max-height: 280px; overflow-y: auto; z-index: 20;
+    }
+    .combo-list .empty { padding: 10px 12px; color: var(--slate-mute); font-size: .9rem; }
+    .combo-list .opt {
+      display: flex; justify-content: space-between; gap: 12px;
+      padding: 9px 12px; border-radius: 7px; cursor: pointer;
+      font-size: .95rem; color: var(--slate);
+    }
+    .combo-list .opt code {
+      font-family: var(--mono); font-size: .8rem; color: var(--slate-mute);
+    }
+    .combo-list .opt[aria-selected="true"] {
+      background: var(--paper-2); outline: 2px solid var(--amber); outline-offset: -2px;
+    }
+
+    /* ---------- Tabs: Departures / Arrivals ---------- */
+    .tabs { display: inline-flex; background: var(--paper-2); border-radius: 11px; padding: 4px; gap: 2px; }
+    .tabs [role="tab"] {
+      appearance: none; border: 0; background: transparent;
+      font: 600 .9rem var(--sans); color: var(--slate-mute);
+      padding: 9px 18px; border-radius: 8px; cursor: pointer;
+      min-height: 40px;
+    }
+    .tabs [role="tab"][aria-selected="true"] { background: #fff; color: var(--slate); box-shadow: 0 1px 3px rgba(20,30,45,.12); }
+
+    /* ---------- The board (the dark "screen") ---------- */
+    .board-panel {
+      background: var(--ink);
+      border-radius: var(--radius);
+      box-shadow: 0 24px 60px -24px rgba(15,25,40,.45), 0 2px 0 rgba(255,255,255,.02) inset;
+      overflow: hidden;
+      position: relative;
+    }
+    .board-panel::before { /* signal accent bar */
+      content: ""; display: block; height: 3px;
+      background: linear-gradient(90deg, var(--amber), #d98324 60%, transparent);
+    }
+    .as-of {
+      display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline;
+      padding: 14px 20px 4px; color: var(--ash); font-size: .8rem;
+    }
+    .as-of #as-of { font-family: var(--mono); }
+    .as-of .stale {
+      display: inline-flex; align-items: center; gap: 6px;
+      color: var(--amber); font-weight: 500;
+    }
+
+    table.board { width: 100%; border-collapse: collapse; }
+    table.board caption { text-align: left; padding: 6px 20px 0; }
+    table.board th {
+      text-align: left; padding: 16px 20px 10px;
+      font-family: var(--sans); font-weight: 500;
+      font-size: .68rem; letter-spacing: .1em; text-transform: uppercase;
+      color: var(--ash); border-bottom: 1px solid var(--line);
+    }
+    table.board td {
+      padding: 14px 20px; vertical-align: middle;
+      border-bottom: 1px solid var(--line); color: var(--chalk);
+    }
+    table.board tbody tr:last-child td { border-bottom: 0; }
+
+    /* Time = the hero */
+    .time { font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: 600; font-size: 1.5rem; white-space: nowrap; }
+    .time .sched { color: var(--ash); text-decoration: line-through; text-decoration-thickness: 2px; font-size: 1.05rem; font-weight: 500; }
+    .time .arrow { color: var(--ash); margin: 0 2px 0 6px; font-size: 1rem; }
+    .time .exp { color: var(--amber); }
+
+    .dest { font-family: var(--sans); font-weight: 600; font-size: 1.02rem; }
+    .dest .toc { display: block; color: var(--ash); font-weight: 400; font-size: .78rem; margin-top: 2px; }
+
+    /* Platform chip — state in TEXT, reinforced by styling */
+    .plat {
+      display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
+      min-width: 40px; padding: 7px 10px; border-radius: 8px;
+      font-family: var(--mono); font-weight: 600; font-size: 1.1rem; color: var(--chalk);
+      border: 1px solid var(--line-strong); background: var(--panel);
+    }
+    .plat.provisional { border-style: dashed; }
+    .plat .state { font-family: var(--sans); font-weight: 500; font-size: .6rem; letter-spacing: .04em; color: var(--ash); text-transform: uppercase; margin-top: 2px; }
+    .plat.none { border-style: dashed; color: var(--ash); }
+
+    .status { text-align: right; white-space: nowrap; }
+    .chip {
+      display: inline-block; padding: 3px 9px; border-radius: 999px;
+      font-family: var(--sans); font-weight: 600; font-size: .78rem;
+    }
+    .chip.delay { color: var(--amber); background: rgba(240,180,41,.12); border: 1px solid rgba(240,180,41,.4); }
+    .chip.cancel { color: var(--red); background: rgba(229,72,77,.12); border: 1px solid rgba(229,72,77,.4); }
+
+    /* Cancelled service: whole row demuted */
+    tr.is-cancelled td { color: var(--ash); }
+    tr.is-cancelled .dest { color: var(--ash); }
+    tr.is-cancelled .time { text-decoration: line-through; color: var(--ash); }
+
+    /* ---------- Demo controls ---------- */
+    .demo {
+      margin-top: 22px; padding: 14px 16px;
+      background: #fff; border: 1px dashed var(--paper-2); border-radius: 10px;
+    }
+    .demo p { margin: 0 0 10px; font-size: .82rem; color: var(--slate-mute); }
+    .demo p strong { color: var(--slate); }
+    .demo .btns { display: flex; flex-wrap: wrap; gap: 10px; }
+    .btn {
+      appearance: none; cursor: pointer;
+      font: 600 .85rem var(--sans);
+      padding: 9px 16px; min-height: 40px;
+      border-radius: 9px; border: 1px solid var(--slate);
+      background: var(--slate); color: var(--paper);
+    }
+    .btn.secondary { background: #fff; color: var(--slate); }
+
+    footer.site { margin-top: 40px; color: var(--slate-mute); font-size: .8rem; }
+
+    /* ---------- Responsive ---------- */
+    @media (max-width: 560px) {
+      table.board th, table.board td { padding: 12px 14px; }
+      .time { font-size: 1.28rem; }
+      .dest { font-size: .96rem; }
+      .as-of { padding: 12px 14px 4px; }
+    }
+
+    /* ---------- Reduced motion ---------- */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+        scroll-behavior: auto !important;
+      }
+      .live .dot { animation: none; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#board">Skip to departure board</a>
+
+  <div class="shell">
+    <header class="site">
+      <span class="brand"><span class="mark">▰</span> Departures</span>
+      <span class="brand-tag">UK mainline, live</span>
+    </header>
+
+    <main id="main">
+      <section class="station-head">
+        <h1 class="station" id="station-name">King's Cross</h1>
+        <p class="station-crs"><code>KGX</code> · National Rail</p>
+
+        <div class="station-meta">
+          <span class="live"><span class="dot" aria-hidden="true"></span> Live</span>
+          <span class="clock" id="clock" aria-label="Current time">--:--:--</span>
+        </div>
+
+        <!-- Accessible combobox: station search -->
+        <div class="search">
+          <label for="station-input">Change station</label>
+          <div class="combo" id="combo">
+            <input id="station-input" type="text" role="combobox"
+                   aria-expanded="false" aria-controls="station-list"
+                   aria-autocomplete="list" aria-activedescendant=""
+                   placeholder="Search by station or code, e.g. Leeds or LDS"
+                   autocomplete="off" autocapitalize="off" spellcheck="false">
+            <ul id="station-list" class="combo-list" role="listbox" aria-label="Stations" hidden></ul>
+          </div>
+        </div>
+
+        <!-- Tabs: Departures / Arrivals -->
+        <div class="tabs" role="tablist" aria-label="Board type">
+          <button id="tab-dep" role="tab" aria-selected="true" aria-controls="board" tabindex="0">Departures</button>
+          <button id="tab-arr" role="tab" aria-selected="false" aria-controls="board" tabindex="-1">Arrivals</button>
+        </div>
+      </section>
+
+      <!-- The board -->
+      <section id="board" class="board-panel" role="tabpanel" aria-labelledby="tab-dep" tabindex="-1">
+        <p class="as-of">
+          <span id="as-of">As of --:--</span>
+          <span class="stale" id="stale-note" role="status"></span>
+        </p>
+        <table class="board">
+          <caption class="visually-hidden">Live train departures from <span id="cap-station">King's Cross</span></caption>
+          <thead>
+            <tr>
+              <th scope="col">Time</th>
+              <th scope="col">Destination</th>
+              <th scope="col">Platform</th>
+              <th scope="col">Status</th>
+            </tr>
+          </thead>
+          <tbody id="board-body"></tbody>
+        </table>
+      </section>
+
+      <!-- Visually hidden live region: meaningful changes only (ADR-0002) -->
+      <div id="announcer" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true"></div>
+
+      <!-- Prototype demo controls (not part of the real UI) -->
+      <div class="demo" aria-label="Prototype controls">
+        <p><strong>Prototype controls.</strong> The board simulates a refresh after a few seconds to show how meaningful changes are announced (delay, platform confirmed, cancellation). It is silent on routine refreshes.</p>
+        <div class="btns">
+          <button class="btn" id="btn-replay" type="button">Replay refresh</button>
+          <button class="btn secondary" id="btn-outage" type="button">Simulate data outage</button>
+        </div>
+      </div>
+    </main>
+
+    <footer class="site">
+      <p>Design prototype. Data is mock. The live board will be served by a Cloudflare Worker proxying Real-Time Trains (ADR-0001 / ADR-0003).</p>
+    </footer>
+  </div>
+
+  <script>
+  /* ---------------------------------------------------------------------------
+     Mock data — mirrors src/lib/types.ts:
+       Service { id, scheduledTime, expectedTime, destination, operator,
+                 platform: { number, state: 'provisional'|'confirmed' } | null,
+                 cancelled }
+  --------------------------------------------------------------------------- */
+  const STATIONS = [
+    { crs: 'KGX', name: "King's Cross" },
+    { crs: 'EUS', name: 'Euston' },
+    { crs: 'PAD', name: 'Paddington' },
+    { crs: 'WAT', name: 'Waterloo' },
+    { crs: 'LST', name: 'Liverpool Street' },
+    { crs: 'YRK', name: 'York' },
+    { crs: 'EDB', name: 'Edinburgh' },
+    { crs: 'MAN', name: 'Manchester Piccadilly' },
+    { crs: 'BHM', name: 'Birmingham New Street' },
+    { crs: 'LDS', name: 'Leeds' },
+    { crs: 'CMB', name: 'Cambridge' },
+    { crs: 'BTN', name: 'Brighton' },
+  ];
+
+  // Board A — the "previous" board shown on load.
+  const BOARD_A = [
+    { id:'S1', scheduledTime:'10:38', expectedTime:'10:38', destination:'Leeds', operator:'LNER', platform:{number:'3',state:'confirmed'}, cancelled:false },
+    { id:'S2', scheduledTime:'10:42', expectedTime:'10:42', destination:'Newcastle', operator:'LNER', platform:{number:'9',state:'confirmed'}, cancelled:false },
+    { id:'S3', scheduledTime:'10:45', expectedTime:'10:45', destination:'Edinburgh', operator:'LNER', platform:{number:'1',state:'provisional'}, cancelled:false },
+    { id:'S4', scheduledTime:'10:50', expectedTime:'10:50', destination:'York', operator:'LNER', platform:{number:'5',state:'confirmed'}, cancelled:false },
+    { id:'S5', scheduledTime:'10:55', expectedTime:'10:55', destination:'Cambridge', operator:'Thameslink', platform:{number:'11',state:'confirmed'}, cancelled:false },
+    { id:'S6', scheduledTime:'11:00', expectedTime:'11:00', destination:'Brighton', operator:'Thameslink', platform:{number:'9',state:'confirmed'}, cancelled:false },
+  ];
+
+  // Board B — the "current" board after a refresh. Differences vs A:
+  //   S2 +6 min delay; S3 platform provisional->confirmed; S4 cancelled.
+  const BOARD_B = BOARD_A.map(s => ({ ...s, platform: s.platform ? {...s.platform} : null }));
+  Object.assign(BOARD_B[1], { expectedTime:'10:48' });                       // S2 delay +6
+  Object.assign(BOARD_B[2], { platform:{number:'1',state:'confirmed'} });     // S3 platform confirmed
+  Object.assign(BOARD_B[3], { cancelled:true, platform:null });               // S4 cancelled
+
+  // Precomputed announcements — exactly what diffBoards()->describeChange() yields (ADR-0002).
+  const ANNOUNCE_B = [
+    'The 10:42 to Newcastle is delayed. Now expected at 10:48.',
+    'The 10:45 to Edinburgh: platform confirmed — platform 1.',
+    'The 10:50 to York has been cancelled.',
+  ];
+
+  /* ---------------------------- Rendering ---------------------------------- */
+  const $body = document.getElementById('board-body');
+  const $asOf = document.getElementById('as-of');
+  const $stale = document.getElementById('stale-note');
+
+  function platCell(p) {
+    if (!p) return `<td><span class="plat none">—<span class="state">none</span></span></td>`;
+    const prov = p.state === 'provisional';
+    const stateLabel = prov ? '<span class="state">provisional</span>' : '';
+    return `<td><span class="plat ${prov ? 'provisional' : ''}">${p.number}${stateLabel}</span></td>`;
+  }
+
+  function timeCell(s) {
+    const delayed = s.expectedTime !== s.scheduledTime;
+    if (s.cancelled) {
+      return `<td><span class="time">${s.scheduledTime}</span></td>`;
+    }
+    if (delayed) {
+      return `<td><span class="time"><span class="sched">${s.scheduledTime}</span><span class="arrow">↘</span><span class="exp">${s.expectedTime}</span></span></td>`;
+    }
+    return `<td><span class="time">${s.expectedTime}</span></td>`;
+  }
+
+  function statusCell(s) {
+    if (s.cancelled) return `<td class="status"><span class="chip cancel">Cancelled</span></td>`;
+    const delayed = s.expectedTime !== s.scheduledTime;
+    if (delayed) {
+      const mins = diffMins(s.scheduledTime, s.expectedTime);
+      return `<td class="status"><span class="chip delay">+${mins}</span></td>`;
+    }
+    return `<td class="status"></td>`;
+  }
+
+  function diffMins(a, b) {
+    const [ah, am] = a.split(':').map(Number);
+    const [bh, bm] = b.split(':').map(Number);
+    return (bh * 60 + bm) - (ah * 60 + am);
+  }
+
+  function row(s) {
+    const cls = s.cancelled ? ' class="is-cancelled"' : '';
+    return `<tr${cls}>${timeCell(s)}<td><span class="dest">${s.destination}<span class="toc">${s.operator}</span></span></td>${platCell(s.platform)}${statusCell(s)}</tr>`;
+  }
+
+  function renderBoard(services) {
+    $body.innerHTML = services.map(row).join('');
+  }
+
+  function setAsOf(label) { $asOf.textContent = `As of ${label}`; }
+
+  function setStale(stale, asAtLabel) {
+    const msg = stale ? `Couldn't reach live data \u2014 showing the board from ${asAtLabel}` : '';
+    $stale.textContent = '';
+    if (msg) requestAnimationFrame(() => { $stale.textContent = msg; });
+  }
+
+  /* --------------------- Live region (ADR-0002) --------------------------- */
+  // Clear then write on next frame so a repeated message re-announces.
+  const $announcer = document.getElementById('announcer');
+  function announce(messages) {
+    $announcer.textContent = '';
+    requestAnimationFrame(() => {
+      $announcer.textContent = messages.join(' ');
+    });
+  }
+
+  /* ------------------------------ Clock ----------------------------------- */
+  const $clock = document.getElementById('clock');
+  function tick() {
+    const d = new Date();
+    const p = n => String(n).padStart(2, '0');
+    $clock.textContent = `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  }
+  setInterval(tick, 1000); tick();
+
+  /* ------------------------- Tabs: Dep / Arr ------------------------------ */
+  const $tabDep = document.getElementById('tab-dep');
+  const $tabArr = document.getElementById('tab-arr');
+  const $tabList = [$tabDep, $tabArr];
+
+  function selectTab(tab) {
+    $tabList.forEach(t => {
+      const on = t === tab;
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      t.tabIndex = on ? 0 : -1;
+    });
+    // Prototype: both boards are departures; Arrivals just relabels the caption.
+    const dep = tab === $tabDep;
+    document.getElementById('cap-station').textContent = `${stationName} ${dep ? 'departures' : 'arrivals'}`;
+  }
+  $tabList.forEach(t => t.addEventListener('click', () => selectTab(t)));
+  $tabDep.closest('[role="tablist"]').addEventListener('keydown', (e) => {
+    const i = $tabList.indexOf(document.activeElement);
+    if (e.key === 'ArrowRight' && i < $tabList.length - 1) { e.preventDefault(); $tabList[i+1].focus(); }
+    if (e.key === 'ArrowLeft' && i > 0) { e.preventDefault(); $tabList[i-1].focus(); }
+    if (e.key === 'Home') { e.preventDefault(); $tabList[0].focus(); }
+    if (e.key === 'End') { e.preventDefault(); $tabList[$tabList.length-1].focus(); }
+  });
+
+  /* --------------------- Combobox: station search ------------------------- */
+  // WAI-ARIA Combobox with Listbox Popup pattern.
+  const $combo   = document.getElementById('combo');
+  const $input   = document.getElementById('station-input');
+  const $list    = document.getElementById('station-list');
+  let matches = [];
+  let active = -1;          // index into `matches`, or -1
+  let stationName = "King's Cross";
+
+  function filter(q) {
+    q = q.trim().toLowerCase();
+    if (!q) return STATIONS.slice();
+    return STATIONS.filter(s => s.name.toLowerCase().includes(q) || s.crs.toLowerCase().includes(q));
+  }
+
+  function open() {
+    $combo.setAttribute('aria-expanded', 'true');
+    $list.hidden = false;
+  }
+  function close() {
+    $combo.setAttribute('aria-expanded', 'false');
+    $list.hidden = true;
+    $input.setAttribute('aria-activedescendant', '');
+    active = -1;
+  }
+
+  function paint() {
+    matches = filter($input.value);
+    if (matches.length === 0) {
+      $list.innerHTML = `<li class="empty" role="status">No stations match “${escapeHtml($input.value)}”.</li>`;
+      $input.setAttribute('aria-activedescendant', '');
+      active = -1;
+      return;
+    }
+    if (active >= matches.length) active = -1;
+    $list.innerHTML = matches.map((s, i) =>
+      `<li id="opt-${i}" class="opt" role="option" aria-selected="${i === active}" data-i="${i}"><span>${escapeHtml(s.name)}</span><code>${s.crs}</code></li>`
+    ).join('');
+    $input.setAttribute('aria-activedescendant', active >= 0 ? `opt-${active}` : '');
+  }
+
+  function setActive(i) {
+    if (matches.length === 0) return;
+    active = (i + matches.length) % matches.length;
+    [...$list.children].forEach((li, idx) => li.setAttribute('aria-selected', idx === active));
+    $input.setAttribute('aria-activedescendant', `opt-${active}`);
+    const el = $list.children[active];
+    if (el) el.scrollIntoView({ block: 'nearest' });
+  }
+
+  function choose(s) {
+    stationName = s.name;
+    $input.value = '';
+    document.getElementById('station-name').textContent = s.name;
+    document.getElementById('cap-station').textContent = `${s.name} departures`;
+    close();
+    // Prototype: same mock board, just relabelled.
+    renderBoard(BOARD_A); setAsOf(nowLabel()); announce([`Showing departures for ${s.name}.`]);
+  }
+
+  $input.addEventListener('input', () => { open(); paint(); });
+  $input.addEventListener('focus', () => { if (!$input.value) { matches = STATIONS.slice(); open(); paint(); } });
+  $input.addEventListener('click', () => { open(); });
+
+  $input.addEventListener('keydown', (e) => {
+    if ($list.hidden && (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter')) {
+      matches = filter($input.value); open(); paint();
+    }
+    switch (e.key) {
+      case 'ArrowDown': e.preventDefault(); setActive(active + 1); break;
+      case 'ArrowUp':   e.preventDefault(); setActive(active - 1); break;
+      case 'Home':      e.preventDefault(); setActive(0); break;
+      case 'End':       e.preventDefault(); setActive(matches.length - 1); break;
+      case 'Escape':    close(); $input.setAttribute('aria-activedescendant',''); break;
+      case 'Enter':
+        if (active >= 0 && matches[active]) { e.preventDefault(); choose(matches[active]); }
+        break;
+    }
+  });
+
+  // Click/tap an option
+  $list.addEventListener('click', (e) => {
+    const li = e.target.closest('.opt');
+    if (!li) return;
+    choose(matches[Number(li.dataset.i)]);
+  });
+  // Close when focus leaves the widget
+  document.addEventListener('focusin', (e) => {
+    if (!$combo.contains(e.target)) close();
+  });
+
+  /* ----------------------- Demo: refresh + outage ------------------------- */
+  // Prototype uses a fixed scenario timestamp so the board's "as of" is
+  // coherent with the mock service times. The real app uses the fetched
+  // board's timestamp (selectBoardToServe -> asAt).
+  function nowLabel() { return '10:36'; }
+
+  function runRefresh() {
+    setStale(false);
+    renderBoard(BOARD_B);
+    setAsOf(nowLabel());
+    announce(ANNOUNCE_B);             // meaningful changes only
+  }
+
+  document.getElementById('btn-replay').addEventListener('click', () => {
+    setStale(false);
+    renderBoard(BOARD_A); setAsOf(nowLabel()); announce([]);   // reset to A, silent
+    setTimeout(runRefresh, 4200);                               // then refresh -> announce
+  });
+
+  document.getElementById('btn-outage').addEventListener('click', () => {
+    setStale(true, nowLabel());        // stale-while-error (ADR-0003): keep the board
+  });
+
+  /* ------------------------------- Init ----------------------------------- */
+  renderBoard(BOARD_A);
+  setAsOf(nowLabel());
+  setTimeout(runRefresh, 4200);        // autoplay the first transition
+  matches = STATIONS.slice();
+
+  function escapeHtml(s){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+  </script>
+</body>
+</html>

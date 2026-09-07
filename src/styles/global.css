@@ -1,0 +1,1036 @@
+/* Design tokens + components for the trains site.
+   Ported from the approved prototype (prototype/board.html) with the demo-only
+   controls removed. State (provisional/confirmed, delay, cancellation) is
+   ALWAYS in text, never conveyed by colour alone (ADR-0002).
+
+   THEMING: both the page chrome ("concourse") and the board itself swap between
+   light and dark. The dark theme keeps the signature dark "live screen" board;
+   the light theme uses a clean white board. Both are driven by semantic tokens:
+     - chrome:  --bg / --surface / --surface-2 / --fg / --fg-mute / --border / --shadow
+     - board:   --board-bg / --board-fg / --board-mute / --board-line /
+                --board-chip-bg / --board-chip-border / --board-delay /
+                --board-delay-border / --board-cancel / --board-cancel-border
+   The accent colours matter: bright amber/red pass AAA on the dark board but
+   are unusable on white, so the light board uses dark amber (#92400e) and deep
+   red (#9b1c1c) instead - both still AAA. The default theme is dark; an inline
+   <head> script sets [data-theme] before paint (no FOUC). */
+
+:root {
+  /* ---- Raw palette values ---- */
+  /* Focus-ring colour. The default (dark) theme uses the bright amber, which
+     clears 3:1 against every dark surface (WCAG 1.4.11 non-text contrast).
+     The light theme overrides it below: amber on white/paper is <2:1, so it
+     uses the dark amber instead. */
+  --focus-ring: #f0b429;
+  /* Board palette (dark) */
+  --ink: #0d1117;
+  --panel: #151b23;
+  --line: #2a323d;
+  --line-strong: #3a4452;
+  --chalk: #e6edf3;   /* primary text on the dark board (>=7:1 AAA) */
+  --ash: #94a3b8;     /* secondary text on the dark board (>=7:1 AAA) */
+  /* Fixed accents (page chrome + brand; the amber accent bar uses these too) */
+  --amber: #f0b429;
+  --red:   #e5484d;
+  --red-bright: #ff7d80;
+  --green: #3fb950;
+  /* Raw light-chrome values (used by the light theme + as palette reference) */
+  --paper: #f6f7f9;
+  --paper-2: #eceef2;
+  --slate: #1b232e;
+  --slate-mute: #5a6573;
+  /* Type + shape */
+  --radius: 14px;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --display: 'Bricolage Grotesque', var(--sans);
+
+  /* ---- Default theme = DARK (also the no-JS fallback). The inline head
+     script sets [data-theme] before paint; [data-theme="light"] overrides
+     these below. ---- */
+  color-scheme: dark;
+  /* chrome */
+  --bg: #0f141b;
+  --surface: #1a2129;       /* inputs, cards, listbox, tab face */
+  --surface-2: #222b35;     /* tab track, selected-option tint */
+  --fg: var(--chalk);
+  --fg-mute: var(--ash);
+  --border: #2c343f;
+  --shadow: 0 12px 32px rgba(0,0,0,.5);
+  /* board (the dark "live screen") */
+  --board-bg: var(--ink);
+  --board-fg: var(--chalk);
+  --board-mute: var(--ash);
+  --board-line: var(--line);
+  --board-chip-bg: var(--panel);
+  --board-chip-border: var(--line-strong);
+  --board-delay: var(--amber);        /* ~10:1 on ink (AAA) */
+  --board-delay-border: rgba(240,180,41,.5);
+  --board-cancel: var(--red-bright);  /* ~7.5:1 on ink (AAA) */
+  --board-cancel-border: rgba(229,72,77,.55);
+  /* Journey track (Calling Points) — the logo bar's amber reads on the dark board */
+  --track: var(--amber);
+  --train-v: var(--amber);        /* the V rides the amber line; same hue keeps it one object */
+}
+
+[data-theme="dark"] { color-scheme: dark; }   /* explicit; same as :root default */
+
+[data-theme="light"] {
+  color-scheme: light;
+  /* Focus ring: bright amber fails 1.4.11 on the light chrome — use the dark
+     amber (~7:1 on white) instead. */
+  --focus-ring: #92400e;
+  /* chrome (light concourse) */
+  --bg: var(--paper);
+  --surface: #ffffff;
+  --surface-2: var(--paper-2);
+  --fg: var(--slate);
+  --fg-mute: var(--slate-mute);
+  --border: #d8dde5;
+  --shadow: 0 12px 30px rgba(20,30,45,.16);
+  /* board (clean white board). Dark amber + deep red keep delay/cancel AAA on
+     white - bright amber/red are unusable on a light ground. */
+  --board-bg: #ffffff;
+  --board-fg: var(--slate);
+  --board-mute: #4b5563;            /* ~7.6:1 on white (AAA) */
+  --board-line: #e2e6ec;
+  --board-chip-bg: #f1f3f6;
+  --board-chip-border: #d4d9e0;
+  --board-delay: #92400e;           /* ~7.1:1 on white (AAA) */
+  --board-delay-border: rgba(146,64,14,.42);
+  --board-cancel: #9b1c1c;          /* ~8.1:1 on white (AAA) */
+  --board-cancel-border: rgba(155,28,28,.42);
+  --track: #071f4d;                 /* brand navy, as on the favicon — not brown */
+  --train-v: #071f4d;               /* the favicon's navy V */
+}
+
+* { box-sizing: border-box; }
+/* text-size-adjust lives in BaseLayout as an is:inline <style>: the build's CSS
+   transformer (Lightning) strips the -webkit-/-moz- prefixes this rule needs to
+   cap text inflation in every browser. */
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--sans);
+  font-size: 1rem;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color .18s ease, color .18s ease;
+}
+
+/* ---------- Accessibility primitives ---------- */
+.visually-hidden {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  white-space: nowrap; border: 0;
+}
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+/* keep keyboard-focused rows clear of the sticky-ish header */
+:focus { scroll-margin-top: 84px; }
+
+.skip-link {
+  position: absolute; left: 0; top: -48px;
+  background: var(--fg); color: var(--bg);
+  padding: 12px 18px; z-index: 100;
+  text-decoration: none; font-weight: 500;
+  transition: top .15s ease;
+}
+.skip-link:focus { top: 0; }
+
+/* ---------- Layout ---------- */
+.shell { max-width: 760px; margin: 0 auto; padding: 28px 20px 64px; }
+
+header.site {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin-bottom: 28px;
+}
+.brand-wrap { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.brand {
+  font-family: var(--display);
+  font-weight: 700; font-size: 1.35rem;
+  letter-spacing: -0.02em; color: var(--fg);
+  text-decoration: none;
+}
+.brand-tag { color: var(--fg-mute); font-size: .8rem; }
+
+/* ---- Hamburger menu (disclosure pattern) ---- */
+.menu-wrap { position: relative; flex-shrink: 0; }
+.menu-btn {
+  position: relative;
+  appearance: none; border: 1px solid var(--border); background: var(--surface);
+  color: var(--fg);
+  width: 40px; height: 40px; border-radius: 10px;
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: border-color .15s ease, background-color .15s ease;
+}
+.menu-btn:hover { border-color: var(--fg); }
+.menu-btn .bar {
+  position: absolute; left: 11px; display: block;
+  width: 18px; height: 2px; background: currentColor; border-radius: 2px;
+  transition: transform .15s ease, opacity .12s ease;
+}
+.menu-btn .bar:nth-child(1) { top: 13px; }
+.menu-btn .bar:nth-child(2) { top: 19px; }
+.menu-btn .bar:nth-child(3) { top: 25px; }
+.menu-btn[aria-expanded="true"] .bar:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+.menu-btn[aria-expanded="true"] .bar:nth-child(2) { opacity: 0; }
+.menu-btn[aria-expanded="true"] .bar:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
+
+.menu-panel {
+  position: absolute; right: 0; top: calc(100% + 8px);
+  min-width: 224px; padding: 6px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: var(--shadow);
+  z-index: 60;
+}
+.menu-panel[hidden] { display: none; }
+.menu-section { padding: 8px 6px; }
+.menu-section + .menu-section { border-top: 1px solid var(--border); }
+.menu-label {
+  margin: 0 0 8px; font-size: .66rem; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--fg-mute); font-weight: 600;
+}
+/* Segmented Light/Dark control */
+.seg { display: inline-flex; gap: 4px; background: var(--surface-2); padding: 4px; border-radius: 9px; width: 100%; }
+.seg-btn {
+  flex: 1; appearance: none; border: 0; background: transparent;
+  color: var(--fg-mute); font: 600 .9rem var(--sans);
+  padding: 9px 10px; border-radius: 7px; cursor: pointer; min-height: 38px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+}
+.seg-btn[aria-pressed="true"] {
+  background: var(--surface); color: var(--fg);
+  box-shadow: 0 1px 3px rgba(0,0,0,.18);
+}
+.seg-ico { font-size: 1rem; line-height: 1; }
+.menu-link {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 10px 10px; border-radius: 8px;
+  color: var(--fg); text-decoration: none; font-weight: 500; font-size: .92rem;
+  min-height: 40px;
+}
+.menu-link:hover { background: var(--surface-2); }
+/* The current page's menu link (aria-current="page" is announced by AT;
+   sighted users get weight + colour, never colour alone). */
+.menu-link[aria-current="page"] { color: var(--fg); font-weight: 600; }
+
+/* ---------- Contact page ---------- */
+.page-title {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: clamp(2.4rem, 7vw, 3.4rem);
+  line-height: 1; letter-spacing: -0.03em;
+  margin: 0 0 10px;
+}
+.page-lede { color: var(--fg-mute); font-size: 1.02rem; margin: 0 0 22px; max-width: 42rem; }
+/* The form: stacked fields on a card-like column. Inputs mirror the search
+   box (.combo input) so the page reads as one design. */
+.contact { max-width: 38rem; display: grid; gap: 18px; margin: 0 0 40px; }
+.contact .field { display: grid; gap: 6px; }
+.contact .field label {
+  font-size: .78rem; font-weight: 500;
+  letter-spacing: .04em; text-transform: uppercase;
+  color: var(--fg-mute);
+}
+.contact .field input,
+.contact .field textarea {
+  width: 100%;
+  font: 500 1rem var(--sans);
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--fg);
+  resize: vertical;
+}
+.contact .field textarea { min-height: 9rem; }
+.contact .field input::placeholder,
+.contact .field textarea::placeholder { color: var(--fg-mute); }
+/* Invalid fields: error colour border; the global :focus-visible amber
+   outline still applies on focus. */
+.contact .field input[aria-invalid="true"],
+.contact .field textarea[aria-invalid="true"] { border-color: var(--board-cancel); }
+.field-error { color: var(--board-cancel); font-weight: 600; font-size: .9rem; margin: 0; }
+.form-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.submit-btn {
+  appearance: none; cursor: pointer;
+  font: 600 .95rem var(--sans); color: var(--fg);
+  padding: 12px 22px; min-height: 44px;
+  border: 1px solid var(--border); border-radius: 10px;
+  background: var(--surface);
+}
+.submit-btn:hover { background: var(--surface-2); }
+.submit-btn:disabled { opacity: .55; cursor: default; }
+.form-status { margin: 0; font-size: .95rem; font-weight: 600; color: var(--fg); }
+.form-status.error { color: var(--board-cancel); }
+/* Honeypot: hidden from humans and screen readers (bots don't read CSS). */
+.contact .hp {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  white-space: nowrap; border: 0;
+}
+.privacy-note { margin: 14px 0 40px; font-size: .9rem; color: var(--fg-mute); }
+
+/* ---------- About page ---------- */
+.about { max-width: 42rem; margin: 0 0 40px; }
+.about p { margin: 0 0 12px; color: var(--fg); }
+/* "here" link: same GDS-style underline as the clickable station names
+   (underline offset + from-font thickness), amber on hover. */
+.about a {
+  color: var(--fg);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  text-decoration-thickness: from-font;
+}
+.about a:hover { color: var(--amber); }
+
+/* ---------- History page ---------- */
+/* Toolbar: visible count (left) + Clear-history button (right). */
+.history-toolbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin: 0 0 16px;
+}
+.history-count { color: var(--fg-mute); font-size: .9rem; min-height: 40px;
+  display: flex; align-items: center; }
+/* Clear button: destructive outline (red text + red border), both themes
+   AAA against the chrome ground. Disabled (empty list) is dimmed. */
+.clear-btn {
+  appearance: none; cursor: pointer;
+  font: 600 .9rem var(--sans); color: var(--board-cancel);
+  padding: 9px 16px; min-height: 40px;
+  border: 1px solid var(--board-cancel-border); border-radius: 10px;
+  background: transparent;
+}
+.clear-btn:hover:not(:disabled) { background: var(--board-cancel-border); color: var(--fg); }
+.clear-btn:disabled { opacity: .5; cursor: default; }
+/* The list is a card of rows: each row is a link (the route) plus a Delete
+   button. */
+.history {
+  list-style: none; margin: 0 0 40px; padding: 0;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  overflow: hidden;
+}
+.history:focus { outline: none; }   /* tabindex=-1 focus target; rows carry focus */
+.hist-item { display: flex; align-items: stretch; border-bottom: 1px solid var(--border); }
+.hist-item:last-child { border-bottom: 0; }
+.hist-link {
+  flex: 1 1 auto; min-width: 0;
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 14px 16px;
+  color: var(--fg); text-decoration: none;
+}
+.hist-link:hover { background: var(--surface-2); }
+.hist-top { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.hist-time { font-family: var(--mono); font-variant-numeric: tabular-nums;
+  font-weight: 600; font-size: 1.1rem; flex: 0 0 auto;
+  display: inline-flex; flex-direction: column; align-items: flex-start;
+  line-height: 1.12; }
+/* The service's running date, under the time. Same mono/bold family as the
+   time (inherited), just a step smaller; the thin space inside the date
+   handles the gap. No hover colour change — the click affordance is the
+   underlined stations. */
+.hist-date { margin-top: 2px; font-size: .95rem; }
+/* The whole route — origin, arrow, destination — carries the row's click
+   affordance as ONE continuous GDS-style underline (same treatment as the
+   station-name links on the boards), amber on hover. The whole row is one
+   link, so this is a styled span, not a nested anchor. */
+.hist-route { font-family: var(--sans); font-weight: 600; font-size: 1rem;
+  min-width: 0; overflow-wrap: break-word;
+  color: var(--fg);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  text-decoration-thickness: from-font; }
+.hist-link:hover .hist-route { color: var(--amber); }
+.hist-arrow { color: var(--fg-mute); margin: 0 2px; }
+.hist-meta { display: block; color: var(--fg-mute); font-size: .8rem; margin-top: 2px; }
+/* Delete button: icon-only, separated by a left rule; accessible name carries
+   the full service description so screen-reader users know what they delete. */
+.hist-delete {
+  flex: 0 0 auto; appearance: none; border: 0; border-left: 1px solid var(--border);
+  background: transparent; color: var(--fg-mute);
+  width: 48px; display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer;
+}
+.hist-delete:hover { color: var(--board-cancel); background: var(--surface-2); }
+.hist-delete svg { display: block; }
+
+/* ---------- Confirmation dialog (History delete / clear) ---------- */
+.dialog-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+  background: rgba(0,0,0,.55);
+}
+.dialog-overlay[hidden] { display: none; }
+.dialog-panel {
+  width: 100%; max-width: 26rem;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 22px;
+}
+.dialog-title { font-family: var(--sans); font-weight: 700; font-size: 1.15rem; margin: 0 0 8px; }
+.dialog-body { margin: 0 0 18px; color: var(--fg-mute); font-size: .95rem; line-height: 1.45; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.dialog-btn {
+  appearance: none; cursor: pointer;
+  font: 600 .92rem var(--sans); color: var(--fg);
+  padding: 10px 18px; min-height: 42px;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--surface);
+}
+.dialog-btn:hover { background: var(--surface-2); }
+/* Destructive confirm: red text + red border (AAA in both themes). */
+.dialog-btn.danger { color: var(--board-cancel); border-color: var(--board-cancel-border); }
+.dialog-btn.danger:hover { background: var(--board-cancel-border); color: var(--fg); }
+
+/* ---------- Privacy page ---------- */
+.privacy { max-width: 42rem; margin: 0 0 40px; }
+.privacy h2 {
+  font-family: var(--sans); font-weight: 600; font-size: 1.15rem;
+  color: var(--fg); margin: 26px 0 8px;
+}
+.privacy p { margin: 0 0 12px; color: var(--fg); }
+.privacy ul { margin: 0 0 12px; padding-left: 1.25rem; display: grid; gap: 6px; }
+.privacy li { color: var(--fg); }
+/* What/Why table: a real <table> (two labelled columns is genuine tabular
+   data, unlike the boards). Header styled like the site's field labels;
+   cells top-aligned so paired rows read across. */
+.privacy table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0 0 12px;
+  font-size: .95rem;
+}
+.privacy th,
+.privacy td {
+  border: 1px solid var(--border);
+  padding: 10px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+.privacy thead th {
+  font-size: .78rem; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--fg-mute); font-weight: 600;
+}
+.privacy td strong { color: var(--fg); }
+.privacy a,
+.privacy-note a {
+  color: var(--fg);
+  text-decoration: underline;
+  text-underline-offset: .15em;
+  text-decoration-thickness: from-font;
+}
+.privacy a:hover,
+.privacy-note a:hover { color: var(--amber); }
+
+/* ---------- Station header ---------- */
+.station-head { margin-bottom: 18px; }
+h1.station {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: clamp(2.4rem, 7vw, 3.4rem);
+  line-height: 1; letter-spacing: -0.03em;
+  margin: 0;
+}
+.station-crs {
+  margin: 6px 0 14px;
+  font-family: var(--mono);
+  font-size: .82rem; letter-spacing: .12em;
+  color: var(--fg-mute); text-transform: uppercase;
+}
+
+.station-meta {
+  display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: center;
+  margin-bottom: 18px;
+}
+.live {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: .85rem; font-weight: 500; color: var(--fg);
+}
+.live .dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 0 0 rgba(63,185,80,.55);
+  animation: pulse 2.4s ease-out infinite;
+}
+@keyframes pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(63,185,80,.55); }
+  70%  { box-shadow: 0 0 0 9px rgba(63,185,80,0); }
+  100% { box-shadow: 0 0 0 0 rgba(63,185,80,0); }
+}
+.clock {
+  font-family: var(--mono); font-size: .9rem;
+  font-variant-numeric: tabular-nums; color: var(--fg-mute);
+}
+
+/* ---------- Station search combobox ---------- */
+.search { margin-bottom: 18px; }
+.search > label {
+  display: block; margin-bottom: 6px;
+  font-size: .78rem; font-weight: 500;
+  letter-spacing: .04em; text-transform: uppercase;
+  color: var(--fg-mute);
+}
+.combo { position: relative; max-width: 420px; }
+.combo input {
+  width: 100%;
+  font: 500 1rem var(--sans);
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--fg);
+}
+.combo input::placeholder { color: var(--fg-mute); }
+.combo input[aria-expanded="true"],
+.combo input:focus-visible { border-color: var(--fg); }
+.combo-list {
+  position: absolute; left: 0; right: 0; top: calc(100% + 6px);
+  list-style: none; margin: 0; padding: 6px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; box-shadow: var(--shadow);
+  max-height: 280px; overflow-y: auto; z-index: 20;
+}
+.combo-list .opt {
+  display: flex; justify-content: space-between; gap: 12px;
+  padding: 9px 12px; border-radius: 7px; cursor: pointer;
+  font-size: .95rem; color: var(--fg);
+}
+.combo-list .opt code {
+  font-family: var(--mono); font-size: .8rem; color: var(--fg-mute);
+}
+.combo-list .opt[aria-selected="true"] {
+  background: var(--surface-2); outline: 2px solid var(--focus-ring); outline-offset: -2px;
+}
+
+/* ---------- Tabs: Departures / Arrivals ---------- */
+.tabs { display: inline-flex; background: var(--surface-2); border-radius: 11px; padding: 4px; gap: 2px; }
+.tabs [role="tab"] {
+  appearance: none; border: 0; background: transparent;
+  font: 600 .9rem var(--sans); color: var(--fg-mute);
+  padding: 9px 18px; border-radius: 8px; cursor: pointer;
+  min-height: 40px;
+}
+.tabs [role="tab"][aria-selected="true"] { background: var(--surface); color: var(--fg); box-shadow: 0 1px 3px rgba(0,0,0,.18); }
+
+/* ---------- Board filter ("calling at") ---------- */
+.board-filters { margin: 0 0 16px; }
+.combo-filter > label {
+  display: block; margin-bottom: 6px;
+  font-size: .78rem; font-weight: 500;
+  letter-spacing: .04em; text-transform: uppercase;
+  color: var(--fg-mute);
+}
+.combo-filter .combo-field { position: relative; display: block; }
+.combo-filter input { padding-right: 2.5rem; }
+.combo-clear {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; padding: 0; line-height: 1;
+  border: 1px solid var(--border); border-radius: 50%;
+  background: var(--surface-2); color: var(--fg-mute);
+  font-size: .85rem; cursor: pointer;
+}
+.combo-clear:hover { background: var(--border); color: var(--fg); }
+.combo-clear:focus-visible { outline: 2px solid var(--fg); outline-offset: 1px; }
+/* [hidden] must still win over the flex display above. */
+.combo-clear[hidden] { display: none; }
+
+/* ---------- The board ---------- */
+/* Board surface + text colours are theme-aware (--board-*). In the dark theme
+   it's the signature dark "live screen"; in the light theme it's a clean white
+   board. State is always in text; the accent colours darken on the light board
+   to stay AAA on white (ADR-0002). */
+.board-panel {
+  background: var(--board-bg);
+  border: 1px solid var(--board-line);
+  border-radius: var(--radius);
+  box-shadow: 0 24px 60px -24px rgba(15,25,40,.45), 0 2px 0 rgba(255,255,255,.02) inset;
+  overflow: hidden;
+  position: relative;
+  transition: background-color .18s ease, border-color .18s ease;
+}
+.board-panel::before { /* signal accent bar - the icon's amber in both themes */
+  content: ""; display: block; height: 3px;
+  background: linear-gradient(90deg, var(--amber), transparent);
+}
+.as-of {
+  display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline;
+  padding: 14px 20px 4px; color: var(--board-mute); font-size: .8rem;
+}
+.as-of #as-of { font-family: var(--mono); }
+.as-of .stale {
+  display: inline-flex; align-items: center; gap: 6px;
+  color: var(--board-delay); font-weight: 500;
+}
+
+/* Board = a responsive <ol> of service cards. Semantics are a real list (each
+   service is one item), which keeps screen readers happy on every platform -
+   unlike CSS display:block reflow of a <table>, which can drop table semantics
+   in some screen readers (ADR-0002). Wide screens: aligned grid rows that read
+   like a board (fixed tracks so the header + every row share one geometry).
+   Phones: each row reflows to a compact card - time + status, destination +
+   platform - so nothing overflows (ADR-0002). */
+.board { list-style: none; margin: 0; padding: 0; }
+
+.board-cols,
+.svc {
+  display: grid;
+  grid-template-columns: 9.5rem 1fr 5.5rem 6rem;
+  grid-template-areas: "time dest plat status";
+  align-items: center;
+  column-gap: 16px;
+}
+/* Platform page: there is no platform column (the page is one platform), so
+   the board collapses to a three-track Time / Destination / Status grid. */
+.board-cols.no-plat,
+.board.no-plat .svc {
+  grid-template-columns: 9.5rem 1fr 6rem;
+  grid-template-areas: "time dest status";
+}
+/* Place cells by name so the DOM order is free to follow the screen-reader
+   reading order (platform last) without reshuffling the desktop columns. */
+.svc-time, .col-time { grid-area: time; }
+.svc-dest, .col-dest { grid-area: dest; }
+.svc-plat, .col-plat { grid-area: plat; }
+.svc-status, .col-status { grid-area: status; }
+.board-cols {
+  padding: 14px 20px 8px;
+  color: var(--board-mute);
+  font-family: var(--sans); font-weight: 500;
+  font-size: .68rem; letter-spacing: .1em; text-transform: uppercase;
+  border-bottom: 1px solid var(--board-line);
+}
+.svc {
+  padding: 14px 20px;
+}
+/* Station-name link inside a board row. Same treatment as .stop-link on the
+   calling-points page: underline, from-font thickness, offset for descenders,
+   board-foreground colour, brand on hover. */
+.svc-link {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  text-decoration-thickness: from-font;
+  color: var(--board-fg);
+}
+.svc-link:visited { color: var(--board-fg); }
+.svc-link:hover { color: var(--board-delay); }
+.svc-item { border-bottom: 1px solid var(--board-line); }
+.board > :last-child { border-bottom: 0; }
+
+/* Column alignment shared by the header and every row */
+.board-cols .col-plat,   .svc-plat   { justify-self: center; text-align: center; }
+.board-cols .col-status, .svc-status { justify-self: end;    text-align: right; }
+
+/* Loading / empty / error messages inside the board */
+.board-msg {
+  display: block; text-align: center;
+  color: var(--board-mute) !important; padding: 30px 20px !important;
+}
+.board-msg.error { color: var(--board-cancel) !important; }
+
+/* Time = the hero */
+.time { font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: 600; font-size: 1.4rem; white-space: nowrap; }
+.time .sched { color: var(--board-mute); text-decoration: line-through; text-decoration-thickness: 2px; font-size: 1.05rem; font-weight: 500; }
+.time .arrow { color: var(--board-mute); margin: 0 2px 0 6px; font-size: 1rem; }
+.time .exp { color: var(--board-delay); }
+
+.dest { font-family: var(--sans); font-weight: 600; font-size: 1.02rem; overflow-wrap: break-word; }
+.dest .toc { display: block; color: var(--board-mute); font-weight: 400; font-size: .78rem; margin-top: 2px; }
+.dest .coaches { display: block; color: var(--board-mute); font-weight: 400; font-size: .78rem; margin-top: 1px; }
+/* Platform chip - state in TEXT, reinforced by styling */
+.plat {
+  display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
+  min-width: 40px; padding: 7px 10px; border-radius: 8px;
+  font-family: var(--mono); font-weight: 600; font-size: 1.1rem; color: var(--board-fg);
+  border: 1px solid var(--board-chip-border); background: var(--board-chip-bg);
+}
+.plat.provisional { border-style: dashed; }
+.plat .state { font-family: var(--sans); font-weight: 500; font-size: .6rem; letter-spacing: .04em; color: var(--board-mute); text-transform: uppercase; margin-top: 2px; }
+.plat.none { border-style: dashed; color: var(--board-mute); }
+/* "At platform" caption: the train is here now, so make it prominent (full
+   foreground, semibold) rather than mute like "provisional". Solid border like a
+   confirmed platform. */
+.plat.at-platform .state { color: var(--board-fg); font-weight: 600; }
+/* Mobile-only caption inside the chip, above the number (desktop shows the
+   "Platform" column header instead). Hidden by default; the responsive block
+   reveals it. */
+.plat-label { display: none; }
+/* The platform NUMBER as a link to that platform's board page: GDS-style
+   underline like the other links on the site (station names, 'here', etc.). */
+.plat-link {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  text-decoration-thickness: from-font;
+}
+.plat-link:hover { color: var(--amber); }
+
+/* Desktop board + calling points: fixed chip size so the provisional /
+   at-platform captions don't make the chip wider or taller than a confirmed
+   one. Board chips: 5.5rem wide (fits "provisional" on one line, matches the
+   widened column above) x 3.6rem tall (tallest state = number + caption +
+   padding ≈ 3.55rem). Calling-point chips also carry the visible "Platform"
+   label, so they need more height: 5.4rem (label + number + caption + padding
+   ≈ 5.33rem); their width stays content-sized. Phones override to
+   full-width in the responsive block. */
+@media (min-width: 561px) {
+  .svc-plat .plat { width: 5.5rem; height: 3.6rem; }
+  .stop-plat .plat { height: 5.4rem; }
+}
+
+.chip {
+  display: inline-block; padding: 3px 9px; border-radius: 999px;
+  font-family: var(--sans); font-weight: 600; font-size: .78rem;
+  /* Transparent background: text sits directly on the board ground, reaching
+     AAA for delay and cancel in BOTH themes (bright amber/red on the dark
+     board; dark amber/deep red on the white board). The border carries the
+     colour identity (ADR-0002). */
+  background: transparent;
+}
+.chip.delay { color: var(--board-delay); border: 1px solid var(--board-delay-border); }
+.chip.cancel { color: var(--board-cancel); border: 1px solid var(--board-cancel-border); }
+/* "No report": muted — the train has no live data; the time shown is just
+   the timetable, not a prediction. Reads as "unknown", never as on time. */
+.chip.no-report { color: var(--board-mute); border: 1px solid var(--border); }
+
+/* Cancelled service: whole card demuted */
+.svc.is-cancelled { color: var(--board-mute); }
+.svc.is-cancelled .dest,
+.svc.is-cancelled .toc,
+.svc.is-cancelled .coaches { color: var(--board-mute); }
+.svc.is-cancelled .time { text-decoration: line-through; color: var(--board-mute); }
+
+/* ---------- Home ---------- */
+.home { margin-bottom: 24px; }
+.home-title {
+  font-family: var(--display); font-weight: 700;
+  font-size: clamp(2.2rem, 6vw, 3rem); line-height: 1;
+  letter-spacing: -0.03em; margin: 8px 0 10px;
+}
+.home-lede { color: var(--fg-mute); margin: 0 0 22px; max-width: 42ch; }
+
+footer.site { margin-top: 40px; color: var(--fg-mute); font-size: .8rem; }
+
+/* ---------- Service detail ---------- */
+.back-wrap { margin-bottom: 14px; }
+.back-link {
+  color: var(--fg-mute); text-decoration: none; font-size: .9rem; font-weight: 500;
+}
+.back-link:hover { color: var(--fg); }
+
+.service-head { margin-bottom: 18px; }
+h1.service-title {
+  font-family: var(--display); font-weight: 700;
+  font-size: clamp(1.7rem, 5vw, 2.6rem); line-height: 1.05;
+  letter-spacing: -0.02em; margin: 0 0 8px;
+}
+.service-sub, .service-date { margin: 0 0 4px; color: var(--fg-mute); font-size: .9rem; }
+.service-status { margin: 10px 0 0; }
+
+/* "Calling Points" heading + share button, between the route title and the
+   operator line. flex-wrap lets the (transient) share-status message drop to a
+   second line on a narrow phone instead of overflowing. */
+.stops-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 6px 0 10px; }
+h2.stops-title {
+  font-family: var(--sans); font-weight: 600; font-size: 1rem;
+  margin: 0; line-height: 1; color: var(--board-fg);
+}
+.share-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; padding: 0;
+  border: 1px solid var(--board-line); border-radius: 7px;
+  background: transparent; color: var(--board-fg); cursor: pointer;
+}
+.share-btn:hover { background: var(--board-chip-bg); }
+.share-btn svg { display: block; }
+.share-status { font-size: .82rem; color: var(--board-mute); line-height: 1.2; }
+
+/* "See earlier calling points" disclosure (service page): a quiet outline
+   button above the collapsed earlier stops, in the same visual language as
+   the share button. [hidden] removes the collapsed list from both the layout
+   and the accessibility tree. */
+.earlier-btn {
+  appearance: none; cursor: pointer;
+  font: 600 .9rem var(--sans); color: var(--board-fg);
+  padding: 8px 14px; min-height: 40px;
+  border: 1px solid var(--board-line); border-radius: 10px;
+  background: transparent;
+  margin: 0 0 10px;
+}
+.earlier-btn:hover { background: var(--board-chip-bg); }
+.earlier-stops { margin-bottom: 12px; border-bottom: 1px solid var(--board-line); }
+
+/* Animated disclosure of the earlier stops (the toggle handler in
+   service-client.ts). The list's HEIGHT opens/closed on a springy ease while
+   each card slides up into place (open — staggered top-down so a card climbs
+   just as the reveal reaches it) or sinks out (close — bottom-up, the cards
+   nearest the collapsing edge leave first). The wrapper clips its track +
+   cards to the animating height (its overflow establishes a BFC, so the ol's
+   bottom margin stays inside it — the settled layout is identical either
+   way), and the list's bottom border is hidden so it doesn't sweep across
+   the revealed cards. The ring/line/V live in the wrapper too, so they are
+   clipped and revealed with the cards; the JS re-lays them every frame from
+   live rects (with .no-anim) so the line stays glued to the moving rings.
+   Every class here is transient — added for the motion and removed when it
+   settles; prefers-reduced-motion skips the animation entirely (instant
+   toggle, as before). */
+.track-wrap.earlier-anim { overflow: hidden; }
+/* The wrapper's height animates while the disclosure opens, and the JS keeps
+   the user's station pinned by scrolling in sync. Exclude the moving list
+   from the browser's native scroll anchoring so it can't pick an anchor
+   inside the animating cards and fight the pinning; anything below the list
+   (the pinned station, the main list) stays a fine anchor and agrees. */
+.track-wrap.earlier-anim { overflow-anchor: none; }
+.track-wrap.earlier-anim .earlier-stops {
+  border-bottom-color: transparent;
+  transition: height 3580ms cubic-bezier(.22, 1, .36, 1);
+}
+/* How far each card slides: modest on the wide desktop rows, a touch more
+   on the taller phone cards. */
+.track-wrap.earlier-anim .stop-item { --rise: 16px; }
+@media (max-width: 560px) {
+  .track-wrap.earlier-anim .stop-item { --rise: 22px; }
+}
+/* The one-frame start state: cards displaced DOWN by one --rise with no
+   transition — it only fixes the value the .open transition animates from.
+   (The state classes live on the ol, so the selectors go through
+   .earlier-stops.) */
+.track-wrap.earlier-anim .earlier-stops.opening .stop-item { transform: translateY(var(--rise)); }
+.track-wrap.earlier-anim .earlier-stops.open .stop-item {
+  transform: none;
+  transition: transform 2500ms cubic-bezier(.22, 1, .36, 1);
+  transition-delay: calc(var(--i, 0) * 130ms);
+}
+.track-wrap.earlier-anim .earlier-stops.closing .stop-item {
+  transform: translateY(var(--rise));
+  transition: transform 2500ms cubic-bezier(.22, 1, .36, 1);
+  transition-delay: calc((var(--count, 0) - var(--i, 0)) * 115ms);
+}
+
+/* Calling points are an <ol> of stop cards that share the station board's
+   visual language (.time / .dest / .plat) so the two lists read as one design.
+   Desktop: a four-column row (time | station | expected | platform); phones
+   reflow to a 2x2 card mirroring the .svc board row so nothing overflows and no
+   horizontal scroll is needed. There are no <th> here, so each data field carries
+   a visually-hidden label for screen readers; the visible "Calling Points"
+   heading is the list's accessible name (aria-labelledby). Only the station
+   name is a clickable link — underlined so it's visually discoverable, and
+   narrow enough not to trigger accidentally. */
+.stops { list-style: none; margin: 0; padding: 0; }
+.stop-item { border-bottom: 1px solid var(--board-line); }
+.stop {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr) 7rem 6.5rem;
+  align-items: center;
+  column-gap: 16px;
+  padding: 14px 20px 14px 30px;   /* left gutter hosts the journey track */
+}
+.stops > :last-child { border-bottom: 0; }
+/* Station-name link inside a stop card. Always underlined (GDS-style) so
+   it's visually discoverable; the underline uses from-font thickness so it
+   scales naturally with the text. Underline offset keeps descenders clear. */
+.stop-link {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  text-decoration-thickness: from-font;
+  color: var(--board-fg);
+}
+.stop-link:visited { color: var(--board-fg); }
+.stop-link:hover { color: var(--board-delay); }
+.stop-time, .stop-station { min-width: 0; }
+/* Expected: "On time" (mute) / a delayed time (delay colour, mono) / "Cancelled". */
+.stop-exp { justify-self: end; text-align: right; white-space: nowrap; }
+.stop-exp.on-time { color: var(--board-mute); }
+.stop-exp.no-report { color: var(--fg-mute); }
+.stop-exp.delay {
+  color: var(--board-delay); font-weight: 600;
+  font-family: var(--mono); font-variant-numeric: tabular-nums;
+}
+.stop-exp.cancel { color: var(--board-cancel); font-weight: 600; }
+.stop-time .time s { text-decoration: line-through; color: var(--board-mute); }
+.stop-plat { justify-self: center; text-align: center; }
+/* On the board the "Platform" caption is mobile-only (desktop has a column
+   header); the detail page has no header, so show it at every breakpoint. */
+.stops .plat-label { display: block; margin-bottom: 2px; }
+
+/* ---------- Journey track (Calling Points) ---------- */
+/* The logo's vertical bar becomes the train track down the list's left edge:
+   BROKEN where the train has already passed, SOLID where it hasn't reached.
+   The logo's V rides the line as the train — just the V, no tile: the marker's
+   background is transparent, so the line runs visibly through it (the track
+   colour at that spot IS the "bar through the V"). It replaces a station's
+   ring while it rests there, and every stop gets a ring. All of it is
+   decorative — the markup is aria-hidden and the header's "Next stop" line
+   carries the same facts for screen readers, so the spoken flow is unchanged.
+   Colours are the favicon's two per theme: dark theme draws line and V in
+   amber, light theme in the favicon navy (brown was off-brand). The V is
+   outsized (glyph ~22×33px) and haloed in the board background so it stands
+   off the line and is easy to spot in both themes; the V only appears when
+   the train is within the visible calling points (expanding the earlier
+   list reveals it further back). */
+.track-wrap { position: relative; }
+.track {
+  position: absolute; left: 8px; width: 4px; border-radius: 2px;
+  transition: top .9s ease, height .9s ease; pointer-events: none;
+}
+.track-done { background: repeating-linear-gradient(180deg, var(--track) 0 7px, transparent 7px 12px); }
+.track-todo { background: var(--track); }
+.train-v {
+  position: absolute; left: -6.5px; width: 33px; height: 33px;  /* box centre = track centre (x 10) */
+  transform: translateY(-50%); color: var(--train-v);
+  transition: top .9s ease; pointer-events: none;
+}
+.train-v svg path {
+  /* Halo in the board background: cuts the line at the marker's edge so the
+     V reads as an object sitting on the track. paint-order: stroke keeps the
+     fill crisp on top of the stroke; width is in the glyph's user units
+     (~1.3px visible at this size). */
+  stroke: var(--board-bg); stroke-width: 48;
+  paint-order: stroke; stroke-linejoin: round;
+}
+.train-v svg { display: block; width: 100%; height: 100%; }
+.track-wrap.no-anim .track,
+.track-wrap.no-anim .train-v { transition: none !important; }
+.track-wrap.no-track .track,
+.track-wrap.no-track .train-v,
+.track-wrap.no-track .stop-item::before { display: none; }   /* cancelled run: no track, no train, no rings */
+/* Station rings — the track's stations; the ring yields while the V rests there.
+   z-index lifts them above BOTH windows' track segments: without it, the main
+   list's bridged line (which starts at the last earlier ring's centre) paints
+   over that ring, leaving track visible in its lower inner half. */
+.stop-item { position: relative; }
+.stop-item::before {
+  content: ""; position: absolute; left: 4px; top: 50%; transform: translateY(-50%);
+  width: 7px; height: 7px; border: 2.5px solid var(--track); border-radius: 50%;
+  background: var(--board-bg); z-index: 1;
+}
+.stop-item.train-here::before { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .track, .train-v { transition: none !important; }
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 560px) {
+  /* With inflation capped above, every browser renders rem sizes at face value,
+     so a larger root makes text comfortably readable on phones in all of them.
+     125% = ~20px root (was 16px default / 18px previously). */
+  html { font-size: 125%; }
+  /* Reflow each service into a stacked card: time + status on the top line,
+     destination full-width below it, then the platform chip on its own line.
+     Platform used to sit beside the destination and starve it of width (it
+     wrapped after a few characters); on its own line the destination gets the
+     full width. DOM order (time, dest, status, plat) puts the platform LAST for
+     screen readers - the grid just reflows the visuals. */
+  .board-cols { display: none; }
+  .svc {
+    /* minmax(0,1fr) + min-width:0 on the items lets a very long single-word
+       destination wrap instead of forcing the platform off-screen. Vertical
+       padding/gaps kept tight so board rows and calling-point cards match on
+       phones. */
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "time   status"
+      "dest   dest"
+      "plat   plat";
+    align-items: center;
+    column-gap: 14px;
+    row-gap: 4px;
+    padding: 8px 16px;
+  }
+  /* Platform page on phones: no platform row, so the card is just time +
+     status on the top line and destination full-width below it. */
+  .board.no-plat .svc {
+    grid-template-areas:
+      "time   status"
+      "dest   dest";
+  }
+  .svc-time   { grid-area: time; min-width: 0; }
+  .svc-status { grid-area: status; justify-self: end; text-align: right; }
+  .svc-dest   { grid-area: dest; min-width: 0; }
+  .svc-plat   { grid-area: plat; justify-self: stretch; }
+  /* Phones have no column headers, so each chip shows a visible "Platform"
+     caption inside the box, stacked above the number and centred (the .plat
+     chip is a centred column flex). margin-bottom lifts it off the number. */
+  .plat-label {
+    display: block;
+    font-family: var(--sans); font-weight: 500;
+    font-size: .62rem; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--board-mute);
+    margin-bottom: 1px;
+  }
+  /* Full-width platform bar on its own row: the chip stretches to the row
+     width and its caption / number / state centre within it (the chip is a
+     centred column flex). Desktop keeps its fluid min-width. Padding is
+     trimmed so the chip is shorter than on desktop, matching the tighter
+     cards. */
+  .plat { width: 100%; padding: 4px 10px; }
+  .plat .state { margin-top: 1px; }
+  /* Stack a delayed time (scheduled over expected) so its column can't force
+     the platform off-screen - a horizontal nowrap '08:05 -> 08:11' (~135px)
+     made the first track too wide on narrow phones; stacked it's ~61px. The
+     arrow is visual-only and hidden on phones. Single on-time/cancelled times
+     render unchanged. */
+  .svc-time .time { display: inline-flex; flex-direction: column; align-items: flex-start; line-height: 1.05; }
+  .svc-time .time .arrow { display: none; }
+  .time { font-size: 1.28rem; }
+  .dest { font-size: .96rem; }
+  .as-of { padding: 12px 14px 4px; }
+  .brand-tag { display: none; }   /* keep the header tidy on narrow phones */
+  /* Same stack as a .svc board row: time + expected on the top line, station
+     full-width, then the platform chip on its own line below - so a long station
+     name wraps instead of being squeezed beside the platform. Compact padding
+     (like the board rows) so the card stays short on phones. */
+  .stop {
+    --stop-gutter: 28px;   /* left gutter hosts the journey track; the mobile ring anchors to it */
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "time   exp"
+      "station station"
+      "plat   plat";
+    align-items: center;
+    column-gap: 14px;
+    row-gap: 4px;
+    padding: 8px 16px 8px var(--stop-gutter);
+  }
+  .stop-time    { grid-area: time; min-width: 0; }
+  .stop-exp     { grid-area: exp; }
+  .stop-station { grid-area: station; min-width: 0; }
+  .stop-plat    { grid-area: plat; justify-self: stretch; }
+  /* On phones the station name sits on its own middle row, so the card's
+     vertical centre is NOT the station's centre — the ring must anchor to
+     the station row itself or it floats between the name and the platform
+     chip. The station cell spans the full card width, so the ring's x is
+     the card's gutter inset (content left minus the gutter). The desktop
+     ring (on .stop-item) is suppressed here to avoid double rings. */
+  .stop-item::before { display: none; }
+  .stop-station { position: relative; }
+  .stop-station::before {
+    content: ""; position: absolute; left: calc(4px - var(--stop-gutter)); top: 50%;
+    transform: translateY(-50%);
+    width: 7px; height: 7px; border: 2.5px solid var(--track); border-radius: 50%;
+    background: var(--board-bg); z-index: 1;
+  }
+  .stop-item.train-here .stop-station::before { display: none; }   /* the V takes the ring's place */
+  .track-wrap.no-track .stop-station::before { display: none; }    /* cancelled run: no rings */
+}
+
+/* ---------- Reduced motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .live .dot { animation: none; }
+}

@@ -1,0 +1,27 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import StationBoard from '../../components/StationBoard.astro';
+import { STATIONS } from '../../data/stations';
+import type { Station } from '../../lib/station-search';
+
+// Per-station SSG shells — every station in the dataset gets a real,
+// deep-linkable URL with its name baked in. Live data is fetched client-side.
+export function getStaticPaths() {
+  return STATIONS.map((station) => ({
+    params: { crs: station.crs.toLowerCase() },
+    props: { station },
+  }));
+}
+
+interface Props {
+  station: Station;
+}
+const { station } = Astro.props;
+---
+
+<BaseLayout
+  title={`${station.name} (${station.crs}) — live departures`}
+  description={`Live departure and arrival board for ${station.name} (${station.crs}).`}
+>
+  <StationBoard crs={station.crs} stationName={station.name} />
+</BaseLayout>

@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.wrangler/
+.dev.vars
+.agents/
+.astro/
+.env
+.env.*
+skills-lock.json
+.pi-web/
