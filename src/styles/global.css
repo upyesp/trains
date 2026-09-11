@@ -152,23 +152,27 @@ header.site {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   margin-bottom: 28px;
 }
-.brand-wrap { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.brand-wrap { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .brand {
   font-family: var(--display);
   font-weight: 700; font-size: 1.35rem;
   letter-spacing: -0.02em; color: var(--fg);
   text-decoration: none;
+  /* Flex row so the 40px logo can share the link with the wordmark without
+     growing the header: the link box matches the hamburger button's height. */
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 .brand-tag { color: var(--fg-mute); font-size: .8rem; }
 .brand-logo {
-  /* The favicon mark, inlined before the wordmark. height .72em matches the
-     text's cap height and vertical-align: baseline sits it on the text
-     baseline, so the logo is exactly as tall as the link text and adds no
-     vertical space to the header. */
-  height: .72em;
+  /* The favicon mark, inlined before the wordmark. Sized to the hamburger
+     button (40×40) and block-level inside the flex link, so it defines the
+     link's height (40px) exactly like the button does — the header keeps its
+     height and the gap to the text is the link's 6px column gap. */
+  height: 40px;
   width: auto;
-  vertical-align: baseline;
-  margin-right: .38em;
+  display: block;
 }
 
 /* ---- Hamburger menu (disclosure pattern) ---- */
