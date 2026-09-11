@@ -160,6 +160,16 @@ header.site {
   text-decoration: none;
 }
 .brand-tag { color: var(--fg-mute); font-size: .8rem; }
+.brand-logo {
+  /* The favicon mark, inlined before the wordmark. height .72em matches the
+     text's cap height and vertical-align: baseline sits it on the text
+     baseline, so the logo is exactly as tall as the link text and adds no
+     vertical space to the header. */
+  height: .72em;
+  width: auto;
+  vertical-align: baseline;
+  margin-right: .38em;
+}
 
 /* ---- Hamburger menu (disclosure pattern) ---- */
 .menu-wrap { position: relative; flex-shrink: 0; }
