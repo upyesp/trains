@@ -634,23 +634,8 @@ export function initServiceDetail(root: HTMLElement): void {
       // Bridge the button row: the main window's track extends up through the
       // "Show earlier" button to the last earlier ring, so the line is
       // continuous from the origin ring to the destination ring with no
-      // missing stretch between the two lists. During the disclosure
-      // animation, though, the last ring's measured position is phantom
-      // whenever the clip hasn't revealed it yet — a collapsed list still
-      // lays its content out at full height, so the ring's rect pokes down
-      // into the main list — and anchoring to it made the main window's
-      // solid bar collapse to its bottom stretch and regrow bottom-up while
-      // the list opened or closed. So bridge only once the clip has actually
-      // revealed the ring (a zero-height wrap means no layout at all — e.g.
-      // jsdom — and counts as revealed), or when the train itself is on the
-      // bridged section and the V needs the line to ride; until then the
-      // main window keeps its closed-state look: solid from the first
-      // visible station down.
-      const wrapH = earlier!.getBoundingClientRect().height;
-      const onBridge = pos.idx === boardIdx && pos.frac != null;
-      if (wrapH === 0 || gEarlier.bottom <= wrapH + 1 || onBridge) {
-        gMain.top = mEarlier!.top + gEarlier.bottom - mMain.top;
-      }
+      // missing stretch between the two lists.
+      gMain.top = mEarlier!.top + gEarlier.bottom - mMain.top;
     }
 
     let role: 'main' | 'earlier' = pos.idx >= boardIdx ? 'main' : 'earlier';
@@ -924,12 +909,8 @@ export function initServiceDetail(root: HTMLElement): void {
       if (token !== animToken) return;
       if (animRaf !== 0 && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(animRaf);
       animRaf = 0;
-      // Settle the track while the wraps are still .no-anim-guarded: the
-      // final paint must not run with the track's transitions live, or the
-      // bridge's engagement change would visibly animate — the solid bar
-      // redrew itself bottom-up for .9s AFTER the motion had ended.
-      if (current) layTrack(current, curBoardIdx, null, null);
       finishAnim(open);
+      if (current) layTrack(current, curBoardIdx, null, null);
       compensate(); // last frame — settle any final drift, then let go
       pin = null;
     }, Math.max(3580, slideMs) + 100);
