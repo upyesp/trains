@@ -52,7 +52,12 @@ export function parseUKTime(iso: string): number {
   const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?$/.exec(iso);
   if (!m) return NaN;
   const [, y, mo, d, h, mi, s = '0'] = m;
-  const [Y, MO, D, H, MI, S] = [y, mo, d, h, mi, s].map(Number);
+  const Y = Number(y);
+  const MO = Number(mo);
+  const D = Number(d);
+  const H = Number(h);
+  const MI = Number(mi);
+  const S = Number(s);
   // Date.UTC silently rolls over out-of-range fields (month 13, hour 99);
   // reject them so junk yields NaN like every other unparseable stamp.
   if (MO < 1 || MO > 12 || D < 1 || D > 31 || H > 23 || MI > 59 || S > 60) return NaN;
