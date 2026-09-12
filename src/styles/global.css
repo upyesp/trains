@@ -481,6 +481,11 @@ h1.station {
   70%  { box-shadow: 0 0 0 9px rgba(63,185,80,0); }
   100% { box-shadow: 0 0 0 0 rgba(63,185,80,0); }
 }
+.clock-wrap { display: inline-flex; align-items: baseline; gap: 5px; }
+.clock-tz {
+  font-size: .78rem; letter-spacing: .04em;
+  color: var(--fg-mute);
+}
 .clock {
   font-family: var(--mono); font-size: .9rem;
   font-variant-numeric: tabular-nums; color: var(--fg-mute);

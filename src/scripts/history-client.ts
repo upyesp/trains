@@ -35,11 +35,12 @@ interface Elements {
   dialogConfirm: HTMLButtonElement;
 }
 
-/** "3 Aug, 14:20" — visitedAt is a real epoch, so local rendering fits. */
+/** "3 Aug, 14:20" — visitedAt is a real epoch, rendered on the UK wall clock
+ *  (like every other time on the site) rather than the viewer's device zone. */
 function fmtWhen(epochMs: number): string {
   const d = new Date(epochMs);
-  const date = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-  const time = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  const date = d.toLocaleDateString('en-GB', { timeZone: 'Europe/London', day: 'numeric', month: 'short' });
+  const time = d.toLocaleTimeString('en-GB', { timeZone: 'Europe/London', hour: '2-digit', minute: '2-digit' });
   return `${date}, ${time}`;
 }
 

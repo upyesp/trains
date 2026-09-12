@@ -13,14 +13,35 @@ export function fmtTime(iso: string): string {
 }
 
 /**
- * Render the Worker's "as at" epoch-ms timestamp as "HH:MM".
- * `asAt` is a real UTC instant, so local-timezone rendering is appropriate here.
+ * Render the Worker's "as at" epoch-ms timestamp as "HH:MM" on the UK wall
+ * clock. `asAt` is a real UTC instant; we render it in Europe/London (not the
+ * viewer's device zone) so every time on a page — timetable strings and
+ * clocks alike — reads as UK time no matter where in the world the viewer
+ * is. Otherwise an overseas traveller's board header ticks along an hour or
+ * more ahead of the times in the lists below it.
  */
+const UK_CLOCK = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Europe/London',
+  hourCycle: 'h23',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+const UK_CLOCK_SECONDS = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Europe/London',
+  hourCycle: 'h23',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+});
+
 export function fmtClock(epochMs: number): string {
-  return new Date(epochMs).toLocaleTimeString('en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return UK_CLOCK.format(new Date(epochMs));
+}
+
+/** "HH:MM:SS" on the UK wall clock — the station board's ticking header clock. */
+export function fmtClockSeconds(epochMs: number): string {
+  return UK_CLOCK_SECONDS.format(new Date(epochMs));
 }
 
 /**

@@ -13,7 +13,7 @@
 
 import { boardRowsHtml, describeChanges, sameKey } from '../lib/board-html';
 import { diffBoards } from '../lib/diff';
-import { fmtClock, fmtTime } from '../lib/format';
+import { fmtClock, fmtClockSeconds, fmtTime } from '../lib/format';
 import type {
   Board,
   BoardKind,
@@ -280,10 +280,11 @@ export function initBoard(root: HTMLElement): void {
   }
 
   function setupClock(): void {
+    // Ticks on the UK wall clock (not the viewer's device zone) so the header
+    // clock reads the same time as the board's UK timetable rows everywhere
+    // in the world.
     const tick = () => {
-      const d = new Date();
-      const p = (n: number) => String(n).padStart(2, '0');
-      els.clock.textContent = `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+      els.clock.textContent = fmtClockSeconds(Date.now());
     };
     tick();
     window.setInterval(tick, 1000);
