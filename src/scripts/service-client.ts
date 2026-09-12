@@ -16,6 +16,7 @@ import { fmtClock, fmtDurationMin, fmtTime } from '../lib/format';
 import { recordServiceVisit } from '../lib/history';
 import { esc, platformChip } from '../lib/html';
 import { onStationCrsReady, stationCrs, stationLabel } from '../lib/station-codes';
+import { parseUKTime } from '../lib/uk-time';
 import type { CallingPoint, Platform, ServiceDetail, ServiceDetailResponse } from '../lib/types';
 
 const REFRESH_MS = 30_000;
@@ -66,7 +67,7 @@ function fmtDate(iso: string): string {
 /** Scheduled journey duration between two ISO datetimes, via the shared
  *  fmtDurationMin ("1h 23m"). Empty when the times are missing or not in order. */
 function fmtDuration(isoStart: string, isoEnd: string): string {
-  const ms = Date.parse(isoEnd) - Date.parse(isoStart);
+  const ms = parseUKTime(isoEnd) - parseUKTime(isoStart);
   if (!Number.isFinite(ms) || ms <= 0) return '';
   return fmtDurationMin(Math.round(ms / 60_000));
 }
@@ -74,8 +75,8 @@ function fmtDuration(isoStart: string, isoEnd: string): string {
 function delayMinutesAt(p: CallingPoint): number {
   // Lateness on ARRIVAL at the final stop: the recorded actual (once passed)
   // beats the forecast.
-  const sched = Date.parse(p.scheduledTime);
-  const exp = Date.parse(p.actualArrival ?? p.expectedTime);
+  const sched = parseUKTime(p.scheduledTime);
+  const exp = parseUKTime(p.actualArrival ?? p.expectedTime);
   if (Number.isNaN(sched) || Number.isNaN(exp)) return 0;
   return Math.round((exp - sched) / 60_000);
 }
@@ -166,7 +167,7 @@ export function stopCard(p: CallingPoint, isLast: boolean): string {
       const cls = arr === schedStr ? 'on-time' : 'delay';
       expHtml = `<div class="stop-exp ${cls}">Arrived ${arr === schedStr ? 'on time' : arr}</div>`;
     } else if (p.noReport) {
-      const pointMs = Date.parse(p.scheduledTime);
+      const pointMs = parseUKTime(p.scheduledTime);
       const isPast = Number.isFinite(pointMs) && pointMs < Date.now();
       const prefix = isLast ? 'Completed' : isPast ? 'Departed' : 'Expected';
       expHtml = `<div class="stop-exp no-report">${prefix} — no live data</div>`;
@@ -247,7 +248,7 @@ function serviceStatus(d: ServiceDetail): string {
   const sched = origin.scheduledTime;
   const actual = origin.actualDeparture;
   const exp = origin.expectedTime;
-  const schedMs = Date.parse(sched);
+  const schedMs = parseUKTime(sched);
   if (actual || schedMs <= Date.now()) {
     if (actual) return actual === sched ? 'Departed on time' : `Departed at ${fmtTime(actual)}`;
     if (origin.noReport) return 'Departed — no live data';
@@ -274,7 +275,7 @@ export function nextStop(d: ServiceDetail): CallingPoint | null {
     const p = d.points[i]!;
     if (p.actualArrival || p.actualDeparture) continue;
     if (p.noReport) {
-      const ms = Date.parse(p.scheduledTime);
+      const ms = parseUKTime(p.scheduledTime);
       if (Number.isFinite(ms) && ms < now) continue;
     }
     return p;
@@ -296,7 +297,7 @@ export function trainPosition(d: ServiceDetail): { idx: number; frac: number | n
   // Resting at the origin: no recorded departure and the timetable still says
   // future — the stop card's own heuristic (past-due with no report is gone).
   const origin = pts[0]!;
-  if (!origin.actualDeparture && Date.parse(origin.scheduledTime) > now) return { idx: 0, frac: null };
+  if (!origin.actualDeparture && parseUKTime(origin.scheduledTime) > now) return { idx: 0, frac: null };
   // Resting at a stop: arrival recorded, departure not yet (includes the terminus).
   for (let i = 1; i < pts.length; i++) {
     const p = pts[i]!;
@@ -319,8 +320,8 @@ export function trainPosition(d: ServiceDetail): { idx: number; frac: number | n
     }
   }
   const from = fromIdx >= 0 ? pts[fromIdx] : undefined;
-  const fromT = from ? Date.parse(from.actualDeparture ?? from.actualArrival ?? from.expectedTime) : NaN;
-  const toT = Date.parse(next.expectedTime);
+  const fromT = from ? parseUKTime(from.actualDeparture ?? from.actualArrival ?? from.expectedTime) : NaN;
+  const toT = parseUKTime(next.expectedTime);
   if (Number.isFinite(fromT) && Number.isFinite(toT) && toT > fromT) {
     const frac = (now - fromT) / (toT - fromT);
     return { idx: nextIdx, frac: Math.min(0.92, Math.max(0.08, frac)) };
@@ -361,7 +362,7 @@ function headerHtml(d: ServiceDetail, boardIdx: number): string {
   const next = nextStop(d);
   const last = d.points[d.points.length - 1];
   const journeyCompleted =
-    !next && last != null && (last.actualArrival != null || last.actualDeparture != null || Date.parse(last.scheduledTime) <= Date.now());
+    !next && last != null && (last.actualArrival != null || last.actualDeparture != null || parseUKTime(last.scheduledTime) <= Date.now());
   let completionSuffix = '';
   if (journeyCompleted && last) {
     // The recorded actual (if TRUST reported it) is the truth; otherwise the
@@ -370,7 +371,7 @@ function headerHtml(d: ServiceDetail, boardIdx: number): string {
     const lastTime =
       last.actualArrival ?? last.actualDeparture ?? (last.expectedTime !== last.scheduledTime ? last.expectedTime : null);
     if (lastTime) {
-      const diff = (Date.parse(lastTime) - Date.parse(last.scheduledTime)) / 60_000;
+      const diff = (parseUKTime(lastTime) - parseUKTime(last.scheduledTime)) / 60_000;
       const completedTime = fmtTime(lastTime);
       if (Math.abs(diff) < 1) completionSuffix = `, completed on time at ${completedTime}`;
       else if (diff > 0) completionSuffix = `, completed late at ${completedTime}`;
