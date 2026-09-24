@@ -666,6 +666,13 @@ h1.station {
 .dest { font-family: var(--sans); font-weight: 600; font-size: 1.02rem; overflow-wrap: break-word; }
 .dest .toc { display: block; color: var(--board-mute); font-weight: 400; font-size: .78rem; margin-top: 2px; }
 .dest .coaches { display: block; color: var(--board-mute); font-weight: 400; font-size: .78rem; margin-top: 1px; }
+/* Journey time inline after the station name: this station → the row's
+   destination, in the shared "1h 34m" style. Muted like the other meta
+   lines; nowrap so the duration never splits across a wrapped line. */
+.dest .journey {
+  color: var(--board-mute); font-weight: 400; font-size: .78rem;
+  margin-left: 7px; white-space: nowrap;
+}
 /* Platform chip - state in TEXT, reinforced by styling */
 .plat {
   display: inline-flex; flex-direction: column; align-items: center; justify-content: center;

@@ -44,8 +44,10 @@ export interface Service {
   operator: string;
   /** Number of passenger vehicles (coaches) on the train, or null when unknown (RTT numberOfVehicles). */
   coaches: number | null;
-  /** Scheduled origin-to-destination duration in minutes (from the board's
-   *  origin/destination endpoint times), or null when RTT doesn't carry them. */
+  /** Scheduled duration between this station and the row's other end in
+   *  minutes — to the final destination on departures, from the origin on
+   *  arrivals — from the endpoint pair's advertised time. Null when RTT
+   *  doesn't carry it. (Not the train's full origin→destination run.) */
   journeyMins: number | null;
   /** True when this service will not run, or will not call at this station. */
   cancelled: boolean;

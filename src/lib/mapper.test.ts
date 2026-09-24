@@ -69,13 +69,16 @@ describe('mapLocationLineUp', () => {
   });
 
   describe('journey time', () => {
-    it('derives the origin→destination duration from the endpoint times', () => {
+    it('measures from THIS station to the destination, not the full origin→destination run', () => {
       const board = mapLocationLineUp(
         {
           services: [
+            // A through service: starts in A at 09:00, calls HERE (WAT) at
+            // 10:00, finishes in B at 11:30. The row means A's passengers
+            // nothing — the board answers WAT→B: 90 minutes, not 150.
             service({
-              id: 'fast',
-              origin: [{ location: { description: 'A' }, temporalData: { scheduleAdvertised: '2026-08-03T10:00:00' } }],
+              id: 'through',
+              origin: [{ location: { description: 'A' }, temporalData: { scheduleAdvertised: '2026-08-03T09:00:00' } }],
               destination: [{ location: { description: 'B' }, temporalData: { scheduleAdvertised: '2026-08-03T11:30:00' } }],
               temporalData: { displayAs: 'CALL', departure: { scheduleAdvertised: '2026-08-03T10:00:00' } },
             }),
@@ -86,7 +89,41 @@ describe('mapLocationLineUp', () => {
         'departures',
       );
       const byId = Object.fromEntries(board.services.map((s) => [s.id, s.journeyMins]));
-      expect(byId).toEqual({ fast: 90, 'no-times': null });
+      expect(byId).toEqual({ through: 90, 'no-times': null });
+    });
+
+    it('on arrivals measures from the origin to THIS station', () => {
+      const board = mapLocationLineUp(
+        {
+          services: [
+            service({
+              id: 'inbound',
+              origin: [{ location: { description: 'A' }, temporalData: { scheduleAdvertised: '2026-08-03T09:15:00' } }],
+              temporalData: { displayAs: 'CALL', arrival: { scheduleAdvertised: '2026-08-03T10:40:00' } },
+            }),
+          ],
+        },
+        'WAT',
+        'arrivals',
+      );
+      expect(board.services[0]?.journeyMins).toBe(85);
+    });
+
+    it('is null when the endpoint time is out of order (e.g. past-midnight data)', () => {
+      const board = mapLocationLineUp(
+        {
+          services: [
+            service({
+              id: 'backwards',
+              destination: [{ location: { description: 'B' }, temporalData: { scheduleAdvertised: '2026-08-03T09:30:00' } }],
+              temporalData: { displayAs: 'CALL', departure: { scheduleAdvertised: '2026-08-03T10:00:00' } },
+            }),
+          ],
+        },
+        'WAT',
+        'departures',
+      );
+      expect(board.services[0]?.journeyMins).toBeNull();
     });
   });
 
