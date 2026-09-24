@@ -10,6 +10,7 @@
 
 import { fmtDurationMin, fmtTime } from './format';
 import { esc, platformChip } from './html';
+import { stationLabel } from './station-codes';
 import type { Board, MeaningfulChange, Platform, Service } from './types';
 
 function delayMinutes(s: Service): number {
@@ -49,25 +50,30 @@ function timeCell(s: Service): string {
 }
 
 function destCell(s: Service, crs: string | null): string {
-  // Journey time sits INLINE right after the station name: the scheduled run
-  // from the station in the header to this row's destination (departures) or
-  // from the origin to this station (arrivals) — the same "1h 34m" style the
-  // service page uses for journey summaries. The old "from X to Y" wording
-  // went with the old full-run semantics: on a departures board the header
-  // station and the row's destination already say where the journey is from
-  // and to, so a bare duration reads correctly.
   const journey = s.journeyMins != null ? fmtDurationMin(s.journeyMins) : '';
-  const journeyHtml = journey
-    ? `<span class="journey"><span class="visually-hidden">Journey time </span>${esc(journey)}</span>`
-    : '';
+  // The board's journey time is the train's FULL origin→destination run.
+  // Say so explicitly ("from … to …", with the official codes) so it can't be
+  // mistaken for the remaining journey from this station.
+  const route =
+    journey && s.origin && s.finalDestination
+      ? ` from ${esc(stationLabel(s.origin))} to ${esc(stationLabel(s.finalDestination))}`
+      : '';
   const coaches = s.coaches != null ? `${s.coaches} ${s.coaches === 1 ? 'coach' : 'coaches'}` : '';
-  const metaHtml = coaches ? `<span class="coaches">${esc(coaches)}</span>` : '';
+  const meta = [journey + route, coaches].filter(Boolean).map(esc).join(' · ');
+  const metaHtml = meta ? `<span class="coaches">${meta}</span>` : '';
+  // Inline after the name: the run from the BOARD station to the destination
+  // — only for through services (origin elsewhere), since when the train
+  // starts here that figure is the full run already shown below the name.
+  const remaining = s.journeyFromHereMins != null ? fmtDurationMin(s.journeyFromHereMins) : '';
+  const remainingHtml = remaining
+    ? `<span class="journey"><span class="visually-hidden">Journey time from this station </span>${esc(remaining)}</span>`
+    : '';
   // `from` tells the service page which station the user was viewing, so its
   // header and calling-points list can anchor on that station (not the origin).
   const params: Record<string, string> = { id: s.id };
   if (crs) params.from = crs;
   const href = `/service/?${new URLSearchParams(params).toString()}`;
-  return `<div class="svc-dest"><span class="dest"><a class="svc-link" href="${href}"><span class="dest-name">${esc(s.destination)}</span> <span class="visually-hidden">view calling points for this service</span></a>${journeyHtml}${metaHtml}<span class="toc">${esc(s.operator)}</span></span></div>`;
+  return `<div class="svc-dest"><span class="dest"><a class="svc-link" href="${href}"><span class="dest-name">${esc(s.destination)}</span> <span class="visually-hidden">view calling points for this service</span></a>${remainingHtml}${metaHtml}<span class="toc">${esc(s.operator)}</span></span></div>`;
 }
 
 function statusCell(s: Service): string {

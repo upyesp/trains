@@ -60,32 +60,47 @@ function mapService(service: RTTService, kind: BoardKind): Service | null {
     finalDestination: endpointName(service.destination),
     operator: service.scheduleMetadata.operator.name,
     coaches: coachesFrom(service.locationMetadata?.numberOfVehicles),
-    journeyMins: journeyMinutes(service, kind, scheduledTime),
+    journeyMins: journeyMinutes(service),
+    ...withJourneyFromHere(journeyFromHereMins(service, kind, scheduledTime)),
     cancelled: service.temporalData.displayAs === 'CANCELLED',
   };
 }
 
-/** Scheduled duration between THIS station and the row's other end — final
- *  destination on departures, origin on arrivals — from the endpoint pair's
- *  advertised time. `here` is the row's own advertised time (the board
- *  station's departure/arrival). Null when RTT doesn't carry the endpoint
- *  time or it is out of order.
- *
- *  This — not the train's full origin→destination run — is the duration a
- *  board row means: a through train that started in Reading shows Waterloo
- *  passengers nothing useful with "Reading→Weymouth", but
- *  Waterloo→Weymouth is exactly the journey the row describes. */
-function journeyMinutes(service: RTTService, kind: BoardKind, here: string): number | null {
-  const pairs = kind === 'departures' ? service.destination : service.origin;
-  const end = pairs[pairs.length - 1];
-  const endTime = end?.temporalData?.scheduleAdvertised;
-  if (!endTime || !here) return null;
-  const otherMs = Date.parse(endTime);
-  const hereMs = Date.parse(here);
-  if (!Number.isFinite(otherMs) || !Number.isFinite(hereMs)) return null;
-  // Departures run here→other end; arrivals completed other end→here.
-  const ms = kind === 'departures' ? otherMs - hereMs : hereMs - otherMs;
-  return ms > 0 ? Math.round(ms / 60_000) : null;
+/** Spread-in only when the from-this-station duration exists, so absent and
+ *  unknown both stay absent from the Service (and TS sees a clean number). */
+function withJourneyFromHere(mins: number | null): { journeyFromHereMins: number } | Record<string, never> {
+  return mins != null ? { journeyFromHereMins: mins } : {};
+}
+
+/** Scheduled full origin→destination duration in minutes, from the board's
+ *  origin/destination endpoint times (LocationPair.temporalData.scheduleAdvertised).
+ *  Null when RTT doesn't carry those times or they are out of order. */
+function journeyMinutes(service: RTTService): number | null {
+  const originTime = service.origin?.[0]?.temporalData?.scheduleAdvertised;
+  const dest = service.destination?.[service.destination.length - 1];
+  const destTime = dest?.temporalData?.scheduleAdvertised;
+  if (!originTime || !destTime) return null;
+  const ms = Date.parse(destTime) - Date.parse(originTime);
+  return Number.isFinite(ms) && ms > 0 ? Math.round(ms / 60_000) : null;
+}
+
+/** Scheduled duration from the BOARD station to the destination, in minutes —
+ *  the row's own advertised time (`here`) to the destination endpoint's — for
+ *  DEPARTURES whose origin is not the board station (through services): a
+ *  Reading→Weymouth through train on Waterloo departures means
+ *  Waterloo→Weymouth to Waterloo users, not the Reading→Weymouth full run.
+ *  When the train STARTS here (origin time equals this station's time) the
+ *  answer would equal journeyMinutes and duplicate the line under the
+ *  station name, so it is omitted (null). Arrivals never carry it. */
+function journeyFromHereMins(service: RTTService, kind: BoardKind, here: string): number | null {
+  if (kind !== 'departures') return null;
+  const originTime = service.origin?.[0]?.temporalData?.scheduleAdvertised;
+  if (!here || originTime === here) return null;
+  const dest = service.destination?.[service.destination.length - 1];
+  const destTime = dest?.temporalData?.scheduleAdvertised;
+  if (!destTime) return null;
+  const ms = Date.parse(destTime) - Date.parse(here);
+  return Number.isFinite(ms) && ms > 0 ? Math.round(ms / 60_000) : null;
 }
 
 /** At-platform (train stopped here now) > confirmed (`actual` set) > provisional

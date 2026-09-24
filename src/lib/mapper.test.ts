@@ -69,16 +69,16 @@ describe('mapLocationLineUp', () => {
   });
 
   describe('journey time', () => {
-    it('measures from THIS station to the destination, not the full origin→destination run', () => {
+    it('full run under the name; no inline time when the train starts here', () => {
       const board = mapLocationLineUp(
         {
           services: [
-            // A through service: starts in A at 09:00, calls HERE (WAT) at
-            // 10:00, finishes in B at 11:30. The row means A's passengers
-            // nothing — the board answers WAT→B: 90 minutes, not 150.
+            // Origin A departs 10:00 == this station's 10:00: the train STARTS
+            // here, so the full A→B run (90m) goes under the name and no
+            // inline duration is set (it would duplicate it).
             service({
-              id: 'through',
-              origin: [{ location: { description: 'A' }, temporalData: { scheduleAdvertised: '2026-08-03T09:00:00' } }],
+              id: 'starts-here',
+              origin: [{ location: { description: 'A' }, temporalData: { scheduleAdvertised: '2026-08-03T10:00:00' } }],
               destination: [{ location: { description: 'B' }, temporalData: { scheduleAdvertised: '2026-08-03T11:30:00' } }],
               temporalData: { displayAs: 'CALL', departure: { scheduleAdvertised: '2026-08-03T10:00:00' } },
             }),
@@ -88,28 +88,38 @@ describe('mapLocationLineUp', () => {
         'WAT',
         'departures',
       );
-      const byId = Object.fromEntries(board.services.map((s) => [s.id, s.journeyMins]));
-      expect(byId).toEqual({ through: 90, 'no-times': null });
+      expect(board.services.map((s) => ({ id: s.id, journeyMins: s.journeyMins, fromHere: s.journeyFromHereMins }))).toEqual([
+        // Sorted by advertised time: the default fixture ('no-times') departs
+        // 08:05, 'starts-here' 10:00.
+        { id: 'no-times', journeyMins: null, fromHere: undefined },
+        { id: 'starts-here', journeyMins: 90, fromHere: undefined },
+      ]);
     });
 
-    it('on arrivals measures from the origin to THIS station', () => {
+    it('through service: full run AND the shorter from-this-station run', () => {
       const board = mapLocationLineUp(
         {
           services: [
+            // Starts in A at 09:00, calls HERE at 10:00, finishes in B at
+            // 11:30: full run A→B = 150m under the name; inline after the
+            // name the board answers WAT→B = 90m.
             service({
-              id: 'inbound',
-              origin: [{ location: { description: 'A' }, temporalData: { scheduleAdvertised: '2026-08-03T09:15:00' } }],
-              temporalData: { displayAs: 'CALL', arrival: { scheduleAdvertised: '2026-08-03T10:40:00' } },
+              id: 'through',
+              origin: [{ location: { description: 'A' }, temporalData: { scheduleAdvertised: '2026-08-03T09:00:00' } }],
+              destination: [{ location: { description: 'B' }, temporalData: { scheduleAdvertised: '2026-08-03T11:30:00' } }],
+              temporalData: { displayAs: 'CALL', departure: { scheduleAdvertised: '2026-08-03T10:00:00' } },
             }),
           ],
         },
         'WAT',
-        'arrivals',
+        'departures',
       );
-      expect(board.services[0]?.journeyMins).toBe(85);
+      const s = board.services[0]!;
+      expect(s.journeyMins).toBe(150);
+      expect(s.journeyFromHereMins).toBe(90);
     });
 
-    it('is null when the endpoint time is out of order (e.g. past-midnight data)', () => {
+    it('out-of-order endpoint times yield no durations', () => {
       const board = mapLocationLineUp(
         {
           services: [
@@ -123,7 +133,9 @@ describe('mapLocationLineUp', () => {
         'WAT',
         'departures',
       );
-      expect(board.services[0]?.journeyMins).toBeNull();
+      const s = board.services[0]!;
+      expect(s.journeyMins).toBeNull();
+      expect(s.journeyFromHereMins).toBeUndefined();
     });
   });
 
