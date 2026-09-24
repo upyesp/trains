@@ -69,6 +69,41 @@ describe('mapLocationLineUp', () => {
   });
 
   describe('journey time', () => {
+    it('arrivals carry the planned origin departure (ADR-0006)', () => {
+      const board = mapLocationLineUp(
+        {
+          services: [
+            service({
+              id: 'inbound',
+              origin: [{ location: { description: 'London Waterloo' }, temporalData: { scheduleAdvertised: '2026-07-27T05:47:00+01:00' } }],
+              temporalData: { displayAs: 'CALL', arrival: { scheduleAdvertised: '2026-07-27T09:50:00+01:00' } },
+            }),
+          ],
+        },
+        'EXD',
+        'arrivals',
+      );
+      expect(board.services[0]?.originDeparture).toBe('2026-07-27T05:47:00+01:00');
+    });
+
+    it('departures never carry originDeparture (departures toEqual above would fail)', () => {
+      const board = mapLocationLineUp(
+        {
+          services: [
+            service({
+              id: 'out',
+              origin: [{ location: { description: 'A' }, temporalData: { scheduleAdvertised: '2026-08-03T09:00:00' } }],
+              destination: [{ location: { description: 'B' }, temporalData: { scheduleAdvertised: '2026-08-03T11:30:00' } }],
+              temporalData: { displayAs: 'CALL', departure: { scheduleAdvertised: '2026-08-03T10:00:00' } },
+            }),
+          ],
+        },
+        'WAT',
+        'departures',
+      );
+      expect(board.services[0]?.originDeparture).toBeUndefined();
+    });
+
     it('full run under the name; no inline time when the train starts here', () => {
       const board = mapLocationLineUp(
         {

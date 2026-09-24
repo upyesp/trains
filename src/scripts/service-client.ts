@@ -439,6 +439,10 @@ export function initServiceDetail(root: HTMLElement): void {
   const id = params.get('id');
   const fromParam = params.get('from');
   const from = fromParam && /^[A-Za-z]{3}$/.test(fromParam) ? fromParam.toUpperCase() : null;
+  // ADR-0006: arriving from an Arrivals tab (dir=arrivals) the user is looking
+  // BACKWARDS along the run, so the earlier calling points start expanded.
+  // Every other entry path keeps the collapsed default.
+  const dirParam = params.get('dir');
 
   const back = document.getElementById('svc-back');
   const head = document.getElementById('svc-head');
@@ -448,7 +452,16 @@ export function initServiceDetail(root: HTMLElement): void {
   if (!back || !head || !body || !asOf || !staleNote) return;
   const els: Elements = { back, head, body, asOf, staleNote };
 
-  const state: State = { id, from, apiBase, mock, prev: null, asAtMs: null, recorded: false, earlierOpen: false };
+  const state: State = {
+    id,
+    from,
+    apiBase,
+    mock,
+    prev: null,
+    asAtMs: null,
+    recorded: false,
+    earlierOpen: dirParam === 'arrivals',
+  };
 
   // Journey track state: the current detail + board index (re-layout on
   // resize/font swap) and the last split positions, so on a refresh the V

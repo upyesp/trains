@@ -170,6 +170,34 @@ describe('journey track render (mock pipeline)', () => {
 });
 
 describe('earlier calling points disclosure', () => {
+  it('opens expanded when linked from an Arrivals tab (?dir=arrivals, ADR-0006)', async () => {
+    document.body.innerHTML = `
+      <p id="svc-back"></p>
+      <section id="svc-head"><h1 class="service-title">Service details</h1></section>
+      <section id="service-detail" data-mock="true" data-api="https://example.test">
+        <p class="as-of"><span id="as-of"></span><span id="stale-note" role="status"></span></p>
+        <div id="svc-body"></div>
+      </section>`;
+    history.pushState({}, '', '/service/?id=gb-nr:T12345:2026-08-20&from=YRK&dir=arrivals');
+    const root = document.getElementById('service-detail');
+    if (!(root instanceof HTMLElement)) throw new Error('missing root');
+    initServiceDetail(root);
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+
+    const btn = document.querySelector<HTMLButtonElement>('#earlier-btn');
+    const wrap = document.querySelector<HTMLElement>('.track-wrap.earlier');
+    if (!btn || !wrap) throw new Error('earlier disclosure missing');
+    expect(btn.getAttribute('aria-expanded')).toBe('true');
+    expect(btn.textContent).toBe('Hide earlier calling points');
+    expect(wrap.hidden).toBe(false);
+
+    // Still user-toggleable: one click collapses it as usual.
+    btn.click();
+    expect(btn.getAttribute('aria-expanded')).toBe('false');
+    expect(wrap.hidden).toBe(true);
+  });
+
   it('toggles the earlier list open/closed with the button (instant path in jsdom)', async () => {
     document.body.innerHTML = `
       <p id="svc-back"></p>

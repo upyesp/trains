@@ -53,6 +53,10 @@ export interface Service {
    *  the board station (through services) — otherwise it would duplicate
    *  journeyMins. Shown inline after the station name. */
   journeyFromHereMins?: number;
+  /** Planned departure time at the train's origin (ISO 8601). Arrivals only
+   *  (ADR-0006): the under-name line becomes "This is the 13:50 from …".
+   *  Absent on departures and when RTT lacks the origin endpoint time. */
+  originDeparture?: string;
   /** True when this service will not run, or will not call at this station. */
   cancelled: boolean;
 }

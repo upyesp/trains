@@ -11,7 +11,7 @@
 import { fmtDurationMin, fmtTime } from './format';
 import { esc, platformChip } from './html';
 import { stationLabel } from './station-codes';
-import type { Board, MeaningfulChange, Platform, Service } from './types';
+import type { Board, BoardKind, MeaningfulChange, Platform, Service } from './types';
 
 function delayMinutes(s: Service): number {
   // The recorded actual (once the train has passed) beats the forecast.
@@ -49,7 +49,7 @@ function timeCell(s: Service): string {
   return `<div class="svc-time"><span class="time">${esc(exp)}</span></div>`;
 }
 
-function destCell(s: Service, crs: string | null): string {
+function destCell(s: Service, crs: string | null, kind: BoardKind): string {
   const journey = s.journeyMins != null ? fmtDurationMin(s.journeyMins) : '';
   // The board's journey time is the train's FULL origin→destination run.
   // Say so explicitly ("from … to …", with the official codes) so it can't be
@@ -58,8 +58,16 @@ function destCell(s: Service, crs: string | null): string {
     journey && s.origin && s.finalDestination
       ? ` from ${esc(stationLabel(s.origin))} to ${esc(stationLabel(s.finalDestination))}`
       : '';
+  // ADR-0006: on arrivals the journey is already over — the useful fact is
+  // when it STARTED, so the total duration is replaced by the planned origin
+  // departure ("This is the 13:50 from …"). Fall back to the duration
+  // wording when RTT doesn't carry the origin time.
+  const underName =
+    kind === 'arrivals' && s.originDeparture
+      ? `This is the ${fmtTime(s.originDeparture)} from ${esc(stationLabel(s.origin))} to ${esc(stationLabel(s.finalDestination))}`
+      : journey + route;
   const coaches = s.coaches != null ? `${s.coaches} ${s.coaches === 1 ? 'coach' : 'coaches'}` : '';
-  const meta = [journey + route, coaches].filter(Boolean).map(esc).join(' · ');
+  const meta = [underName, coaches].filter(Boolean).map(esc).join(' · ');
   const metaHtml = meta ? `<span class="coaches">${meta}</span>` : '';
   // Inline after the name: the run from the BOARD station to the destination
   // — only for through services (origin elsewhere), since when the train
@@ -70,8 +78,11 @@ function destCell(s: Service, crs: string | null): string {
     : '';
   // `from` tells the service page which station the user was viewing, so its
   // header and calling-points list can anchor on that station (not the origin).
+  // `dir=arrivals` (ADR-0006) tells the calling-points page to open with the
+  // earlier calling points expanded — an arrivals user is looking backwards.
   const params: Record<string, string> = { id: s.id };
   if (crs) params.from = crs;
+  if (kind === 'arrivals') params.dir = 'arrivals';
   const href = `/service/?${new URLSearchParams(params).toString()}`;
   return `<div class="svc-dest"><span class="dest"><a class="svc-link" href="${href}"><span class="dest-name">${esc(s.destination)}</span> <span class="visually-hidden">view calling points for this service</span></a>${remainingHtml}${metaHtml}<span class="toc">${esc(s.operator)}</span></span></div>`;
 }
@@ -89,20 +100,28 @@ function statusCell(s: Service): string {
   return '<div class="svc-status"></div>';
 }
 
-function rowHtml(s: Service, crs: string | null, showPlatform = true): string {
+function rowHtml(s: Service, crs: string | null, kind: BoardKind, showPlatform = true): string {
   const cls = s.cancelled ? 'svc is-cancelled' : 'svc';
   // Only the station name is a link — not the whole row — so it's obvious
   // and hard to trigger accidentally (same pattern as calling-point stops).
   const plat = showPlatform ? platformCell(s.platform, crs) : '';
-  return `<li class="svc-item"><div class="${cls}">${timeCell(s)}${destCell(s, crs)}${statusCell(s)}${plat}</div></li>`;
+  return `<li class="svc-item"><div class="${cls}">${timeCell(s)}${destCell(s, crs, kind)}${statusCell(s)}${plat}</div></li>`;
 }
 
 /** All rows of a board as HTML, in the given order. `crs` (when given) makes
  *  each row's platform chip link to that station's platform page. `showPlatform`
  *  is false on the platform page, where every service shares one platform so
- *  the column is dropped entirely (Time / Destination / Status only). */
-export function boardRowsHtml(services: Service[], crs: string | null, showPlatform = true): string {
-  return services.map((s) => rowHtml(s, crs, showPlatform)).join('');
+ *  the column is dropped entirely (Time / Destination / Status only). `kind`
+ *  shapes the under-name line (ADR-0006): arrivals announce the train's
+ *  planned origin departure instead of the total duration, and their links
+ *  carry dir=arrivals. Defaults to departures (the platform page's only kind). */
+export function boardRowsHtml(
+  services: Service[],
+  crs: string | null,
+  showPlatform = true,
+  kind: BoardKind = 'departures',
+): string {
+  return services.map((s) => rowHtml(s, crs, kind, showPlatform)).join('');
 }
 
 // ---- Announcement phrasing (mirrors diffBoards output) ----

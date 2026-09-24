@@ -62,6 +62,11 @@ function mapService(service: RTTService, kind: BoardKind): Service | null {
     coaches: coachesFrom(service.locationMetadata?.numberOfVehicles),
     journeyMins: journeyMinutes(service),
     ...withJourneyFromHere(journeyFromHereMins(service, kind, scheduledTime)),
+    // ADR-0006: arrivals carry the train's planned start time at its origin
+    // ("This is the 13:50 from …"). Departures never need it.
+    ...(kind === 'arrivals' && service.origin?.[0]?.temporalData?.scheduleAdvertised
+      ? { originDeparture: service.origin[0].temporalData.scheduleAdvertised }
+      : {}),
     cancelled: service.temporalData.displayAs === 'CANCELLED',
   };
 }

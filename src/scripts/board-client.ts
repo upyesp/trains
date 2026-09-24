@@ -62,9 +62,9 @@ function mockBoardResponse(crs: string, kind: BoardKind): BoardResponse {
   const t = (h: number, m: number) =>
     `${today}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
   const services: Service[] = [
-    { id: 'M1', scheduledTime: t(10, 38), expectedTime: t(10, 38), platform: { number: '3', state: 'confirmed' }, destination: 'Leeds', origin: 'London King’s Cross', finalDestination: 'Leeds', operator: 'LNER', coaches: 9, journeyMins: 45, cancelled: false },
-    { id: 'M2', scheduledTime: t(10, 42), expectedTime: t(10, 48), platform: { number: '9', state: 'confirmed' }, destination: 'Newcastle', origin: 'London King’s Cross', finalDestination: 'Newcastle', operator: 'LNER', coaches: 9, journeyMins: 90, cancelled: false },
-    { id: 'M3', scheduledTime: t(10, 45), expectedTime: t(10, 45), platform: { number: '1', state: 'provisional' }, destination: 'Edinburgh', origin: 'London King’s Cross', finalDestination: 'Edinburgh', operator: 'LNER', coaches: 10, journeyMins: 230, cancelled: false },
+    { id: 'M1', scheduledTime: t(10, 38), expectedTime: t(10, 38), platform: { number: '3', state: 'confirmed' }, destination: 'Leeds', origin: 'London King’s Cross', finalDestination: 'Leeds', operator: 'LNER', coaches: 9, journeyMins: 45, originDeparture: t(9, 53), cancelled: false },
+    { id: 'M2', scheduledTime: t(10, 42), expectedTime: t(10, 48), platform: { number: '9', state: 'confirmed' }, destination: 'Newcastle', origin: 'London King’s Cross', finalDestination: 'Newcastle', operator: 'LNER', coaches: 9, journeyMins: 90, originDeparture: t(9, 12), cancelled: false },
+    { id: 'M3', scheduledTime: t(10, 45), expectedTime: t(10, 45), platform: { number: '1', state: 'provisional' }, destination: 'Edinburgh', origin: 'London King’s Cross', finalDestination: 'Edinburgh', operator: 'LNER', coaches: 10, journeyMins: 230, originDeparture: t(7, 15), cancelled: false },
     { id: 'M4', scheduledTime: t(10, 50), expectedTime: t(10, 50), platform: null, destination: 'York', origin: 'London King’s Cross', finalDestination: 'York', operator: 'LNER', coaches: null, journeyMins: null, cancelled: true },
   ];
   return { board: { station: crs, kind, services }, asAt: Date.now(), stale: false };
@@ -75,7 +75,6 @@ function mockBoardResponse(crs: string, kind: BoardKind): BoardResponse {
 export function initBoard(root: HTMLElement): void {
   const crs = root.dataset.crs;
   if (!crs) return;
-  const initialKind: BoardKind = root.dataset.kind === 'arrivals' ? 'arrivals' : 'departures';
   const apiBase = root.dataset.api ?? DEFAULT_API;
   const mock = root.dataset.mock === 'true';
 
@@ -86,6 +85,12 @@ export function initBoard(root: HTMLElement): void {
   const callsParam = new URLSearchParams(window.location.search).get('callsAt');
   const initialCallsAt =
     callsParam && /^[A-Za-z]{3}$/.test(callsParam) ? callsParam.toUpperCase() : null;
+  // Active tab restored from the URL too (?dir=arrivals, ADR-0006): a refresh
+  // or shared link must reopen the tab that was being viewed, not flip back
+  // to the Departures default.
+  const dirParam = new URLSearchParams(window.location.search).get('dir');
+  const initialKind: BoardKind =
+    dirParam === 'arrivals' || root.dataset.kind === 'arrivals' ? 'arrivals' : 'departures';
 
   const body = root.querySelector<HTMLOListElement>('#board-body');
   const asOf = document.getElementById('as-of');
@@ -94,6 +99,7 @@ export function initBoard(root: HTMLElement): void {
   const clock = document.getElementById('clock');
   const tablist = document.getElementById('tablist');
   const stationNameEl = document.getElementById('station-name');
+  const colDest = root.querySelector<HTMLElement>('.col-dest');
   if (!body || !asOf || !staleNote || !announcer || !clock || !tablist) return;
 
   const tabs = Array.from(tablist.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
@@ -123,7 +129,7 @@ export function initBoard(root: HTMLElement): void {
         ? state.callsAt
           ? FILTERED_EMPTY_ROW
           : EMPTY_ROW
-        : boardRowsHtml(board.services, state.crs);
+        : boardRowsHtml(board.services, state.crs, true, state.kind);
   }
 
   function setAsAt(epochMs: number, stale: boolean): void {
@@ -167,6 +173,7 @@ export function initBoard(root: HTMLElement): void {
       if (resp.board.kind !== state.kind) {
         state.kind = resp.board.kind;
         syncTabUi();
+        syncDirParam();
       }
       render(resp.board);
       updateBoardLabel();
@@ -210,7 +217,20 @@ export function initBoard(root: HTMLElement): void {
     // tab that happens to be first in the markup.
     const activeTab = els.tabs.find((t) => t.dataset.kind === state.kind) ?? els.tabs[0];
     if (activeTab) root.setAttribute('aria-labelledby', activeTab.id);
+    // ADR-0006: the column over the headline station says what the column
+    // holds — "Destination" on departures, "From" on arrivals.
+    if (colDest) colDest.textContent = state.kind === 'arrivals' ? 'From' : 'Destination';
     updateBoardLabel();
+  }
+
+  /** Keep ?dir= in the URL in step with the active tab (ADR-0006): arrivals
+   *  sets it, departures (the default) removes it for a clean URL. This is a
+   *  replaceState, not a navigation — the fetch already refreshed the rows. */
+  function syncDirParam(): void {
+    const url = new URL(window.location.href);
+    if (state.kind === 'arrivals') url.searchParams.set('dir', 'arrivals');
+    else url.searchParams.delete('dir');
+    history.replaceState(null, '', url.toString());
   }
 
   function setupTabs(): void {
@@ -222,6 +242,7 @@ export function initBoard(root: HTMLElement): void {
         state.kind = k;
         state.prev = null; // don't diff across kinds
         syncTabUi();
+        syncDirParam();
         void refresh();
       });
     }
