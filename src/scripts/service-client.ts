@@ -184,7 +184,8 @@ export function stopCard(p: CallingPoint, isLast: boolean): string {
 function stopsHtml(d: ServiceDetail, boardIdx: number, earlierOpen: boolean): string {
   // A real <ol> (the route is an ordered sequence) of stop cards, mirroring the
   // station board's .svc rows so the two lists share a visual language. The
-  // visible "Calling Points" heading (in the header) is the list's accessible
+  // "Calling Points" heading — visually hidden since the share button replaced
+  // it as the visible text before the share icon — is the list's accessible
   // name (aria-labelledby); each value also carries a visually-hidden field
   // label for screen readers.
   //
@@ -393,8 +394,8 @@ function headerHtml(d: ServiceDetail, boardIdx: number): string {
   return `
     <h1 class="service-title" id="service-title">${title}</h1>
     <div class="stops-heading">
-      <h2 class="stops-title" id="stops-title">Calling Points</h2>
-      <button type="button" class="share-btn" aria-label="Share this list of calling points">${shareIconHtml()}</button>
+      <h2 class="stops-title visually-hidden" id="stops-title">Calling Points</h2>
+      <button type="button" class="share-btn">Share this train${shareIconHtml()}</button>
       <span class="share-status" role="status" aria-live="polite"></span>
     </div>
     ${status ? `<p class="service-sub">Status${boardIdx > 0 ? ` (from ${esc(d.origin)})` : ''}: ${status}${completionSuffix}</p>` : ''}

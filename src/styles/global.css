@@ -771,11 +771,16 @@ h2.stops-title {
   font-family: var(--sans); font-weight: 600; font-size: 1rem;
   margin: 0; line-height: 1; color: var(--board-fg);
 }
+/* The visible share control: text label + icon in one button (the whole thing
+   is clickable). Type matches the heading style it sits beside. Min 30px tall
+   keeps it close to the old icon-only button's size and above the 24px WCAG
+   target minimum. */
 .share-btn {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 30px; height: 30px; padding: 0;
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 30px; padding: 4px 10px;
   border: 1px solid var(--board-line); border-radius: 7px;
   background: transparent; color: var(--board-fg); cursor: pointer;
+  font-family: var(--sans); font-weight: 600; font-size: 1rem; line-height: 1;
 }
 .share-btn:hover { background: var(--board-chip-bg); }
 .share-btn svg { display: block; }
