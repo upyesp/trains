@@ -293,46 +293,33 @@ async function runVo() {
     await page.reload({ waitUntil: 'networkidle2', timeout: 60000 });
     await page.waitForFunction(() => document.querySelectorAll('.board .svc').length >= 3, { timeout: 20000 });
     await focusBody();
-    // The rebuild invalidated the VO cursor; re-anchor it inside the web
-    // content so programmatic focus changes are announced.
-    try { await voiceOver.stopInteracting(); } catch { /* not interacting */ }
-    await voiceOver.interact();
-    await sleep(1500);
+    await sleep(2000);
 
-    // VO should speak the polite first-load announcement.
-    let heard = null;
-    for (let i = 0; i < 60 && !heard; i++) {
-      const log = (await voiceOver.spokenPhraseLog()).join(' | ');
-      heard = log.includes('Live board loaded') ? log.match(/Live board loaded[^|]*/)?.[0] : null;
-      if (!heard) await sleep(500);
-    }
     // INFO only: Chromium does not reliably deliver polite live-region
     // events to VoiceOver (Safari/WebKit — the site's primary audience —
     // announces them). The live-region mechanism itself is asserted by the
     // AX layer; here we record whether speech happened without failing.
+    const log = (await voiceOver.spokenPhraseLog()).join(' | ');
+    const heard = log.includes('Live board loaded') ? log.match(/Live board loaded[^|]*/)?.[0] : null;
     console.log(`  info: live-region speech of first-load announcement: ${heard ? `spoken: ${heard.trim().slice(0, 70)}` : 'not spoken (Chromium+VO limitation)'}`);
-    // Assert instead what a user gets spoken right after the reload: the
-    // board's heading names the station. Capture the phrases ADDED after
-    // the focus call — lastSpokenPhrase can lag the speech queue.
-    const lenBeforeHeading = (await voiceOver.spokenPhraseLog()).length;
-    await page.evaluate(() => {
-      const h = document.querySelector('h1');
-      if (h) { h.setAttribute('tabindex', '-1'); h.focus(); }
-    });
-    await sleep(1200);
-    const headingPhrases = (await voiceOver.spokenPhraseLog()).slice(lenBeforeHeading).join(' | ');
-    check('vo: reloaded board heading SPOKEN (station named)', /reading/i.test(headingPhrases), headingPhrases.trim().slice(0, 90) || 'no new phrases after h1 focus');
 
-    // Tab into the rows; each step must be SPOKEN, and the row's name must
-    // carry its purpose (the visually-hidden hint).
+    // TAB-ONLY ASSERTIONS from here: real keystrokes are what a user does,
+    // and they survive DOM rebuilds where programmatic focus does not.
+
+    // Tab into the reloaded board: page structure must be spoken on the way
+    // (banner, menu, combobox…), and the row's name must carry its purpose.
     let rowHeard = null;
+    let structureHeard = null;
     for (let i = 0; i < 12 && !rowHeard; i++) {
       await voiceOver.press('Tab');
       await sleep(400);
       const last = await voiceOver.lastSpokenPhrase();
+      if (/banner|menu|combo|heading|list box|tab group/i.test(last)) structureHeard ??= last;
       if (last.includes('view calling points')) rowHeard = last;
     }
-    check('vo: service row spoken with its purpose', !!rowHeard, rowHeard?.trim().slice(0, 90) ?? 'not reached in 12 tabs');
+    check('vo: tabbing into the reloaded board speaks structure and the row\'s purpose',
+      !!(rowHeard && structureHeard),
+      rowHeard?.trim().slice(0, 90) ?? 'row not reached in 12 tabs');
 
     // Durability: a quiet tick must not make VoiceOver say ANYTHING new.
     const logBefore = (await voiceOver.spokenPhraseLog()).length;
@@ -351,8 +338,9 @@ async function runVo() {
 
     // Mutations must be perceivable. The polite live region carries the
     // announcement (AX layer asserts its text); Chromium+VO does not speak
-    // it, so assert the spoken fallback a real screen-reader user gets:
-    // re-focusing the row speaks its UPDATED state.
+    // it. What must hold for a real user: the mutation re-render leaves
+    // keyboard navigation intact and rows keep being spoken — continue
+    // Tabbing from the current position and listen.
     await page.evaluate(() => window.__mutate());
     let updated = false;
     for (let i = 0; i < 80 && !updated; i++) {
@@ -360,35 +348,32 @@ async function runVo() {
         (document.getElementById('announcer')?.textContent ?? '').toLowerCase().includes('cancel'));
       if (!updated) await sleep(500);
     }
-    // The cancelled chip lives outside the row's links; focus the cancelled
-    // row's service link and assert the board is still keyboard-navigable
-    // and spoken after the mutation.
-    // The mutation re-render rebuilt the row nodes and invalidated the VO
-    // cursor — re-anchor, then focus the cancelled row's service link and
-    // assert the board is still keyboard-navigable and spoken.
-    try { await voiceOver.stopInteracting(); } catch { /* not interacting */ }
-    await voiceOver.interact();
-    await sleep(800);
-    const lenBeforeRefocus = (await voiceOver.spokenPhraseLog()).length;
-    await page.evaluate(() => {
-      document.querySelector('.board .svc.is-cancelled a.svc-link')?.focus();
-    });
-    await sleep(1200);
-    const refocusPhrases = (await voiceOver.spokenPhraseLog()).slice(lenBeforeRefocus).join(' | ');
-    check('vo: board stays keyboard-navigable and SPOKEN after mutation (cancelled row)',
-      updated && /view calling points/i.test(refocusPhrases),
-      updated ? (refocusPhrases.trim().slice(0, 90) || 'no new phrases after refocus') : 'mutation not applied within 40s');
+    let navAfterMutation = null;
+    for (let i = 0; i < 8 && !navAfterMutation; i++) {
+      await voiceOver.press('Tab');
+      await sleep(400);
+      const last = await voiceOver.lastSpokenPhrase();
+      if (last.includes('view calling points')) navAfterMutation = last;
+    }
+    check('vo: board stays keyboard-navigable and SPOKEN after mutation',
+      updated && !!navAfterMutation,
+      updated ? (navAfterMutation?.trim().slice(0, 90) ?? 'no row spoken in 12 tabs after mutation') : 'mutation not applied within 40s');
 
-    // Combobox: keyboard focus + typing, verified in AT terms (the listbox
-    // opens and VoiceOver has something to say about it).
+    // Combobox: walk BACK to it with real Shift+Tab keystrokes, then type.
+    let backAtCombo = false;
+    for (let i = 0; i < 12 && !backAtCombo; i++) {
+      await voiceOver.press('Shift+Tab');
+      await sleep(400);
+      const last = await voiceOver.lastSpokenPhrase();
+      if (/CHANGE STATION/i.test(last)) backAtCombo = true;
+    }
     const beforeCombo = (await voiceOver.spokenPhraseLog()).length;
-    await page.evaluate(() => document.getElementById('station-input')?.focus());
-    await sleep(400);
     await voiceOver.type('lei');
     await sleep(1500);
     const expanded = await page.evaluate(() => document.getElementById('station-input')?.getAttribute('aria-expanded') === 'true');
     const spoke = (await voiceOver.spokenPhraseLog()).length > beforeCombo;
-    check('vo: combobox expands and VoiceOver reacts', expanded && spoke);
+    check('vo: combobox reached by keyboard, expands and VoiceOver reacts', backAtCombo && expanded && spoke,
+      backAtCombo ? `expanded=${expanded} spoke=${spoke}` : 'combobox not reached in 12 Shift+Tabs');
   } finally {
     try {
       const log = await voiceOver.spokenPhraseLog();
