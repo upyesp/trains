@@ -244,6 +244,15 @@ async function runVo() {
   try {
     const page = (await browser.pages())[0] ?? (await browser.newPage());
     await patchPage(page);
+    // Pull keyboard focus out of Chrome's toolbar (a fresh-profile launch
+    // focuses the address bar, and VoiceOver's cursor follows it — every
+    // Tab then cycles the browser UI instead of the page). Moving keyboard
+    // focus to the page moves the VO cursor with it.
+    const focusBody = () =>
+      page.evaluate(() => {
+        document.body.setAttribute('tabindex', '-1');
+        document.body.focus();
+      });
 
     // VoiceOver must be LIVE BEFORE the page loads: aria-live announcements
     // only speak for changes that happen while the screen reader is running.
@@ -259,12 +268,16 @@ async function runVo() {
     // announcements and focus events fired before that are never spoken.
     await page.goto(BASE + '/stations/rdg', { waitUntil: 'networkidle2', timeout: 60000 });
     await page.waitForFunction(() => document.querySelectorAll('.board .svc').length >= 3, { timeout: 20000 });
-    await sleep(3000);
+    await focusBody();
+    await sleep(1000);
     // Reload with the AX tree fully live: the reload re-fires the first-load
     // announcement into a listening screen reader.
     await page.reload({ waitUntil: 'networkidle2', timeout: 60000 });
     await page.waitForFunction(() => document.querySelectorAll('.board .svc').length >= 3, { timeout: 20000 });
-    await voiceOver.interact(); // enter the web area
+    await focusBody();
+    await sleep(1000);
+    try { await voiceOver.stopInteracting(); } catch { /* not interacting */ }
+    await voiceOver.interact(); // enter the web content (VO cursor now on the page body)
     await sleep(1500);
 
     // VO should speak the polite first-load announcement.
