@@ -12,11 +12,14 @@
     "test:watch": "vitest",
     "audit:a11y": "node scripts/axe-audit.mjs",
     "audit:contrast": "node scripts/contrast-audit.mjs",
+    "audit:at": "node scripts/voiceover-audit.mjs",
+    "audit:vo": "node scripts/voiceover-audit.mjs --vo",
     "worker:dev": "wrangler dev",
     "worker:deploy": "wrangler deploy"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260727.1",
+    "@guidepup/guidepup": "^0.36.4",
     "astro": "^7.1.4",
     "axe-core": "^4.13.0",
     "jsdom": "^30.0.1",
