@@ -293,6 +293,10 @@ async function runVo() {
     await page.reload({ waitUntil: 'networkidle2', timeout: 60000 });
     await page.waitForFunction(() => document.querySelectorAll('.board .svc').length >= 3, { timeout: 20000 });
     await focusBody();
+    // The rebuild invalidated the VO cursor; re-anchor it inside the web
+    // content so programmatic focus changes are announced.
+    try { await voiceOver.stopInteracting(); } catch { /* not interacting */ }
+    await voiceOver.interact();
     await sleep(1500);
 
     // VO should speak the polite first-load announcement.
@@ -359,6 +363,12 @@ async function runVo() {
     // The cancelled chip lives outside the row's links; focus the cancelled
     // row's service link and assert the board is still keyboard-navigable
     // and spoken after the mutation.
+    // The mutation re-render rebuilt the row nodes and invalidated the VO
+    // cursor — re-anchor, then focus the cancelled row's service link and
+    // assert the board is still keyboard-navigable and spoken.
+    try { await voiceOver.stopInteracting(); } catch { /* not interacting */ }
+    await voiceOver.interact();
+    await sleep(800);
     const lenBeforeRefocus = (await voiceOver.spokenPhraseLog()).length;
     await page.evaluate(() => {
       document.querySelector('.board .svc.is-cancelled a.svc-link')?.focus();
