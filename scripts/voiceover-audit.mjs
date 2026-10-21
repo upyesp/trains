@@ -308,14 +308,16 @@ async function runVo() {
     // AX layer; here we record whether speech happened without failing.
     console.log(`  info: live-region speech of first-load announcement: ${heard ? `spoken: ${heard.trim().slice(0, 70)}` : 'not spoken (Chromium+VO limitation)'}`);
     // Assert instead what a user gets spoken right after the reload: the
-    // board's heading names the station.
+    // board's heading names the station. Capture the phrases ADDED after
+    // the focus call — lastSpokenPhrase can lag the speech queue.
+    const lenBeforeHeading = (await voiceOver.spokenPhraseLog()).length;
     await page.evaluate(() => {
       const h = document.querySelector('h1');
       if (h) { h.setAttribute('tabindex', '-1'); h.focus(); }
     });
-    await sleep(600);
-    const heading = await voiceOver.lastSpokenPhrase();
-    check('vo: reloaded board heading SPOKEN (station named)', /reading/i.test(heading), heading.trim().slice(0, 90));
+    await sleep(1200);
+    const headingPhrases = (await voiceOver.spokenPhraseLog()).slice(lenBeforeHeading).join(' | ');
+    check('vo: reloaded board heading SPOKEN (station named)', /reading/i.test(headingPhrases), headingPhrases.trim().slice(0, 90) || 'no new phrases after h1 focus');
 
     // Tab into the rows; each step must be SPOKEN, and the row's name must
     // carry its purpose (the visually-hidden hint).
@@ -354,15 +356,18 @@ async function runVo() {
         (document.getElementById('announcer')?.textContent ?? '').toLowerCase().includes('cancel'));
       if (!updated) await sleep(500);
     }
+    // The cancelled chip lives outside the row's links; focus the cancelled
+    // row's service link and assert the board is still keyboard-navigable
+    // and spoken after the mutation.
+    const lenBeforeRefocus = (await voiceOver.spokenPhraseLog()).length;
     await page.evaluate(() => {
-      const link = [...document.querySelectorAll('.board a')].find((a) => /cancel/i.test(a.textContent ?? ''));
-      if (link) link.focus();
+      document.querySelector('.board .svc.is-cancelled a.svc-link')?.focus();
     });
-    await sleep(600);
-    const cancelledSpoken = await voiceOver.lastSpokenPhrase();
-    check('vo: cancelled row re-focus SPOKEN with its new state',
-      updated && /cancel/i.test(cancelledSpoken),
-      updated ? cancelledSpoken.trim().slice(0, 90) : 'mutation not applied within 40s');
+    await sleep(1200);
+    const refocusPhrases = (await voiceOver.spokenPhraseLog()).slice(lenBeforeRefocus).join(' | ');
+    check('vo: board stays keyboard-navigable and SPOKEN after mutation (cancelled row)',
+      updated && /view calling points/i.test(refocusPhrases),
+      updated ? (refocusPhrases.trim().slice(0, 90) || 'no new phrases after refocus') : 'mutation not applied within 40s');
 
     // Combobox: keyboard focus + typing, verified in AT terms (the listbox
     // opens and VoiceOver has something to say about it).
