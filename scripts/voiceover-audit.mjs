@@ -253,17 +253,19 @@ async function runVo() {
         document.body.setAttribute('tabindex', '-1');
         document.body.focus();
       });
-    // A page-level focus() cannot take Chrome's WINDOW focus out of the
-    // address bar (a fresh-profile launch focuses the omnibox, and the VO
-    // cursor follows window focus — Tabs then cycle the browser toolbar).
-    // A real mouse click through CDP's input pipeline does. Aim at the far
-    // right of the h1 block: plain text, no links, no handlers.
-    const clickIntoPage = async () => {
-      const box = await page.$eval('h1', (el) => {
-        const r = el.getBoundingClientRect();
-        return { x: r.x, y: r.y, w: r.width, h: r.height };
-      });
-      await page.mouse.click(box.x + box.w - 12, box.y + box.h / 2);
+    // Chrome launches with key focus in the omnibox and no synthetic click
+    // can take window-level key focus out of it — but the keyboard can:
+    // Tab walks the toolbar into the page, and the first page element
+    // announces as a link or heading. That also puts the VO cursor inside
+    // the web content, where live-region announcements are watched.
+    const enterPageByKeyboard = async () => {
+      for (let i = 0; i < 15; i++) {
+        await voiceOver.press('Tab');
+        await sleep(450);
+        const last = await voiceOver.lastSpokenPhrase();
+        if (/\b(link|heading)\b/i.test(last)) return last;
+      }
+      return null;
     };
 
     // VoiceOver must be LIVE BEFORE the page loads: aria-live announcements
@@ -276,23 +278,21 @@ async function runVo() {
     await sleep(1200);
 
     // First load warms Chrome's accessibility tree: Chromium only switches
-    // AX support on when it notices a screen reader, which takes a moment —
-    // announcements and focus events fired before that are never spoken.
+    // AX support on when it notices a screen reader, which takes a moment.
     await page.goto(BASE + '/stations/rdg', { waitUntil: 'networkidle2', timeout: 60000 });
     await page.waitForFunction(() => document.querySelectorAll('.board .svc').length >= 3, { timeout: 20000 });
-    await clickIntoPage();
+    await sleep(2000);
+    // Walk key focus out of the omnibox into the page.
+    await enterPageByKeyboard();
     await focusBody();
+    try { await voiceOver.stopInteracting(); } catch { /* not interacting */ }
+    await voiceOver.interact(); // VO cursor now inside the web content
     await sleep(1000);
-    // Reload with the AX tree fully live: the reload re-fires the first-load
-    // announcement into a listening screen reader. Window focus stays in the
-    // page across a reload; re-click anyway to be certain.
+    // Reload NOW: key focus stays in the web contents across a reload, and
+    // the reload re-fires the first-load announcement while VO is watching.
     await page.reload({ waitUntil: 'networkidle2', timeout: 60000 });
     await page.waitForFunction(() => document.querySelectorAll('.board .svc').length >= 3, { timeout: 20000 });
-    await clickIntoPage();
     await focusBody();
-    await sleep(1000);
-    try { await voiceOver.stopInteracting(); } catch { /* not interacting */ }
-    await voiceOver.interact(); // enter the web content (VO cursor now on the page body)
     await sleep(1500);
 
     // VO should speak the polite first-load announcement.
