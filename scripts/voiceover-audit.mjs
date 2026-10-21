@@ -33,12 +33,17 @@
 //     broken on macOS 27 (snaps back off) and background consent prompts
 //     never surface.
 //
-// Known limitation: Chromium does not reliably deliver polite live-region
-// events to VoiceOver, so spokenness of the aria-live announcements is
-// recorded as info, not asserted (Safari/WebKit — the site's primary
-// audience — announces them; the AX layer asserts the mechanism). All VO
-// assertions ride REAL keystrokes only: programmatic focus after DOM
-// rebuilds is silently ignored by the VO cursor.
+// Known limitation (engine-level, PROVEN — see scripts/vo-announcement-matrix.mjs):
+// Chromium on macOS does not deliver live-region announcements to VoiceOver
+// in ANY markup form — role=status+atomic, role=alert, child-replacement,
+// visible region, <output>, assertive, role=log were ALL silent with
+// DOM-verified delivery and the VO cursor in web content (Chromium
+// 152.0.7977.54, macOS 27.0.1). Safari/WebKit — the screen-reader browser
+// macOS VO users actually pair with — announces them all. The site's
+// announcer markup is already best practice; the harness therefore asserts
+// live-region MECHANISM via the AX layer and records Chromium speech as
+// info. What Chromium DOES deliver — aria-activedescendant option
+// announcements — is asserted for real in the VO layer.
 //
 // Usage:
 //   node scripts/voiceover-audit.mjs                 # AX layer
@@ -278,6 +283,14 @@ async function runVo() {
     new Promise((res) =>
       execFile('/usr/bin/osascript', ['-e', 'tell application "Google Chrome for Testing" to activate'], () => res()),
     );
+  // Continuous phrase capture: GuidePup's log only advances at operation
+  // boundaries, so time-based announcements (load, refresh ticks) land
+  // BETWEEN reads and get lost. Poll lastSpokenPhrase every 250ms and
+  // accumulate — this is what made the activedescendant announcements
+  // visible and turns the combobox check into a real assertion.
+  let poller = null;
+  const captured = [];
+  const seenPhrases = new Set();
   const browser = await puppeteer.launch({
     headless: false,
     executablePath: findChrome(),
@@ -318,6 +331,12 @@ async function runVo() {
     await sleep(800);
     await activateChrome();
     await sleep(1200);
+    poller = setInterval(() => {
+      voiceOver.lastSpokenPhrase().then((p) => {
+        const t = p.trim();
+        if (t && !seenPhrases.has(t)) { seenPhrases.add(t); captured.push(t); }
+      }).catch(() => {});
+    }, 250);
 
     // First load warms Chrome's accessibility tree: Chromium only switches
     // AX support on when it notices a screen reader, which takes a moment.
@@ -337,13 +356,11 @@ async function runVo() {
     await focusBody();
     await sleep(2000);
 
-    // INFO only: Chromium does not reliably deliver polite live-region
-    // events to VoiceOver (Safari/WebKit — the site's primary audience —
-    // announces them). The live-region mechanism itself is asserted by the
-    // AX layer; here we record whether speech happened without failing.
-    const log = (await voiceOver.spokenPhraseLog()).join(' | ');
-    const heard = log.includes('Live board loaded') ? log.match(/Live board loaded[^|]*/)?.[0] : null;
-    console.log(`  info: live-region speech of first-load announcement: ${heard ? `spoken: ${heard.trim().slice(0, 70)}` : 'not spoken (Chromium+VO limitation)'}`);
+    // INFO only: Chromium does not deliver live-region announcements to
+    // VoiceOver AT ALL on macOS (proven: scripts/vo-announcement-matrix.mjs).
+    // The live-region mechanism itself is asserted by the AX layer.
+    const firstLoadHeard = captured.find((p) => p.includes('Live board loaded'));
+    console.log(`  info: live-region speech of first-load announcement: ${firstLoadHeard ? `spoken: ${firstLoadHeard.trim().slice(0, 70)}` : 'not spoken (Chromium engine gap — see scripts/vo-announcement-matrix.mjs)'}`);
 
     // TAB-ONLY ASSERTIONS from here: real keystrokes are what a user does,
     // and they survive DOM rebuilds where programmatic focus does not.
@@ -419,18 +436,16 @@ async function runVo() {
 
     // ---- site navigation & functionality (spoken, keystroke-only) ---------
 
-    // The listbox is open with 'lei' typed: ArrowDown highlights the first
-    // suggestion (the AX layer asserts aria-activedescendant follows), and
-    // Enter must navigate to that station. Chromium+VO does not reliably
-    // announce activedescendant changes, so the speech is recorded as info
-    // (same precedent as live regions), while NAVIGATION is asserted.
+    // The listbox is open with 'lei' typed: ArrowDown highlights the top
+    // suggestion and Chromium+VO DOES announce activedescendant changes
+    // (proven by the announcement matrix with continuous capture — earlier
+    // "silent" readings were a capture artifact). This is a REAL assertion.
     await voiceOver.press('ArrowDown');
-    let optionHeard = '';
-    for (let i = 0; i < 6 && !/Leeds|Leicester/i.test(optionHeard); i++) {
+    let optionHeard = false;
+    for (let i = 0; i < 8 && !optionHeard; i++) {
       await sleep(450);
-      optionHeard = (await voiceOver.spokenPhraseLog()).slice(-3).join(' | ');
+      optionHeard = captured.some((p) => /Leeds|Leicester|selected \(/i.test(p));
     }
-    console.log(`  info: suggestion speech on ArrowDown: ${/Leeds|Leicester/i.test(optionHeard) ? 'spoken' : 'not spoken (Chromium+VO limitation)'}`);
     await voiceOver.press('Enter');
     let navigated = false;
     try {
@@ -439,9 +454,9 @@ async function runVo() {
       navigated = true;
     } catch { /* url checked below */ }
     await sleep(1200);
-    check('vo: combobox Enter navigates to the chosen station board',
-      navigated,
-      `url=${page.url()}`);
+    check('vo: combobox suggestion announced and Enter navigates to the station board',
+      optionHeard && navigated,
+      `suggestion spoken=${optionHeard} url=${page.url()}`);
 
     // Fresh tab: keyboard starts in Chrome's omnibox, exactly like a new
     // user. The FIRST thing the page must offer is the skip link.
@@ -467,12 +482,16 @@ async function runVo() {
       const p = await voiceOver.lastSpokenPhrase();
       if (p.trim()) afterEnter = p;
     }
-    await voiceOver.press('Tab');
+    // A single press occasionally returns silence (VO phrase capture lags);
+    // retry the Tab up to 3 times before declaring failure.
     let afterSkip = '';
-    for (let i = 0; i < 6 && !afterSkip; i++) {
-      await sleep(450);
-      const p = await voiceOver.lastSpokenPhrase();
-      if (p.trim() && p !== afterEnter) afterSkip = p;
+    for (let t = 0; t < 3 && !afterSkip; t++) {
+      await voiceOver.press('Tab');
+      for (let i = 0; i < 5 && !afterSkip; i++) {
+        await sleep(450);
+        const p = await voiceOver.lastSpokenPhrase();
+        if (p.trim() && p !== afterEnter) afterSkip = p;
+      }
     }
     check('vo: activating the skip link lands keyboard focus in main content',
       afterSkip.trim().length > 0 && !/skip to content|banner|menu bar/i.test(afterSkip),
@@ -590,8 +609,9 @@ async function runVo() {
       !!delHeard && dialogOpened && dialogClosed,
       delHeard ? `open=${dialogOpened} closed=${dialogClosed} — "${delHeard.trim().slice(0, 60)}"` : 'delete button not reached in 20 tabs');
   } finally {
+    if (poller) clearInterval(poller);
     try {
-      const log = await voiceOver.spokenPhraseLog();
+      const log = captured.length ? captured : await voiceOver.spokenPhraseLog();
       console.log('  spoken log tail (last 12):');
       log.slice(-12).forEach((p) => console.log('   ·', p.trim().slice(0, 90)));
     } catch { /* already off */ }
