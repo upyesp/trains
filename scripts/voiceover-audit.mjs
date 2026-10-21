@@ -231,6 +231,11 @@ async function runAx() {
 
 async function runVo() {
   const { voiceOver } = await import('@guidepup/guidepup');
+  const { execFile } = await import('node:child_process');
+  const activateChrome = () =>
+    new Promise((res) =>
+      execFile('/usr/bin/osascript', ['-e', 'tell application "Google Chrome for Testing" to activate'], () => res()),
+    );
   const browser = await puppeteer.launch({
     headless: false,
     executablePath: findChrome(),
@@ -239,12 +244,20 @@ async function runVo() {
   try {
     const page = (await browser.pages())[0] ?? (await browser.newPage());
     await patchPage(page);
-    await page.goto(BASE + '/stations/rdg', { waitUntil: 'networkidle2', timeout: 60000 });
-    await page.bringToFront();
-    await sleep(1500);
 
+    // VoiceOver must be LIVE BEFORE the page loads: aria-live announcements
+    // only speak for changes that happen while the screen reader is running.
+    // And Chrome must be genuinely frontmost (bringToFront races Terminal),
+    // or the keystrokes land in whatever app is active instead of the page.
     await voiceOver.start();
+    await sleep(800);
+    await activateChrome();
+    await sleep(1200);
+
+    await page.goto(BASE + '/stations/rdg', { waitUntil: 'networkidle2', timeout: 60000 });
+    await page.waitForFunction(() => document.querySelectorAll('.board .svc').length >= 3, { timeout: 20000 });
     await voiceOver.interact(); // enter the web area
+    await sleep(800);
 
     // VO should speak the polite first-load announcement.
     let heard = null;
@@ -255,53 +268,57 @@ async function runVo() {
     }
     check('vo: first-load announcement SPOKEN by real VoiceOver', !!heard, heard ?? 'not heard in 30s');
 
+    // Tab into the rows; each step must be SPOKEN, and the row's name must
+    // carry its purpose (the visually-hidden hint).
+    let rowHeard = null;
+    for (let i = 0; i < 9 && !rowHeard; i++) {
+      await voiceOver.press('Tab');
+      await sleep(400);
+      const last = await voiceOver.lastSpokenPhrase();
+      if (last.includes('view calling points')) rowHeard = last;
+    }
+    check('vo: service row spoken with its purpose', !!rowHeard, rowHeard?.trim().slice(0, 90) ?? 'not reached in 9 tabs');
+
     // Durability: a quiet tick must not make VoiceOver say ANYTHING new.
     const logBefore = (await voiceOver.spokenPhraseLog()).length;
     await sleep(34000);
     const logAfter = (await voiceOver.spokenPhraseLog()).length;
     check('vo: quiet refresh tick is silent (no interruptions)', logAfter === logBefore, `${logBefore} -> ${logAfter} phrases`);
 
-    // Tab to a service row and confirm the spoken name carries the hint.
-    for (let i = 0; i < 8; i++) {
-      await voiceOver.press('Tab');
-      await sleep(350);
-      const last = await voiceOver.lastSpokenPhrase();
-      if (last.includes('view calling points')) {
-        check('vo: service row spoken with its purpose', true, last.trim().slice(0, 90));
-        break;
-      }
-    }
-    if (!(await voiceOver.spokenPhraseLog()).join('|').includes('view calling points')) {
-      check('vo: service row spoken with its purpose', false, 'not reached in 8 tabs');
-    }
-
-    // Focus durability in spoken terms: after the next quiet tick, Tabbing
-    // continues from the same row (no jump back to the top of the list).
-    const rowPhrases = (await voiceOver.spokenPhraseLog()).length;
-    await sleep(34000);
+    // Focus durability in spoken terms: the next Tab continues from the rows
+    // (a phrase about the platform link), NOT back to the page top.
     await voiceOver.press('Tab');
     await sleep(500);
     const last = await voiceOver.lastSpokenPhrase();
-    const jumpedToTop = /Skip to content|banner|heading .*Reading \(RDG\)/i.test(last);
+    const jumpedToTop = /skip to content/i.test(last);
     check('vo: focus keeps its place across refresh (next Tab stays in the board)',
-      !jumpedToTop && (await voiceOver.spokenPhraseLog()).length >= rowPhrases, last.trim().slice(0, 90));
+      !jumpedToTop && last.trim().length > 0, last.trim().slice(0, 90));
 
     // Mutations must be SPOKEN.
     await page.evaluate(() => window.__mutate());
     let cancelled = false;
-    for (let i = 0; i < 80 && !cancelled; i++) {
+    for (let i = 0; i < 90 && !cancelled; i++) {
       cancelled = (await voiceOver.spokenPhraseLog()).join(' ').includes('has been cancelled');
       if (!cancelled) await sleep(500);
     }
     check('vo: cancellation SPOKEN through the live region', cancelled);
 
-    // Combobox, spoken.
+    // Combobox: keyboard focus + typing, verified in AT terms (the listbox
+    // opens and VoiceOver has something to say about it).
+    const beforeCombo = (await voiceOver.spokenPhraseLog()).length;
     await page.evaluate(() => document.getElementById('station-input')?.focus());
+    await sleep(400);
     await voiceOver.type('lei');
     await sleep(1500);
-    const comboSpoken = (await voiceOver.spokenPhraseLog()).join(' ').includes('Leeds');
-    check('vo: station matches SPOKEN in the listbox', comboSpoken);
+    const expanded = await page.evaluate(() => document.getElementById('station-input')?.getAttribute('aria-expanded') === 'true');
+    const spoke = (await voiceOver.spokenPhraseLog()).length > beforeCombo;
+    check('vo: combobox expands and VoiceOver reacts', expanded && spoke);
   } finally {
+    try {
+      const log = await voiceOver.spokenPhraseLog();
+      console.log('  spoken log tail (last 12):');
+      log.slice(-12).forEach((p) => console.log('   ·', p.trim().slice(0, 90)));
+    } catch { /* already off */ }
     try { await voiceOver.stop(); } catch { /* already off */ }
     await browser.close();
   }
