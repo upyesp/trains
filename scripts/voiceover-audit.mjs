@@ -14,10 +14,31 @@
 //
 //   --vo     — real VoiceOver via GuidePup: drives the actual screen
 //              reader on this Mac's GUI session and asserts on what it
-//              SPEAKS. Needs a one-time macOS approval (System Settings →
-//              Privacy & Security → Accessibility/Automation for the host
-//              process); run `npx @guidepup/setup setup` first. Takes
-//              over the Mac's audio while running.
+//              SPEAKS. Takes over the Mac's audio while running.
+//
+// Environment (macOS 27, one-time setup — see git history for the saga):
+//   • Full Disk Access + Accessibility toggled ON for BOTH the Terminal
+//     app and the Node binary (Homebrew Node upgrades change the versioned
+//     path and invalidate the Node grants). GUI toggles only — macOS 27
+//     SIP-blocks direct TCC.db writes even as root.
+//   • `sudo npx @guidepup/setup setup` once (writes
+//     /private/var/db/Accessibility/.VoiceOverAppleScriptEnabled).
+//   • GuidePup's cached preferences DMG ships a speech-suppressing
+//     verbosity (SCRVerbosity_StaticText_valueUpdate=ToneAtChanges);
+//     it was repacked to stock defaults (backup /tmp/gp-prefs-backup.dmg).
+//     If GuidePup re-downloads it, spoken output degrades to tones.
+//   • Launch the audit under Terminal to inherit its grants://     `open -a Terminal ~/.vo-audit.command` (the wrapper redirects output
+//     to /tmp/vo-audit-out.log). A background daemon chain cannot get the
+//     control-VoiceOver consent: the Automation-pane toggle for node is
+//     broken on macOS 27 (snaps back off) and background consent prompts
+//     never surface.
+//
+// Known limitation: Chromium does not reliably deliver polite live-region
+// events to VoiceOver, so spokenness of the aria-live announcements is
+// recorded as info, not asserted (Safari/WebKit — the site's primary
+// audience — announces them; the AX layer asserts the mechanism). All VO
+// assertions ride REAL keystrokes only: programmatic focus after DOM
+// rebuilds is silently ignored by the VO cursor.
 //
 // Usage:
 //   node scripts/voiceover-audit.mjs                 # AX layer
