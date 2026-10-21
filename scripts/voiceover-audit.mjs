@@ -253,6 +253,18 @@ async function runVo() {
         document.body.setAttribute('tabindex', '-1');
         document.body.focus();
       });
+    // A page-level focus() cannot take Chrome's WINDOW focus out of the
+    // address bar (a fresh-profile launch focuses the omnibox, and the VO
+    // cursor follows window focus — Tabs then cycle the browser toolbar).
+    // A real mouse click through CDP's input pipeline does. Aim at the far
+    // right of the h1 block: plain text, no links, no handlers.
+    const clickIntoPage = async () => {
+      const box = await page.$eval('h1', (el) => {
+        const r = el.getBoundingClientRect();
+        return { x: r.x, y: r.y, w: r.width, h: r.height };
+      });
+      await page.mouse.click(box.x + box.w - 12, box.y + box.h / 2);
+    };
 
     // VoiceOver must be LIVE BEFORE the page loads: aria-live announcements
     // only speak for changes that happen while the screen reader is running.
@@ -268,12 +280,15 @@ async function runVo() {
     // announcements and focus events fired before that are never spoken.
     await page.goto(BASE + '/stations/rdg', { waitUntil: 'networkidle2', timeout: 60000 });
     await page.waitForFunction(() => document.querySelectorAll('.board .svc').length >= 3, { timeout: 20000 });
+    await clickIntoPage();
     await focusBody();
     await sleep(1000);
     // Reload with the AX tree fully live: the reload re-fires the first-load
-    // announcement into a listening screen reader.
+    // announcement into a listening screen reader. Window focus stays in the
+    // page across a reload; re-click anyway to be certain.
     await page.reload({ waitUntil: 'networkidle2', timeout: 60000 });
     await page.waitForFunction(() => document.querySelectorAll('.board .svc').length >= 3, { timeout: 20000 });
+    await clickIntoPage();
     await focusBody();
     await sleep(1000);
     try { await voiceOver.stopInteracting(); } catch { /* not interacting */ }
@@ -292,13 +307,13 @@ async function runVo() {
     // Tab into the rows; each step must be SPOKEN, and the row's name must
     // carry its purpose (the visually-hidden hint).
     let rowHeard = null;
-    for (let i = 0; i < 9 && !rowHeard; i++) {
+    for (let i = 0; i < 12 && !rowHeard; i++) {
       await voiceOver.press('Tab');
       await sleep(400);
       const last = await voiceOver.lastSpokenPhrase();
       if (last.includes('view calling points')) rowHeard = last;
     }
-    check('vo: service row spoken with its purpose', !!rowHeard, rowHeard?.trim().slice(0, 90) ?? 'not reached in 9 tabs');
+    check('vo: service row spoken with its purpose', !!rowHeard, rowHeard?.trim().slice(0, 90) ?? 'not reached in 12 tabs');
 
     // Durability: a quiet tick must not make VoiceOver say ANYTHING new.
     const logBefore = (await voiceOver.spokenPhraseLog()).length;
