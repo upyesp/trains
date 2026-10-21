@@ -155,7 +155,10 @@ header.site {
 .brand-wrap { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .brand {
   font-family: var(--display);
-  font-weight: 700; font-size: 1.35rem;
+  /* min() shrinks the wordmark slightly on narrow phones so the unbreakable
+     single word still fits at 320px even with user-applied letter-spacing
+     (WCAG 1.4.12) — desktop keeps the full 1.35rem. */
+  font-weight: 700; font-size: min(1.35rem, 6vw);
   letter-spacing: -0.02em; color: var(--fg);
   text-decoration: none;
   /* Flex row so the 40px logo can share the link with the wordmark without
@@ -640,6 +643,10 @@ h1.station {
   text-underline-offset: 0.15em;
   text-decoration-thickness: from-font;
   color: var(--board-fg);
+  /* Hit-area padding cancelled by negative margins: the target grows to
+     ≥24px tall (WCAG 2.5.8) without moving anything around it. */
+  padding: 2px 4px;
+  margin: -2px -4px;
 }
 .svc-link:visited { color: var(--board-fg); }
 .svc-link:hover { color: var(--board-delay); }
@@ -698,6 +705,13 @@ h1.station {
   text-decoration: underline;
   text-underline-offset: 0.15em;
   text-decoration-thickness: from-font;
+  /* The link wraps only the platform number (an 11px-wide target); absorb
+     the chip's own padding via negative margins so the WHOLE chip becomes
+     the hit target without changing the chip's size or the number's spot
+     (WCAG 2.5.8). */
+  display: inline-block;
+  padding: 7px 10px;
+  margin: -7px -10px;
 }
 .plat-link:hover { color: var(--amber); }
 
@@ -728,6 +742,10 @@ h1.station {
 /* "No report": muted — the train has no live data; the time shown is just
    the timetable, not a prediction. Reads as "unknown", never as on time. */
 .chip.no-report { color: var(--board-mute); border: 1px solid var(--border); }
+/* Wide tables (privacy notice) scroll inside their own box instead of
+   stretching the page beyond the viewport on phones. The <table> element
+   itself is untouched, so screen readers keep full table semantics. */
+.table-scroll { overflow-x: auto; }
 
 /* Cancelled service: whole card demuted */
 .svc.is-cancelled { color: var(--board-mute); }

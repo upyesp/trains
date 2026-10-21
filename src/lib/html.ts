@@ -32,7 +32,7 @@ export function esc(s: string): string {
  * (underlined like the other links on the site); the number is the only
  * clickable part of the chip.
  */
-export function platformChip(p: Platform | null, href?: string): string {
+export function platformChip(p: Platform | null, href?: string, nameContext?: string): string {
   const label = '<span class="plat-label" aria-hidden="true">Platform</span>';
   if (!p) return `<span class="plat none" aria-hidden="true">${label}—</span>`;
   const n = esc(p.number);
@@ -54,7 +54,7 @@ export function platformChip(p: Platform | null, href?: string): string {
         : p.state === 'provisional'
           ? '<span class="state" aria-hidden="true">provisional</span>'
           : '';
-    return `<span class="plat${stateCls}">${label}<a class="plat-link" href="${href}">${n}<span class="visually-hidden">${spoken} — view this platform's departures and arrivals</span></a>${visibleState}</span>`;
+    return `<span class="plat${stateCls}">${label}<a class="plat-link" href="${href}">${n}<span class="visually-hidden">${nameContext ? ` ${nameContext}${spoken}` : spoken} — view this platform's departures and arrivals</span></a>${visibleState}</span>`;
   }
   // No link: the caption itself is the spoken status, already right after the number.
   if (p.state === 'at-platform') {

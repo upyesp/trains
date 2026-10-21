@@ -24,7 +24,7 @@ function delayMinutes(s: Service): number {
 /** The enclosing cell (platformCell) carries the screen-reader label and
  *  wraps the shared chip (src/lib/html), which owns the visible caption.
  *  When `crs` is given the chip number links to that station's platform page. */
-function platformCell(p: Platform | null, crs: string | null): string {
+function platformCell(p: Platform | null, crs: string | null, nameContext?: string): string {
   // This visually-hidden label is the one screen readers announce; the visible
   // "Platform" caption now lives inside the chip (platformChip).
   const srLabel = p
@@ -34,7 +34,10 @@ function platformCell(p: Platform | null, crs: string | null): string {
     p && crs
       ? `/platform/?station=${encodeURIComponent(crs)}&platform=${encodeURIComponent(p.number)}`
       : undefined;
-  return `<div class="svc-plat">${srLabel}${platformChip(p, href)}</div>`;
+  // nameContext (the departure/arrival time) makes each platform link
+  // distinguishable in a screen reader's links list — rows otherwise repeat
+  // "view this platform's departures and arrivals" verbatim (WCAG 2.4.4).
+  return `<div class="svc-plat">${srLabel}${platformChip(p, href, nameContext)}</div>`;
 }
 
 function timeCell(s: Service): string {
@@ -84,7 +87,11 @@ function destCell(s: Service, crs: string | null, kind: BoardKind): string {
   if (crs) params.from = crs;
   if (kind === 'arrivals') params.dir = 'arrivals';
   const href = `/service/?${new URLSearchParams(params).toString()}`;
-  return `<div class="svc-dest"><span class="dest"><a class="svc-link" href="${href}"><span class="dest-name">${esc(s.destination)}</span> <span class="visually-hidden">view calling points for this service</span></a>${remainingHtml}${metaHtml}<span class="toc">${esc(s.operator)}</span></span></div>`;
+  // ${kind === 'arrivals' ? 'due' : 'departs'} + time in the link name makes every
+  // row's link unique in a links list ("14:32 — London Paddington — view calling
+  // points for this service") instead of 23 identical "London Paddington…".
+  const when = kind === 'arrivals' ? 'due' : 'departs';
+  return `<div class="svc-dest"><span class="dest"><a class="svc-link" href="${href}"><span class="dest-name">${esc(s.destination)}</span><span class="visually-hidden">, ${when} ${fmtTime(s.scheduledTime)} — view calling points for this service</span></a>${remainingHtml}${metaHtml}<span class="toc">${esc(s.operator)}</span></span></div>`;
 }
 
 function statusCell(s: Service): string {
@@ -104,7 +111,8 @@ function rowHtml(s: Service, crs: string | null, kind: BoardKind, showPlatform =
   const cls = s.cancelled ? 'svc is-cancelled' : 'svc';
   // Only the station name is a link — not the whole row — so it's obvious
   // and hard to trigger accidentally (same pattern as calling-point stops).
-  const plat = showPlatform ? platformCell(s.platform, crs) : '';
+  const when = kind === 'arrivals' ? 'due' : 'departs';
+  const plat = showPlatform ? platformCell(s.platform, crs, `${when} ${fmtTime(s.scheduledTime)}`) : '';
   // data-id keys focus restoration across the 30s refresh (render-focus).
   return `<li class="svc-item" data-id="${esc(s.id)}"><div class="${cls}">${timeCell(s)}${destCell(s, crs, kind)}${statusCell(s)}${plat}</div></li>`;
 }
