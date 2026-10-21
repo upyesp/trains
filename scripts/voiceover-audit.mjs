@@ -95,7 +95,7 @@ const FIXTURE = JSON.stringify({
   services: [
     { id: 'S1', scheduledTime: t(10, 38), expectedTime: t(10, 38), platform: { number: '3', state: 'confirmed' }, destination: 'Leeds', origin: 'London King’s Cross', finalDestination: 'Leeds', operator: 'LNER', coaches: 9, journeyMins: 45, originDeparture: t(9, 53), cancelled: false },
     { id: 'S2', scheduledTime: t(10, 42), expectedTime: t(10, 48), platform: { number: '7', state: 'provisional' }, destination: 'Newcastle', origin: 'London King’s Cross', finalDestination: 'Newcastle', operator: 'LNER', coaches: 9, journeyMins: 90, originDeparture: t(9, 12), cancelled: false },
-    { id: 'S3', scheduledTime: t(10, 45), expectedTime: t(10, 45), platform: null, destination: 'York', origin: 'London King’s Cross', finalDestination: 'York', operator: 'LNER', coaches: null, journeyMins: null, cancelled: false },
+    { id: 'S3', scheduledTime: t(10, 45), expectedTime: t(10, 45), platform: { number: '4', state: 'provisional' }, destination: 'York', origin: 'London King’s Cross', finalDestination: 'York', operator: 'LNER', coaches: null, journeyMins: null, cancelled: false },
   ],
   detail: {
     detail: {
@@ -136,9 +136,20 @@ async function patchPage(page) {
       const url = typeof input === 'string' ? input : input.url;
       if (url.includes('/board/')) {
         boardCalls++;
+        // CRS-aware: the platform page refetches /board/<station> for the
+        // station in its query, so serve each station a coherent fixture.
+        const crs = (url.match(/\/board\/([A-Za-z]{3})/)?.[1] ?? 'RDG').toUpperCase();
         const kind = url.includes('kind=arrivals') ? 'arrivals' : 'departures';
-        const svcs = boardCalls === 1 || !mutated ? services() : mutatedServices();
-        return json({ board: { station: 'RDG', kind, services: svcs }, asAt: Date.now(), stale: false });
+        let svcs = boardCalls === 1 || !mutated ? services() : mutatedServices();
+        if (crs === 'KGX') {
+          // King's Cross: everything on platform 1, so a platform-chip link
+          // opened from the calling-points fixture lands on a populated board.
+          svcs = [
+            { id: 'K1', scheduledTime: iso(9, 5), expectedTime: iso(9, 5), platform: { number: '1', state: 'confirmed' }, destination: 'Leeds', origin: 'London King’s Cross', finalDestination: 'Leeds', operator: 'LNER', coaches: 8, journeyMins: 90, originDeparture: iso(9, 5), cancelled: false },
+            { id: 'K2', scheduledTime: iso(9, 20), expectedTime: iso(9, 24), platform: { number: '1', state: 'confirmed' }, destination: 'York', origin: 'London King’s Cross', finalDestination: 'York', operator: 'LNER', coaches: 11, journeyMins: 105, originDeparture: iso(9, 20), cancelled: false },
+          ];
+        }
+        return json({ board: { station: crs, kind, services: svcs }, asAt: Date.now(), stale: false });
       }
       if (url.includes('/service?')) {
         serviceCalls++;
@@ -218,6 +229,16 @@ async function runAx() {
     });
     const leedsInAx = await axHas(page, 'Leeds');
     check('ax: combobox expands with options (AT view)', comboOk && leedsInAx);
+    await page.keyboard.press('ArrowDown');
+    await sleep(400);
+    const activeDesc = await page.evaluate(() => {
+      const id = document.getElementById('station-input')?.getAttribute('aria-activedescendant');
+      const first = document.querySelector('#station-list [role="option"]');
+      return { desc: id ? document.getElementById(id)?.textContent ?? '' : '', first: first?.textContent ?? '' };
+    });
+    check('ax: ArrowDown highlights the top option (aria-activedescendant follows)',
+      activeDesc.desc.length > 0 && activeDesc.desc === activeDesc.first,
+      `${activeDesc.desc || '(no activedescendant)'} vs first option: ${activeDesc.first}`);
     await page.close();
 
     // -- History dialog (real visit recorded, then delete flow) -------------
@@ -395,6 +416,179 @@ async function runVo() {
     const spoke = (await voiceOver.spokenPhraseLog()).length > beforeCombo;
     check('vo: combobox reached by keyboard, expands and VoiceOver reacts', backAtCombo && expanded && spoke,
       backAtCombo ? `expanded=${expanded} spoke=${spoke}` : 'combobox not reached in 12 Shift+Tabs');
+
+    // ---- site navigation & functionality (spoken, keystroke-only) ---------
+
+    // The listbox is open with 'lei' typed: ArrowDown highlights the first
+    // suggestion (the AX layer asserts aria-activedescendant follows), and
+    // Enter must navigate to that station. Chromium+VO does not reliably
+    // announce activedescendant changes, so the speech is recorded as info
+    // (same precedent as live regions), while NAVIGATION is asserted.
+    await voiceOver.press('ArrowDown');
+    let optionHeard = '';
+    for (let i = 0; i < 6 && !/Leeds|Leicester/i.test(optionHeard); i++) {
+      await sleep(450);
+      optionHeard = (await voiceOver.spokenPhraseLog()).slice(-3).join(' | ');
+    }
+    console.log(`  info: suggestion speech on ArrowDown: ${/Leeds|Leicester/i.test(optionHeard) ? 'spoken' : 'not spoken (Chromium+VO limitation)'}`);
+    await voiceOver.press('Enter');
+    let navigated = false;
+    try {
+      await page.waitForFunction(() => /\/stations\/lei\/?$/.test(location.pathname), { timeout: 20000 });
+      await page.waitForFunction(() => document.querySelectorAll('#board-body .svc, .board-msg').length >= 1, { timeout: 20000 });
+      navigated = true;
+    } catch { /* url checked below */ }
+    await sleep(1200);
+    check('vo: combobox Enter navigates to the chosen station board',
+      navigated,
+      `url=${page.url()}`);
+
+    // Fresh tab: keyboard starts in Chrome's omnibox, exactly like a new
+    // user. The FIRST thing the page must offer is the skip link.
+    const page2 = await browser.newPage();
+    await page2.setViewport({ width: 1280, height: 900 });
+    await patchPage(page2);
+    await page2.goto(BASE + '/stations/rdg', { waitUntil: 'networkidle2', timeout: 60000 });
+    await page2.waitForFunction(() => document.querySelectorAll('.board .svc').length >= 3, { timeout: 20000 });
+    await sleep(2000);
+    await voiceOver.press('Tab');
+    await sleep(500);
+    const firstTab = await voiceOver.lastSpokenPhrase();
+    check('vo: skip link is the first element the keyboard reaches',
+      /skip to content/i.test(firstTab), firstTab.trim().slice(0, 70));
+
+    // Activating it must move focus past the header into main content.
+    // Poll for the announcements: GuidePup's phrase capture lags the keypress
+    // by its stability window, and a fixed 500ms read races it.
+    await voiceOver.press('Enter');
+    let afterEnter = '';
+    for (let i = 0; i < 6 && !afterEnter; i++) {
+      await sleep(450);
+      const p = await voiceOver.lastSpokenPhrase();
+      if (p.trim()) afterEnter = p;
+    }
+    await voiceOver.press('Tab');
+    let afterSkip = '';
+    for (let i = 0; i < 6 && !afterSkip; i++) {
+      await sleep(450);
+      const p = await voiceOver.lastSpokenPhrase();
+      if (p.trim() && p !== afterEnter) afterSkip = p;
+    }
+    check('vo: activating the skip link lands keyboard focus in main content',
+      afterSkip.trim().length > 0 && !/skip to content|banner|menu bar/i.test(afterSkip),
+      afterSkip.trim().slice(0, 70) || '(nothing spoken)');
+
+    // Board type tabs: walk to Departures, then ArrowRight to Arrivals —
+    // the tab must announce as selected and the rows must re-render as
+    // arrivals (their link names say "due", not "departs").
+    let atTab = null;
+    for (let i = 0; i < 14 && !atTab; i++) {
+      await voiceOver.press('Tab');
+      await sleep(400);
+      const last = await voiceOver.lastSpokenPhrase();
+      if (/Departures selected tab/i.test(last)) atTab = last;
+    }
+    let arrivalsSelected = false;
+    let arrivalsRow = '';
+    if (atTab) {
+      // Manual-activation tablist: ArrowRight moves focus (roving tabindex),
+      // Enter/Space activates. DOM focus moves even though the VO cursor
+      // doesn't follow it — Enter fires click from DOM focus.
+      await voiceOver.press('ArrowRight');
+      await sleep(600);
+      await voiceOver.press('Enter');
+      await sleep(1600); // refetch + rerender
+      arrivalsSelected = await page2.evaluate(() =>
+        document.querySelector('[role="tab"][data-kind="arrivals"]')?.getAttribute('aria-selected') === 'true');
+      // Walk into the panel: tabs → CALLING AT filter → rows. Arrivals rows
+      // say "due" (not "departs") — the spoken proof the board switched.
+      for (let i = 0; i < 6 && !/due \d|view calling points/i.test(arrivalsRow); i++) {
+        await voiceOver.press('Tab');
+        await sleep(450);
+        arrivalsRow = await voiceOver.lastSpokenPhrase();
+      }
+    }
+    check('vo: Arrivals tab announced and the board switches to arrivals',
+      !!atTab && arrivalsSelected && /due \d|view calling points/i.test(arrivalsRow),
+      atTab ? (arrivalsSelected ? arrivalsRow.trim().slice(0, 80) : 'aria-selected not set') : 'tabs not reached in 14 tabs');
+
+    // A service row link opens the calling-points page; its platform chips
+    // must be spoken (they carry the full 2.4.4 name).
+    let onRow = /view calling points/i.test(arrivalsRow);
+    for (let i = 0; i < 6 && !onRow; i++) {
+      await voiceOver.press('Tab');
+      await sleep(400);
+      onRow = /view calling points/i.test(await voiceOver.lastSpokenPhrase());
+    }
+    await voiceOver.press('Enter');
+    let onService = false;
+    try {
+      await page2.waitForFunction(() => /\/service\//.test(location.pathname), { timeout: 15000 });
+      await page2.waitForFunction(() => document.querySelectorAll('.stop-item').length >= 5, { timeout: 20000 });
+      onService = true;
+    } catch { /* url checked below */ }
+    await sleep(1500);
+    let detailPlat = null;
+    for (let i = 0; i < 20 && !detailPlat; i++) {
+      await voiceOver.press('Tab');
+      await sleep(400);
+      const last = await voiceOver.lastSpokenPhrase();
+      if (/view this platform's departures and arrivals/i.test(last)) detailPlat = last;
+    }
+    check('vo: service row link opens calling points and platform chips are spoken',
+      onService && !!detailPlat,
+      detailPlat ? detailPlat.trim().slice(0, 80) : `url=${page2.url()}; platform chip not reached in 20 tabs`);
+
+    // A platform chip opens the per-platform board; its rows must be spoken.
+    await voiceOver.press('Enter');
+    let onPlatform = false;
+    try {
+      await page2.waitForFunction(() => /\/platform\//.test(location.pathname), { timeout: 15000 });
+      await page2.waitForFunction(() => document.querySelectorAll('.svc-item, .board-msg').length >= 1, { timeout: 20000 });
+      onPlatform = true;
+    } catch { /* url checked below */ }
+    await sleep(1500);
+    let platformRow = null;
+    for (let i = 0; i < 15 && !platformRow; i++) {
+      await voiceOver.press('Tab');
+      await sleep(400);
+      const last = await voiceOver.lastSpokenPhrase();
+      if (/view calling points/i.test(last)) platformRow = last;
+    }
+    check('vo: platform chip link opens a platform board whose services are spoken',
+      onPlatform && !!platformRow,
+      platformRow ? platformRow.trim().slice(0, 80) : `url=${page2.url()}; rows not reached in 15 tabs`);
+
+    // History: the delete button must SPEAK the full service description
+    // (a links-list user hears it out of context), and the confirm dialog
+    // must open and close on Escape (its name/description/buttons are
+    // asserted by the AX layer; Chromium+VO cannot follow programmatic
+    // focus into the dialog, so the spoken part is the button name).
+    await page2.goto(BASE + '/service/?id=X1&from=RDG', { waitUntil: 'networkidle2', timeout: 60000 });
+    await page2.waitForFunction(() => document.querySelectorAll('.stop-item').length >= 5, { timeout: 20000 });
+    await page2.goto(BASE + '/history', { waitUntil: 'networkidle2', timeout: 60000 });
+    await page2.waitForFunction(() => document.querySelectorAll('.hist-item').length >= 1, { timeout: 20000 });
+    await sleep(1500);
+    let delHeard = null;
+    for (let i = 0; i < 20 && !delHeard; i++) {
+      await voiceOver.press('Tab');
+      await sleep(400);
+      const last = await voiceOver.lastSpokenPhrase();
+      if (/from history/i.test(last)) delHeard = last;
+    }
+    let dialogOpened = false;
+    let dialogClosed = false;
+    if (delHeard) {
+      await voiceOver.press('Enter');
+      await sleep(700);
+      dialogOpened = await page2.evaluate(() => !document.getElementById('history-dialog')?.hidden);
+      await page2.keyboard.press('Escape');
+      await sleep(600);
+      dialogClosed = await page2.evaluate(() => !!document.getElementById('history-dialog')?.hidden);
+    }
+    check('vo: history delete speaks the full service description; confirm opens, Escape closes',
+      !!delHeard && dialogOpened && dialogClosed,
+      delHeard ? `open=${dialogOpened} closed=${dialogClosed} — "${delHeard.trim().slice(0, 60)}"` : 'delete button not reached in 20 tabs');
   } finally {
     try {
       const log = await voiceOver.spokenPhraseLog();
