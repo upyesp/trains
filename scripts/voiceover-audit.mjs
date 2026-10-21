@@ -254,10 +254,18 @@ async function runVo() {
     await activateChrome();
     await sleep(1200);
 
+    // First load warms Chrome's accessibility tree: Chromium only switches
+    // AX support on when it notices a screen reader, which takes a moment —
+    // announcements and focus events fired before that are never spoken.
     await page.goto(BASE + '/stations/rdg', { waitUntil: 'networkidle2', timeout: 60000 });
     await page.waitForFunction(() => document.querySelectorAll('.board .svc').length >= 3, { timeout: 20000 });
+    await sleep(3000);
+    // Reload with the AX tree fully live: the reload re-fires the first-load
+    // announcement into a listening screen reader.
+    await page.reload({ waitUntil: 'networkidle2', timeout: 60000 });
+    await page.waitForFunction(() => document.querySelectorAll('.board .svc').length >= 3, { timeout: 20000 });
     await voiceOver.interact(); // enter the web area
-    await sleep(800);
+    await sleep(1500);
 
     // VO should speak the polite first-load announcement.
     let heard = null;
