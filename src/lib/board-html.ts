@@ -105,7 +105,8 @@ function rowHtml(s: Service, crs: string | null, kind: BoardKind, showPlatform =
   // Only the station name is a link — not the whole row — so it's obvious
   // and hard to trigger accidentally (same pattern as calling-point stops).
   const plat = showPlatform ? platformCell(s.platform, crs) : '';
-  return `<li class="svc-item"><div class="${cls}">${timeCell(s)}${destCell(s, crs, kind)}${statusCell(s)}${plat}</div></li>`;
+  // data-id keys focus restoration across the 30s refresh (render-focus).
+  return `<li class="svc-item" data-id="${esc(s.id)}"><div class="${cls}">${timeCell(s)}${destCell(s, crs, kind)}${statusCell(s)}${plat}</div></li>`;
 }
 
 /** All rows of a board as HTML, in the given order. `crs` (when given) makes

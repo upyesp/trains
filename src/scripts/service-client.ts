@@ -15,7 +15,7 @@
 import { fmtClock, fmtDurationMin, fmtTime } from '../lib/format';
 import { recordServiceVisit } from '../lib/history';
 import { esc, platformChip } from '../lib/html';
-import { onStationCrsReady, stationCrs, stationLabel } from '../lib/station-codes';
+import { onStationCrsReady, stationCrs, stationLabel, stationNameByCrs } from '../lib/station-codes';
 import { parseUKTime } from '../lib/uk-time';
 import type { CallingPoint, Platform, ServiceDetail, ServiceDetailResponse } from '../lib/types';
 
@@ -99,7 +99,11 @@ function boardPointIndex(d: ServiceDetail, from: string | null): number {
 
 function backLinkHtml(from: string | null): string {
   if (!from) return `<a class="back-link" href="/">← All stations</a>`;
-  return `<a class="back-link" href="/stations/${from.toLowerCase()}/">← Back to ${esc(from)} board</a>`;
+  // Full "Name (CRS)" label — a bare CRS is spelled out letter-by-letter by
+  // screen readers. Falls back to the code until the stations list resolves;
+  // onStationCrsReady re-renders this link once the full name is known.
+  const name = stationNameByCrs(from) ?? from;
+  return `<a class="back-link" href="/stations/${from.toLowerCase()}/">← Back to ${esc(stationLabel(name))} board</a>`;
 }
 
 /** Platform rendered with the shared .plat chip, wrapped for the stop card.
@@ -178,7 +182,9 @@ export function stopCard(p: CallingPoint, isLast: boolean): string {
     }
   }
 
-  return `<li class="stop-item"><div class="stop">${timeHtml}${stationHtml}${expHtml}${stopPlatform(p.platform, p.station)}</div></li>`;
+  // data-id keys focus restoration across the 30s refresh (station names are
+  // unique along one calling pattern).
+  return `<li class="stop-item" data-id="${esc(p.station)}"><div class="stop">${timeHtml}${stationHtml}${expHtml}${stopPlatform(p.platform, p.station)}</div></li>`;
 }
 
 function stopsHtml(d: ServiceDetail, boardIdx: number, earlierOpen: boolean): string {
@@ -430,6 +436,7 @@ interface Elements {
   body: HTMLElement;
   asOf: HTMLElement;
   staleNote: HTMLElement;
+  announcer: HTMLElement | null;
 }
 
 export function initServiceDetail(root: HTMLElement): void {
@@ -450,8 +457,24 @@ export function initServiceDetail(root: HTMLElement): void {
   const body = document.getElementById('svc-body');
   const asOf = document.getElementById('as-of');
   const staleNote = document.getElementById('stale-note');
+  const announcer = document.getElementById('svc-announcer');
   if (!back || !head || !body || !asOf || !staleNote) return;
-  const els: Elements = { back, head, body, asOf, staleNote };
+  const els: Elements = { back, head, body, asOf, staleNote, announcer };
+
+  /** Polite one-shot announcements (first load, empty, not-found, outage —
+   *  ADR-0002 discipline: meaningful events only, never routine refreshes). */
+  function announceDetail(message: string): void {
+    if (!els.announcer) return;
+    els.announcer.textContent = '';
+    requestAnimationFrame(() => {
+      if (els.announcer) els.announcer.textContent = message;
+    });
+  }
+
+  // Announcement state: confirm the FIRST successful load, stay silent on
+  // routine ticks, announce only the RISING edge of an outage.
+  let loadAnnounced = false;
+  let wasError = false;
 
   const state: State = {
     id,
@@ -937,12 +960,38 @@ export function initServiceDetail(root: HTMLElement): void {
     // touch the fresh nodes).
     cancelAnim();
     const boardIdx = boardPointIndex(d, state.from);
+    // Capture focus BEFORE the swap so keyboard and screen-reader users keep
+    // their place across the 30s refresh (WCAG 2.4.3): the share button in
+    // the head, or a stop row / the earlier-stops button in the body.
+    const active = document.activeElement;
+    const focusZone =
+      active instanceof HTMLElement
+        ? els.head.contains(active)
+          ? 'head'
+          : els.body.contains(active)
+            ? 'body'
+            : null
+        : null;
+    let bodyKey: string | null = null;
+    let earlierBtnFocus = false;
+    if (focusZone === 'body' && active instanceof HTMLElement) {
+      if (active.closest('.earlier-btn')) earlierBtnFocus = true;
+      else bodyKey = active.closest<HTMLElement>('[data-id]')?.getAttribute('data-id') ?? null;
+    }
     els.head.innerHTML = headerHtml(d, boardIdx);
     const prevMain = splitMain;
     const prevEarlier = splitEarlier;
     splitMain = null;
     splitEarlier = null;
     els.body.innerHTML = d.points.length === 0 ? `<p class="board-msg">${EMPTY}</p>` : stopsHtml(d, boardIdx, state.earlierOpen);
+    if (focusZone === 'head') {
+      els.head.querySelector<HTMLElement>('.share-btn')?.focus();
+    } else if (earlierBtnFocus) {
+      els.body.querySelector<HTMLElement>('.earlier-btn')?.focus();
+    } else if (bodyKey !== null) {
+      const row = els.body.querySelector<HTMLElement>(`[data-id="${CSS.escape(bodyKey)}"]`);
+      (row?.querySelector<HTMLElement>('a, button') ?? row)?.focus();
+    }
     layTrack(d, boardIdx, prevMain, prevEarlier);
     current = d;
     curBoardIdx = boardIdx;
@@ -968,12 +1017,21 @@ export function initServiceDetail(root: HTMLElement): void {
       els.head.innerHTML = '<h1 class="service-title">Service details</h1>';
       els.body.innerHTML = `<p class="board-msg error">${NOT_FOUND}</p>`;
       els.staleNote.textContent = '';
+      announceDetail(NOT_FOUND);
       return;
     }
     if (resp) {
+      wasError = false;
       render(resp.detail);
       setAsAt(resp.asAt, resp.stale);
       state.prev = resp.detail;
+      // First successful load: one polite confirmation with the stop count so
+      // screen-reader users know the page has content (routine ticks silent).
+      if (!loadAnnounced) {
+        loadAnnounced = true;
+        const n = resp.detail.points.length;
+        announceDetail(`Calling points loaded — ${n === 0 ? 'no stops' : `${n} ${n === 1 ? 'stop' : 'stops'}`}.`);
+      }
       // Record the visit to History once (the first successful load) — never
       // on the 30s refreshes, so visitedAt reflects when the page was opened.
       // The entry anchors on the searched-from station when there is one, so
@@ -994,6 +1052,11 @@ export function initServiceDetail(root: HTMLElement): void {
     } else {
       els.body.innerHTML = `<p class="board-msg error">${ERROR_MSG}</p>`;
       els.staleNote.textContent = '';
+      // Rising edge only: repeat failures of the same outage stay silent.
+      if (!wasError) {
+        wasError = true;
+        announceDetail(ERROR_MSG);
+      }
     }
   }
 
@@ -1029,6 +1092,9 @@ export function initServiceDetail(root: HTMLElement): void {
   // Resolve station codes for the header and the platform links as soon as the
   // list arrives (the first render happens without them, then updates in place).
   onStationCrsReady(() => {
+    // The back link may have rendered before the codes list resolved (it then
+    // shows the bare CRS); refresh it with the full "Name (CRS)" label.
+    els.back.innerHTML = backLinkHtml(state.from);
     if (state.prev) render(state.prev);
   });
 }

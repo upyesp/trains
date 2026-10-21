@@ -22,7 +22,13 @@ import type {
   Platform,
   Service,
 } from '../lib/types';
+import { renderKeepingFocus } from './render-focus';
 import { initCombobox } from './combobox';
+
+/** "8 departures" / "no departures" — phrasing for polite announcements. */
+function countPhrase(n: number, noun: string): string {
+  return n === 0 ? `no ${noun}s` : `${n} ${noun}${n === 1 ? '' : 's'}`;
+}
 
 const LOADING_ROW = '<li class="board-msg">Loading live board…</li>';
 const EMPTY_ROW = '<li class="board-msg">No services in the next two hours.</li>';
@@ -122,14 +128,25 @@ export function initBoard(root: HTMLElement): void {
   // navigation), announce it once the combobox has resolved the station name
   // into the input — the reload replaced the old in-page announcement.
   let filterRestorePending = initialCallsAt !== null;
+  // Announcement discipline (ADR-0002): confirm the FIRST load with a polite
+  // one-shot ("Live board loaded — 8 departures."), keep routine ticks silent,
+  // and announce only the RISING edge of an outage (repeats stay silent until
+  // the board recovers).
+  let loadAnnounced = false;
+  let wasError = false;
 
   function render(board: Board): void {
-    els.body.innerHTML =
+    // Focus-preserving + change-skipping: an identical tick leaves the DOM
+    // (and everyone's reading position) untouched; a changed board restores
+    // focus to the row the user was on (render-focus.ts, WCAG 2.4.3).
+    renderKeepingFocus(
+      els.body,
       board.services.length === 0
         ? state.callsAt
           ? FILTERED_EMPTY_ROW
           : EMPTY_ROW
-        : boardRowsHtml(board.services, state.crs, true, state.kind);
+        : boardRowsHtml(board.services, state.crs, true, state.kind),
+    );
   }
 
   function setAsAt(epochMs: number, stale: boolean): void {
@@ -141,9 +158,11 @@ export function initBoard(root: HTMLElement): void {
   }
 
   function announce(messages: string[]): void {
-    els.announcer.textContent = '';
+    // Empty tick: leave the region alone — wiping it would destroy the last
+    // announcement for AT users who navigate to the region afterwards.
     if (messages.length === 0) return;
     // Clear-then-write on next frame so a repeated message re-announces.
+    els.announcer.textContent = '';
     requestAnimationFrame(() => {
       els.announcer.textContent = messages.join(' ');
     });
@@ -166,10 +185,18 @@ export function initBoard(root: HTMLElement): void {
   async function refresh(): Promise<void> {
     const resp = await fetchBoard(state.kind);
     if (resp) {
-      const messages =
+      wasError = false;
+      const messages: string[] =
         state.prev && sameKey(state.prev, resp.board)
           ? describeChanges(diffBoards(state.prev, resp.board), resp.board)
           : [];
+      if (!loadAnnounced) {
+        loadAnnounced = true;
+        const noun = state.kind === 'arrivals' ? 'arrival' : 'departure';
+        messages.unshift(
+          `Live board loaded — ${countPhrase(resp.board.services.length, noun)}.`,
+        );
+      }
       if (resp.board.kind !== state.kind) {
         state.kind = resp.board.kind;
         syncTabUi();
@@ -192,8 +219,12 @@ export function initBoard(root: HTMLElement): void {
       // Worker unreachable but we have a prior board - keep it, mark stale.
       setAsAt(state.asAtMs, true);
     } else {
-      els.body.innerHTML = ERROR_ROW;
+      renderKeepingFocus(els.body, ERROR_ROW);
       els.staleNote.textContent = '';
+      if (!wasError) {
+        wasError = true;
+        announce(["Couldn't load the live board — we'll keep trying."]);
+      }
     }
   }
 

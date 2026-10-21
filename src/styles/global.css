@@ -550,14 +550,14 @@ h1.station {
   color: var(--fg-mute);
 }
 .combo-filter .combo-field { position: relative; display: block; }
-.combo-filter input { padding-right: 2.5rem; }
+.combo-filter input { padding-right: 3rem; }
 .combo-clear {
   position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
   display: inline-flex; align-items: center; justify-content: center;
-  width: 26px; height: 26px; padding: 0; line-height: 1;
+  width: 32px; height: 32px; padding: 0; line-height: 1;
   border: 1px solid var(--border); border-radius: 50%;
   background: var(--surface-2); color: var(--fg-mute);
-  font-size: .85rem; cursor: pointer;
+  font-size: .9rem; cursor: pointer;
 }
 .combo-clear:hover { background: var(--border); color: var(--fg); }
 .combo-clear:focus-visible { outline: 2px solid var(--fg); outline-offset: 1px; }

@@ -16,6 +16,7 @@ import { boardRowsHtml, describeChanges, sameKey } from '../lib/board-html';
 import { diffBoards } from '../lib/diff';
 import { fmtClock } from '../lib/format';
 import { onStationCrsReady, stationLabel, stationNameByCrs } from '../lib/station-codes';
+import { renderKeepingFocus } from './render-focus';
 import type { Board, BoardKind, BoardResponse, MeaningfulChange } from '../lib/types';
 
 const REFRESH_MS = 30_000;
@@ -101,10 +102,17 @@ export function initPlatform(root: HTMLElement): void {
     asAtMs: null,
   };
 
+  // Announcement state: confirm the FIRST successful load, stay silent on
+  // routine ticks, announce only the RISING edge of an outage (ADR-0002).
+  let loadAnnounced = false;
+  let wasError = false;
+
   function announce(messages: string[]): void {
-    els.announcer.textContent = '';
+    // Empty tick: leave the region alone — wiping it would destroy the last
+    // announcement for AT users who navigate to the region afterwards.
     if (messages.length === 0) return;
     // Clear-then-write on next frame so a repeated message re-announces.
+    els.announcer.textContent = '';
     requestAnimationFrame(() => {
       els.announcer.textContent = messages.join(' ');
     });
@@ -126,21 +134,30 @@ export function initPlatform(root: HTMLElement): void {
   async function refresh(): Promise<void> {
     const resp = await fetchBoard(state.kind);
     if (resp) {
+      wasError = false;
       const filtered = usesPlatform(resp.board, state.platform);
-      const messages =
+      const messages: string[] =
         state.prev && sameKey(state.prev, resp.board)
           ? describeChanges(
               changesForPlatform(diffBoards(state.prev, resp.board), resp.board, state.platform),
               filtered,
             )
           : [];
+      if (!loadAnnounced) {
+        loadAnnounced = true;
+        const n = filtered.services.length;
+        messages.unshift(`Platform board loaded — ${n === 0 ? 'no services' : `${n} ${n === 1 ? 'service' : 'services'}`}.`);
+      }
       // Follow the board if it comes back as the other kind mid-flight.
       if (resp.board.kind !== state.kind) {
         state.kind = resp.board.kind;
         syncTabUi();
       }
-      els.body.innerHTML =
-        filtered.services.length === 0 ? EMPTY_ROW : boardRowsHtml(filtered.services, state.crs, false);
+      // Focus-preserving + change-skipping (render-focus.ts, WCAG 2.4.3).
+      renderKeepingFocus(
+        els.body,
+        filtered.services.length === 0 ? EMPTY_ROW : boardRowsHtml(filtered.services, state.crs, false),
+      );
       updateBoardLabel();
       state.prev = resp.board;
       state.asAtMs = resp.asAt;
@@ -155,8 +172,13 @@ export function initPlatform(root: HTMLElement): void {
       els.asOf.textContent = `As of ${fmtClock(state.asAtMs)}`;
       els.staleNote.textContent = `Couldn\u2019t reach live data — showing the board from ${fmtClock(state.asAtMs)}.`;
     } else {
-      els.body.innerHTML = ERROR_ROW;
+      renderKeepingFocus(els.body, ERROR_ROW);
       els.staleNote.textContent = '';
+      // Rising edge only: repeat failures of the same outage stay silent.
+      if (!wasError) {
+        wasError = true;
+        announce(["Couldn't load the live board — we'll keep trying."]);
+      }
     }
   }
 

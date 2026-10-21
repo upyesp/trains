@@ -22,7 +22,12 @@ const mock = import.meta.env.PUBLIC_MOCK === 'true';
   <div class="station-meta">
     <span class="live"><span class="dot" aria-hidden="true"></span> Live</span>
     <span class="clock-wrap">
-      <span class="clock" id="clock" aria-label="Current UK time">--:--:--</span>
+      <!-- Spoken label lives INSIDE the wrap: a bare aria-label on a <span>
+           (role: generic) is ignored by most screen readers; text is not.
+           The ticking value is not a live region, so it is only read when
+           the user browses here. -->
+      <span class="visually-hidden">Current UK time: </span>
+      <span class="clock" id="clock">--:--:--</span>
       <span class="clock-tz" aria-hidden="true">UK</span>
     </span>
   </div>
