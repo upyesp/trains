@@ -4,6 +4,9 @@
 // service/calling-points, platform board) in BOTH colour themes, plus a
 // mobile-viewport pass on the calling-points page. Prints violations grouped
 // by rule so repeats across pages are easy to see.
+import { existsSync, readdirSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import puppeteer from 'puppeteer';
 import axePkg from 'axe-core';
 const axeSource = axePkg.source;
@@ -11,11 +14,46 @@ const axeSource = axePkg.source;
 const BASE = process.env.AXE_BASE || 'https://www.viptrains.org.uk';
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 
+/** Chrome binary, most-specific first: CHROME_BIN, then the newest
+ *  Chrome-for-Testing in puppeteer's browser cache (any OS layout — `npx
+ *  puppeteer browsers install chrome` populates it), else the legacy
+ *  Playwright path from the original dev box. */
+function findChrome() {
+  if (process.env.CHROME_BIN && existsSync(process.env.CHROME_BIN)) {
+    return process.env.CHROME_BIN;
+  }
+  try {
+    const root = join(homedir(), '.cache', 'puppeteer', 'chrome');
+    for (const platform of readdirSync(root).sort().reverse()) {
+      // Cache layout: chrome/<platform>-<version>/<binary-layout>/… (older
+      // releases had a version dir between the two; handle both).
+      for (const mid of readdirSync(join(root, platform)).sort().reverse()) {
+        const bases = [
+          join(root, platform, mid),
+          join(root, platform),
+        ];
+        for (const base of bases) {
+          for (const rel of [
+            ['chrome-mac-arm64', 'Google Chrome for Testing.app', 'Contents', 'MacOS', 'Google Chrome for Testing'],
+            ['chrome-mac-x64', 'Google Chrome for Testing.app', 'Contents', 'MacOS', 'Google Chrome for Testing'],
+            ['chrome-linux64', 'chrome'],
+            ['chrome-win64', 'chrome.exe'],
+          ]) {
+            const p = join(base, ...rel);
+            if (existsSync(p)) return p;
+          }
+        }
+      }
+    }
+  } catch {
+    // no puppeteer cache — fall through
+  }
+  return '/home/pete/.cache/ms-playwright/chromium-1234/chrome-linux64/chrome';
+}
+
 const browser = await puppeteer.launch({
   headless: 'new',
-  // Reuse the Playwright-cached Chromium (the puppeteer download is blocked
-  // on this box); any recent Chromium works for axe.
-  executablePath: process.env.CHROME_BIN || '/home/pete/.cache/ms-playwright/chromium-1234/chrome-linux64/chrome',
+  executablePath: findChrome(),
   args: ['--no-sandbox'],
 });
 
