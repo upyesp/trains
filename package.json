@@ -16,7 +16,8 @@
     "audit:vo": "node scripts/voiceover-audit.mjs --vo",
     "worker:dev": "wrangler dev",
     "worker:deploy": "wrangler deploy",
-    "audit:matrix": "node scripts/vo-announcement-matrix.mjs"
+    "audit:matrix": "node scripts/vo-announcement-matrix.mjs",
+    "audit:vo-safari": "node scripts/vo-audit-safari.mjs"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260727.1",
