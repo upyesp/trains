@@ -126,12 +126,28 @@ function startServer() {
 // into a dimmed "remote controlled" alert-dialog and in every configuration
 // tested they killed GuidePup's phrase capture.
 
-const osa = (script, args = []) =>
+// Default timeout so a stuck AppleEvent (e.g. a sheet blocking a quit) can
+// never hang an unattended run; individual calls may override.
+const osa = (script, args = [], opts = {}) =>
   new Promise((res, rej) =>
-    execFile('/usr/bin/osascript', ['-e', script, ...args], (err, stdout, stderr) =>
+    execFile('/usr/bin/osascript', ['-e', script, ...args], { timeout: 20000, ...opts }, (err, stdout, stderr) =>
       err ? rej(new Error(String(stderr || err.message).trim())) : res(stdout.trim()),
     ),
   );
+
+const safariRunning = () =>
+  new Promise((res) => execFile('/usr/bin/pgrep', ['-x', 'Safari'], (err) => res(!err)));
+
+// SIGTERM fallback for a quit blocked by a sheet (close-confirmation,
+// crash-recovery) — an unattended run must always get through.
+const forceQuitSafari = async () => {
+  await new Promise((res) => execFile('/usr/bin/pkill', ['-x', 'Safari'], () => res()));
+  for (let i = 0; i < 10; i++) {
+    if (!(await safariRunning())) return true;
+    await sleep(500);
+  }
+  return false;
+};
 
 class Safari {
   static async launch() {
@@ -140,14 +156,13 @@ class Safari {
     // pre-created empty document becomes VO's web document instead, and the
     // real page (tab #2) never announces. `open -a URL` in goto() then
     // launches Safari WITH our page as document #1.
-    const running = await new Promise((res) => execFile('/usr/bin/pgrep', ['-x', 'Safari'], (err) => res(!err)));
-    if (running) {
+    if (await safariRunning()) {
       try { await osa('tell application "Safari" to quit'); } catch { /* ignore */ }
       for (let i = 0; i < 20; i++) {
-        const still = await new Promise((res) => execFile('/usr/bin/pgrep', ['-x', 'Safari'], (err) => res(!err)));
-        if (!still) break;
+        if (!(await safariRunning())) break;
         await sleep(500);
       }
+      if (await safariRunning()) await forceQuitSafari();
     }
   }
   static async goto(url) {
@@ -171,7 +186,17 @@ class Safari {
     }
     return false;
   }
-  static async quit() { /* leave Safari open */ }
+  static async quit() {
+    // Leave NO artifacts: an unattended run must return the desktop to how
+    // it found it — the fixture page must not stay open on the user's
+    // machine. Quit, poll for exit, SIGTERM if a sheet blocks the quit.
+    try { await osa('tell application "Safari" to quit'); } catch { /* not running */ }
+    for (let i = 0; i < 20; i++) {
+      if (!(await safariRunning())) return true;
+      await sleep(500);
+    }
+    return await forceQuitSafari();
+  }
 }
 
 // Give the page DOM focus: set URL leaves it in Safari's chrome and WebKit
@@ -398,7 +423,8 @@ async function main() {
       full.slice(-20).forEach((p) => console.log('   ·', p.trim().slice(0, 90)));
     } catch (e) { console.log(`  log dump failed: ${e.message}`); }
     try { await voiceOver.stop(); } catch { /* already off */ }
-    await Safari.quit();
+    const quitOk = await Safari.quit();
+    console.log(`  cleanup: Safari quit=${quitOk ? 'ok' : 'FAILED — still running'}`);
     server.close();
   }
 }
