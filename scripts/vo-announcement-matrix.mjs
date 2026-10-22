@@ -134,6 +134,7 @@ async function attempt(n) {
   });
   const heard = [];
   const seen = new Set();
+  let savedVol = null; // pre-clamp system output volume, restored in finally
   // Continuous capture — the whole point (see header).
   const poll = setInterval(() => {
     voiceOver.lastSpokenPhrase().then((p) => {
@@ -143,6 +144,19 @@ async function attempt(n) {
   }, 250);
   try {
     await voiceOver.start();
+    // Pete: barely-audible VO during automated runs (capture is text-based).
+    // VO has no scriptable cursor volume — clamp the system output volume
+    // instead (see the note in voiceover-audit.mjs).
+    try {
+      const cur = await new Promise((res, rej) => execFile('/usr/bin/osascript',
+        ['-e', 'output volume of (get volume settings)'], (e, o) => e ? rej(e) : res(String(o).trim())));
+      if (Number(cur) > 5) {
+        savedVol = cur;
+        await new Promise((res) => execFile('/usr/bin/osascript',
+          ['-e', 'set volume output volume 5'], () => res()));
+        console.log(`  info: system output volume ${cur} -> 5`);
+      }
+    } catch { /* best effort */ }
     await sleep(800);
     await activateChrome();
     await sleep(1200);
@@ -181,6 +195,11 @@ async function attempt(n) {
     clearInterval(poll);
     try { await voiceOver.stop(); } catch { /* already off */ }
     await browser.close();
+    if (savedVol !== null) {
+      await new Promise((res) => execFile('/usr/bin/osascript',
+        ['-e', `set volume output volume ${savedVol}`], () => res()));
+      console.log(`  cleanup: system output volume restored to ${savedVol}`);
+    }
   }
 }
 

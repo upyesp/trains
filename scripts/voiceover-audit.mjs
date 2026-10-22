@@ -56,7 +56,41 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { execFile } from 'node:child_process';
 import puppeteer from 'puppeteer';
+
+// Pete: VO speech must be barely audible during automated runs — capture is
+// text-based. VoiceOver exposes NO scriptable cursor volume (its AppleScript
+// dictionary has no such property — `set the volume of the vo cursor` fails
+// with -1700), so clamp the SYSTEM output volume instead: VO speech tracks
+// it. The pre-run value is restored in runVo()'s finally. Override with
+// VO_SYSTEM_VOLUME=n (n of 100).
+const VO_SYSTEM_VOLUME = Number(process.env.VO_SYSTEM_VOLUME ?? 5);
+let savedSystemVolume = null; // null = nothing to restore
+const osaOut = (script) =>
+  new Promise((res, rej) =>
+    execFile('/usr/bin/osascript', ['-e', script], (err, stdout, stderr) =>
+      err ? rej(new Error(String(stderr || err.message).trim())) : res(stdout.trim()),
+    ),
+  );
+async function setVoVolume() {
+  try {
+    const cur = Number(await osaOut('output volume of (get volume settings)'));
+    if (cur <= VO_SYSTEM_VOLUME) return; // already quiet — leave it
+    savedSystemVolume = cur;
+    await osaOut(`set volume output volume ${VO_SYSTEM_VOLUME}`);
+    console.log(`  info: system output volume ${cur} -> ${VO_SYSTEM_VOLUME} for the run`);
+  } catch (e) { console.log(`  info: system volume clamp failed: ${e.message}`); }
+}
+async function restoreSystemVolume() {
+  if (savedSystemVolume === null) return;
+  const to = savedSystemVolume;
+  savedSystemVolume = null;
+  try {
+    await osaOut(`set volume output volume ${to}`);
+    console.log(`  cleanup: system output volume restored to ${to}`);
+  } catch { /* best effort */ }
+}
 
 const BASE = process.env.AXE_BASE || 'https://www.viptrains.org.uk';
 const VO = process.argv.includes('--vo');
@@ -328,6 +362,7 @@ async function runVo() {
     // And Chrome must be genuinely frontmost (bringToFront races Terminal),
     // or the keystrokes land in whatever app is active instead of the page.
     await voiceOver.start();
+    await setVoVolume();
     await sleep(800);
     await activateChrome();
     await sleep(1200);
@@ -617,6 +652,7 @@ async function runVo() {
     } catch { /* already off */ }
     try { await voiceOver.stop(); } catch { /* already off */ }
     await browser.close();
+    await restoreSystemVolume();
   }
 }
 

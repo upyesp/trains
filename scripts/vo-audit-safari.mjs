@@ -135,6 +135,35 @@ const osa = (script, args = [], opts = {}) =>
     ),
   );
 
+// Pete: VO speech must be barely audible during automated runs — capture is
+// text-based (spokenPhraseLog). VoiceOver exposes NO scriptable cursor
+// volume (its AppleScript dictionary has no such property — the old
+// `set the volume of the vo cursor` line always failed with -1700, the
+// error swallowed by >/dev/null), so clamp the SYSTEM output volume
+// instead: VO speech tracks it. The pre-run value is restored in main()'s
+// finally; the wrapper traps EXIT as a second restore. Override with
+// VO_SYSTEM_VOLUME=n (n of 100).
+const VO_SYSTEM_VOLUME = Number(process.env.VO_SYSTEM_VOLUME ?? 5);
+let savedSystemVolume = null; // null = nothing to restore
+async function clampSystemVolume() {
+  try {
+    const cur = Number(await osa('output volume of (get volume settings)'));
+    if (cur <= VO_SYSTEM_VOLUME) return; // already quiet — leave it
+    savedSystemVolume = cur;
+    await osa(`set volume output volume ${VO_SYSTEM_VOLUME}`);
+    console.log(`  info: system output volume ${cur} -> ${VO_SYSTEM_VOLUME} for the run`);
+  } catch (e) { console.log(`  info: system volume clamp failed: ${e.message}`); }
+}
+async function restoreSystemVolume() {
+  if (savedSystemVolume === null) return;
+  const to = savedSystemVolume;
+  savedSystemVolume = null;
+  try {
+    await osa(`set volume output volume ${to}`);
+    console.log(`  cleanup: system output volume restored to ${to}`);
+  } catch { /* best effort */ }
+}
+
 const safariRunning = () =>
   new Promise((res) => execFile('/usr/bin/pgrep', ['-x', 'Safari'], (err) => res(!err)));
 
@@ -261,6 +290,7 @@ async function main() {
   try {
     await Safari.launch();
     await voiceOver.start();
+    await clampSystemVolume();
     await sleep(800);
     await activateSafari();
     await sleep(1500);    poller = setInterval(() => {
@@ -424,6 +454,7 @@ async function main() {
     } catch (e) { console.log(`  log dump failed: ${e.message}`); }
     try { await voiceOver.stop(); } catch { /* already off */ }
     const quitOk = await Safari.quit();
+    await restoreSystemVolume();
     console.log(`  cleanup: Safari quit=${quitOk ? 'ok' : 'FAILED — still running'}`);
     server.close();
   }
