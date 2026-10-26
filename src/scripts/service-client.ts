@@ -190,10 +190,10 @@ export function stopCard(p: CallingPoint, isLast: boolean): string {
 function stopsHtml(d: ServiceDetail, boardIdx: number, earlierOpen: boolean): string {
   // A real <ol> (the route is an ordered sequence) of stop cards, mirroring the
   // station board's .svc rows so the two lists share a visual language. The
-  // "Calling Points" heading — visually hidden since the share button replaced
-  // it as the visible text before the share icon — is the list's accessible
-  // name (aria-labelledby); each value also carries a visually-hidden field
-  // label for screen readers.
+  // "Calling Points" heading — visually hidden; the share button that took its
+  // visible spot now lives below the header's "Next stop" line — is the list's
+  // accessible name (aria-labelledby); each value also carries a
+  // visually-hidden field label for screen readers.
   //
   // When the user came from a mid-journey station, the list STARTS at that
   // station; earlier stops sit in a separate list collapsed behind a
@@ -397,15 +397,21 @@ function headerHtml(d: ServiceDetail, boardIdx: number): string {
   } else {
     title = `${boardTime ? `${boardTime} ` : ''}${esc(boardName)} to ${esc(stationLabel(d.destination))}`;
   }
+    // The share control sits below the "Next stop" line rather than at the top
+    // of the section: users reported never noticing it in its old spot beside
+    // the hidden heading. It renders unconditionally (with no next stop it
+    // simply moves up a line) and stays inside .service-head, where render()'s
+    // refresh focus-restore finds it. The visually-hidden "Calling Points"
+    // heading keeps its place ahead of the stop list it names.
   return `
     <h1 class="service-title" id="service-title">${title}</h1>
-    <div class="stops-heading">
-      <h2 class="stops-title visually-hidden" id="stops-title">Calling Points</h2>
+    <h2 class="stops-title visually-hidden" id="stops-title">Calling Points</h2>
+    ${status ? `<p class="service-sub">Status${boardIdx > 0 ? ` (from ${esc(d.origin)})` : ''}: ${status}${completionSuffix}</p>` : ''}
+    ${next ? `<p class="service-sub">Next stop: ${esc(stationLabel(next.station))}${next.noReport ? ' — no live data' : `, expected ${fmtTime(next.expectedTime)}`}</p>` : ''}
+    <div class="share-row">
       <button type="button" class="share-btn">Share this train${shareIconHtml()}</button>
       <span class="share-status" role="status" aria-live="polite"></span>
     </div>
-    ${status ? `<p class="service-sub">Status${boardIdx > 0 ? ` (from ${esc(d.origin)})` : ''}: ${status}${completionSuffix}</p>` : ''}
-    ${next ? `<p class="service-sub">Next stop: ${esc(stationLabel(next.station))}${next.noReport ? ' — no live data' : `, expected ${fmtTime(next.expectedTime)}`}</p>` : ''}
     ${sub ? `<p class="service-sub">${sub}</p>` : ''}
     ${date ? `<p class="service-date">${date}</p>` : ''}
     ${chip ? `<p class="service-status">${chip}</p>` : ''}`;

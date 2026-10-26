@@ -64,6 +64,7 @@
   --board-line: var(--line);
   --board-chip-bg: var(--panel);
   --board-chip-border: var(--line-strong);
+  --board-accent: var(--amber);       /* accent boundaries (share button) — same amber family as --board-delay, ~10:1 on ink (AAA) */
   --board-delay: var(--amber);        /* ~10:1 on ink (AAA) */
   --board-delay-border: rgba(240,180,41,.5);
   --board-cancel: var(--red-bright);  /* ~7.5:1 on ink (AAA) */
@@ -96,6 +97,7 @@
   --board-line: #e2e6ec;
   --board-chip-bg: #f1f3f6;
   --board-chip-border: #d4d9e0;
+  --board-accent: #92400e;          /* dark amber on white — bright amber is <2:1 here (same doctrine as --board-delay, ~7.1:1 AAA) */
   --board-delay: #92400e;           /* ~7.1:1 on white (AAA) */
   --board-delay-border: rgba(146,64,14,.42);
   --board-cancel: #9b1c1c;          /* ~8.1:1 on white (AAA) */
@@ -781,27 +783,34 @@ h1.service-title {
 .service-sub, .service-date { margin: 0 0 4px; color: var(--fg-mute); font-size: .9rem; }
 .service-status { margin: 10px 0 0; }
 
-/* "Calling Points" heading + share button, between the route title and the
-   operator line. flex-wrap lets the (transient) share-status message drop to a
-   second line on a narrow phone instead of overflowing. */
-.stops-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 6px 0 10px; }
+/* The share button's row: it lives BELOW the header's "Next stop" line, not at
+   the top of the section — users reported never noticing it in its old spot
+   beside the (hidden) "Calling Points" heading. flex-wrap lets the (transient)
+   share-status message drop to a second line on a narrow phone instead of
+   overflowing. */
+.share-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 8px 0 10px; }
 h2.stops-title {
   font-family: var(--sans); font-weight: 600; font-size: 1rem;
   margin: 0; line-height: 1; color: var(--board-fg);
 }
 /* The visible share control: text label + icon in one button (the whole thing
-   is clickable). Type matches the heading style it sits beside. Min 30px tall
-   keeps it close to the old icon-only button's size and above the 24px WCAG
-   target minimum. */
+   is clickable). 30% bigger than its original size — the same bump on the
+   label, the icon and the padding/gap/min-height (40px stays well above the
+   24px WCAG target minimum) — so it reads as a deliberate action. Its
+   boundary is the board's accent colour: bright amber on the dark board, the
+   dark amber that survives on white once the light theme flips
+   (--board-accent, ~7:1). */
 .share-btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  min-height: 30px; padding: 4px 10px;
-  border: 1px solid var(--board-line); border-radius: 7px;
+  display: inline-flex; align-items: center; gap: 8px;
+  min-height: 40px; padding: 5px 13px;
+  border: 2px solid var(--board-accent); border-radius: 9px;
   background: transparent; color: var(--board-fg); cursor: pointer;
-  font-family: var(--sans); font-weight: 600; font-size: 1rem; line-height: 1;
+  font-family: var(--sans); font-weight: 600; font-size: 1.3rem; line-height: 1;
 }
 .share-btn:hover { background: var(--board-chip-bg); }
-.share-btn svg { display: block; }
+/* em sizing (overriding the SVG width/height attributes) keeps the icon locked
+   to the label at the original 17:16 icon-to-text ratio as the button scales. */
+.share-btn svg { display: block; width: 1.0625em; height: 1.0625em; }
 .share-status { font-size: .82rem; color: var(--board-mute); line-height: 1.2; }
 
 /* "See earlier calling points" disclosure (service page): a quiet outline
